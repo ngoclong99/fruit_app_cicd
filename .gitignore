@@ -1,0 +1,36 @@
+# ── Dependencies ──────────────────────────────────────
+node_modules/
+*/node_modules/
+
+# ── Secrets — TUYỆT ĐỐI KHÔNG commit ─────────────────
+.env
+.env.local
+.env.production
+*/.env
+*/.env.local
+
+# ── Build output ───────────────────────────────────────
+dist/
+build/
+*/dist/
+*/build/
+
+# ── Logs ───────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── OS ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ─────────────────────────────────────────────────
+.vscode/
+.idea/
+
+# ── SSH / AWS keys ─────────────────────────────────────
+*.pem
+*.key
+.aws/
+
+# ── Test / Coverage ────────────────────────────────────
+coverage/
