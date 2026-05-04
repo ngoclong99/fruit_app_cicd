@@ -14,6 +14,9 @@ dist/
 build/
 */dist/
 */build/
+# TypeScript compile output lạc vào src/
+frontend/src/**/*.js
+backend/src/**/*.js
 
 # ── Logs ───────────────────────────────────────────────
 *.log

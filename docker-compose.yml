@@ -1,0 +1,72 @@
+services:
+
+  # ─── PostgreSQL ───────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: myapp-db
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      POSTGRES_DB:       ${DB_NAME}
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   # expose ra host để dùng pgAdmin / DBeaver (5433 tránh conflict với local PG)
+    networks: [app-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Node.js Backend ──────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: myapp-backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: db      # tên service = hostname trong Docker network
+      DB_PORT: 5432
+      NODE_ENV: development
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [app-net]
+    volumes:
+      - ./backend/src:/app/src   # hot-reload khi dev (nếu dùng nodemon)
+
+  # ─── React Frontend ───────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: myapp-frontend
+    restart: unless-stopped
+    depends_on: [backend]
+    networks: [app-net]
+
+  # ─── Nginx reverse proxy ──────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: myapp-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [frontend, backend]
+    networks: [app-net]
+
+volumes:
+  postgres_data:
+
+networks:
+  app-net:
+    driver: bridge

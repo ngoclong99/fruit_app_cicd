@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hướng dẫn Docker · Nginx · AWS · CI/CD</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 32px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-bottom: 3px solid #2563eb;
+      margin-bottom: 48px;
+    }
+    .cover h1 { font-size: 2.2rem; color: #2563eb; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #1d4ed8;
+      border-radius: 9999px;
+      padding: 2px 12px;
+      font-size: 0.8rem;
+      margin: 4px 2px;
+    }
+
+    /* ── TOC ── */
+    .toc {
+      background: #f8fafc;
+      border-left: 4px solid #2563eb;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+      border-radius: 0 8px 8px 0;
+    }
+    .toc h2 { font-size: 1rem; color: #2563eb; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #2563eb; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── Headings ── */
+    h1 { font-size: 1.8rem; color: #1e3a8a; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #1d4ed8; margin: 32px 0 10px; border-bottom: 1px solid #bfdbfe; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #1e40af; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+
+    /* ── Code blocks ── */
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 16px 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+    code {
+      background: #e0f2fe;
+      color: #0369a1;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; }
+
+    /* ── Comment colour inside pre ── */
+    .cmt  { color: #94a3b8; }
+    .kw   { color: #93c5fd; }
+    .str  { color: #86efac; }
+    .num  { color: #fca5a5; }
+
+    /* ── Callout boxes ── */
+    .info, .warn, .tip, .danger {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .info   { border-color: #3b82f6; background: #eff6ff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong {
+      display: block; margin-bottom: 4px;
+    }
+    .info strong   { color: #1d4ed8; }
+    .warn strong   { color: #b45309; }
+    .tip strong    { color: #065f46; }
+    .danger strong { color: #b91c1c; }
+
+    /* ── Architecture diagram ── */
+    .arch {
+      border: 2px solid #bfdbfe;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      background: #f0f9ff;
+      font-family: monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    /* ── Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.88rem;
+    }
+    th {
+      background: #1d4ed8;
+      color: #fff;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    tr:hover td { background: #eff6ff; }
+
+    /* ── Section divider ── */
+    hr { border: none; border-top: 2px dashed #bfdbfe; margin: 40px 0; }
+
+    /* ── Flow steps ── */
+    .steps { counter-reset: step; }
+    .step {
+      counter-increment: step;
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: flex-start;
+    }
+    .step-num {
+      min-width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #2563eb;
+      color: #fff;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+    .step-body { flex: 1; }
+    .step-body h4 { margin-top: 4px; color: #1e3a8a; }
+
+    /* ── Print ── */
+    @media print {
+      body { padding: 16px; font-size: 12px; }
+      .cover { padding: 30px 0 20px; }
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.2rem; }
+      pre { font-size: 0.75rem; }
+      a { color: #1d4ed8; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     COVER
+═════════════════════════════════════════════════ -->
+<div class="cover">
+  <h1>Docker · Nginx · AWS · CI/CD</h1>
+  <p>Hướng dẫn đầy đủ từ A→Z cho người mới bắt đầu</p>
+  <br/>
+  <span class="badge">Docker</span>
+  <span class="badge">Docker Compose</span>
+  <span class="badge">Nginx</span>
+  <span class="badge">AWS EC2</span>
+  <span class="badge">ECR</span>
+  <span class="badge">GitHub Actions</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">Dựa trên project thực tế: React + Node.js + PostgreSQL</p>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     TABLE OF CONTENTS
+═════════════════════════════════════════════════ -->
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#s1">Docker là gì? Tại sao cần dùng?</a></li>
+    <li><a href="#s1b">Thứ tự tạo ra các thành phần trong Docker</a></li>
+    <li><a href="#s2">Kiến trúc tổng thể của project</a></li>
+    <li><a href="#s3">Dockerfile — Cách đóng gói ứng dụng</a></li>
+    <li><a href="#s4">Docker Compose — Chạy nhiều container cùng lúc</a></li>
+    <li><a href="#s5">Nginx — Reverse Proxy là gì?</a></li>
+    <li><a href="#s6">Biến môi trường (.env)</a></li>
+    <li><a href="#s7">Luồng phát triển trên máy local</a></li>
+    <li><a href="#s8">AWS EC2 + ECR — Deploy lên Cloud</a></li>
+    <li><a href="#s9">CI/CD với GitHub Actions</a></li>
+    <li><a href="#s10">Bảng tổng hợp lệnh Docker hay dùng</a></li>
+    <li><a href="#s11">Sơ đồ luồng hoạt động toàn hệ thống</a></li>
+    <li><a href="#s12">Câu hỏi thường gặp (FAQ)</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     1. DOCKER LÀ GÌ
+═════════════════════════════════════════════════ -->
+<h1 id="s1">1. Docker là gì? Tại sao cần dùng?</h1>
+
+<p>
+  <strong>Docker</strong> là công cụ giúp đóng gói ứng dụng cùng toàn bộ thứ nó cần (Node.js, thư viện, config…)
+  vào một "hộp" gọi là <strong>container</strong>. Container chạy giống hệt nhau trên mọi máy —
+  máy dev, máy bạn đồng nghiệp, hay server AWS.
+</p>
+
+<div class="info">
+  <strong>🔑 Vấn đề Docker giải quyết</strong>
+  Trước đây hay xảy ra tình trạng "chạy trên máy tôi được mà máy khác không chạy" vì khác phiên bản Node, khác OS,
+  thiếu thư viện… Docker đóng gói tất cả lại, đảm bảo môi trường luôn nhất quán.
+</div>
+
+<h2>Các khái niệm cốt lõi</h2>
+<table>
+  <tr><th>Khái niệm</th><th>Giải thích đơn giản</th><th>Ví dụ thực tế</th></tr>
+  <tr><td><strong>Image</strong></td><td>Bản thiết kế (blueprint) — chỉ đọc, không thay đổi</td><td><code>node:20-alpine</code>, <code>nginx:1.25</code></td></tr>
+  <tr><td><strong>Container</strong></td><td>Instance đang chạy từ Image — giống như "bật" blueprint lên</td><td><code>myapp-backend</code> đang chạy</td></tr>
+  <tr><td><strong>Dockerfile</strong></td><td>Tập lệnh để Docker xây dựng Image của bạn</td><td><code>backend/Dockerfile</code></td></tr>
+  <tr><td><strong>Volume</strong></td><td>Nơi lưu dữ liệu bền vững (không mất khi container tắt)</td><td><code>postgres_data</code></td></tr>
+  <tr><td><strong>Network</strong></td><td>Mạng ảo để các container nói chuyện với nhau</td><td><code>app-net</code></td></tr>
+  <tr><td><strong>Registry</strong></td><td>Kho chứa Images (giống GitHub nhưng cho Docker)</td><td>Docker Hub, AWS ECR</td></tr>
+</table>
+
+<div class="arch">
+  ┌─────────────────────────────────────────────────────┐
+  │                  Máy tính / Server                  │
+  │                                                     │
+  │   ┌──────────────┐      ┌──────────────────────┐   │
+  │   │   Dockerfile │─────▶│   Docker Image        │   │
+  │   │  (blueprint) │      │ (gói đã build xong)   │   │
+  │   └──────────────┘      └──────────┬───────────┘   │
+  │                                    │  docker run    │
+  │                          ┌─────────▼───────────┐   │
+  │                          │   Container          │   │
+  │                          │  (đang chạy thật)    │   │
+  │                          └─────────────────────┘   │
+  └─────────────────────────────────────────────────────┘
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     1b. THỨ TỰ TẠO RA CÁC THÀNH PHẦN
+═════════════════════════════════════════════════ -->
+<h1 id="s1b">1.2 Thứ tự tạo ra các thành phần trong Docker</h1>
+
+<p>Các thành phần Docker không xuất hiện cùng lúc — chúng được tạo ra theo một thứ tự nhất định, mỗi thứ phụ thuộc vào thứ trước đó.</p>
+
+<h2>Bức tranh tổng thể</h2>
+
+<div class="arch">
+Dockerfile  ──build──▶  Image  ──run──▶  Container
+                                              │
+                                         sử dụng
+                                         ┌────┴─────┐
+                                       Volume    Network
+                                    (tạo trước) (tạo trước)
+</div>
+
+<h2>BƯỚC 1 — Bạn viết Dockerfile (thủ công)</h2>
+
+<p>Đây là file <strong>bạn tự viết</strong>, chưa có gì xảy ra trong Docker cả. Dockerfile chỉ là <strong>tập lệnh hướng dẫn</strong> — giống như công thức nấu ăn, chưa nấu.</p>
+
+<pre><code><span class="kw">FROM</span> <span class="str">node:20-alpine</span>      <span class="cmt"># dùng nguyên liệu gì</span>
+<span class="kw">WORKDIR</span> /app             <span class="cmt"># chuẩn bị bếp ở đâu</span>
+<span class="kw">COPY</span> package*.json ./    <span class="cmt"># chuẩn bị nguyên liệu</span>
+<span class="kw">RUN</span> npm install          <span class="cmt"># bước chế biến</span>
+<span class="kw">COPY</span> . .
+<span class="kw">CMD</span> ["node", "index.js"] <span class="cmt"># món ăn xong, serve thế nào</span>
+</code></pre>
+
+<h2>BƯỚC 2 — <code>docker build</code> → tạo ra Image</h2>
+
+<p>Docker đọc Dockerfile từ trên xuống, mỗi lệnh tạo ra một <strong>layer</strong> (lớp). Các layer được xếp chồng lên nhau thành Image hoàn chỉnh.</p>
+
+<div class="arch">
+Layer 5: CMD ["node", "index.js"]        ← mỏng nhất
+Layer 4: COPY . .
+Layer 3: RUN npm install                 ← lớn nhất (node_modules)
+Layer 2: COPY package.json
+Layer 1: FROM node:20-alpine             ← base layer
+─────────────────────────────────────────
+         Image hoàn chỉnh (~180MB)       read-only, bất biến
+</div>
+
+<div class="info">
+  <strong>🔑 Image là bất biến (read-only)</strong>
+  Sau khi build xong không thể sửa. Muốn thay đổi phải build lại Image mới.
+</div>
+
+<h3>Layer caching — Tại sao COPY package.json trước?</h3>
+<pre><code><span class="cmt"># Lần build 1: build hết tất cả — mất 60 giây</span>
+FROM → COPY pkg.json → RUN npm install → COPY src → CMD
+
+<span class="cmt"># Lần build 2: chỉ sửa code, không đổi package.json</span>
+FROM [cache] → COPY pkg.json [cache] → npm install [cache] → COPY src [BUILD LẠI] → CMD
+<span class="cmt"># → chỉ mất 3 giây vì 3 layer đầu được cache lại!</span>
+</code></pre>
+
+<h2>BƯỚC 3 — <code>docker run</code> → tạo ra Container</h2>
+
+<p>Docker lấy Image (read-only) và thêm một <strong>writable layer</strong> lên trên. Mọi thay đổi trong quá trình chạy (log, file tạm…) đều ghi vào layer này.</p>
+
+<div class="arch">
+┌──────────────────────────────────────────┐
+│   Writable Layer (container layer)       │ ← CHỈ tồn tại khi container sống
+├──────────────────────────────────────────┤
+│   Layer 5: CMD                           │
+│   Layer 4: COPY . .                      │ ← Image layers (read-only)
+│   Layer 3: RUN npm install               │    dùng chung nếu nhiều container
+│   Layer 2: COPY package.json             │    cùng Image
+│   Layer 1: FROM node:20-alpine           │
+└──────────────────────────────────────────┘
+</div>
+
+<div class="warn">
+  <strong>⚠️ Container bị xóa → writable layer mất hết</strong>
+  Image vẫn còn nguyên — có thể tạo container mới từ cùng Image đó. Để dữ liệu không mất, phải dùng Volume.
+</div>
+
+<h2>BƯỚC 4 — Volume — tạo trước hoặc cùng lúc với container</h2>
+
+<p>Mục đích: <strong>dữ liệu không bị mất</strong> khi container bị xóa. Có 2 loại:</p>
+
+<table>
+  <tr><th></th><th>Named Volume</th><th>Bind Mount</th></tr>
+  <tr><td>Cú pháp</td><td><code>postgres_data:/var/lib/...</code></td><td><code>./backend/src:/app/src</code></td></tr>
+  <tr><td>Ai quản lý</td><td>Docker tự quản lý vị trí lưu</td><td>Bạn chỉ đường dẫn cụ thể trên máy</td></tr>
+  <tr><td>Dùng cho</td><td>Database, uploads — dữ liệu quan trọng</td><td>Hot-reload khi dev — sửa code thấy ngay</td></tr>
+  <tr><td>Tồn tại</td><td>Đến khi <code>docker compose down -v</code></td><td>Thư mục trên máy host luôn còn</td></tr>
+</table>
+
+<p><strong>Timeline của Volume:</strong></p>
+<pre><code>docker compose up lần 1
+    │
+    ├─▶ Docker kiểm tra: volume "postgres_data" tồn tại chưa?
+    │       Chưa có → TẠO MỚI volume (rỗng)
+    │       Đã có   → DÙNG LẠI (dữ liệu cũ vẫn còn!)
+    │
+    └─▶ Gắn volume vào container tại /var/lib/postgresql/data
+
+docker compose down      <span class="cmt"># container bị xóa, volume VẪN CÒN</span>
+docker compose down -v   <span class="cmt"># container + volume đều bị xóa (mất data!)</span>
+</code></pre>
+
+<h2>BƯỚC 5 — Network — tạo trước container</h2>
+
+<p>Network được tạo <strong>trước container</strong> để các container biết cách tìm nhau qua tên service.</p>
+
+<pre><code>docker compose up
+    │
+    ├─▶ 1. Tạo Network "app-net"            (nếu chưa có)
+    ├─▶ 2. Tạo Volume  "postgres_data"      (nếu chưa có)
+    ├─▶ 3. Tạo container "db"       ──────▶ gắn vào app-net, hostname = "db"
+    ├─▶ 4. Tạo container "backend"  ──────▶ gắn vào app-net, hostname = "backend"
+    ├─▶ 5. Tạo container "frontend" ──────▶ gắn vào app-net
+    └─▶ 6. Tạo container "nginx"    ──────▶ gắn vào app-net
+</code></pre>
+
+<div class="tip">
+  <strong>✅ Vì sao DB_HOST=db hoạt động được?</strong>
+  Tên service trong <code>docker-compose.yml</code> chính là hostname trong Docker network.
+  Docker có DNS nội bộ tự resolve tên đó thành IP container tương ứng — bạn không cần biết IP thật.
+</div>
+
+<h2>Tổng hợp — Timeline đầy đủ</h2>
+
+<table>
+  <tr><th>Bạn làm</th><th>Docker tạo ra</th><th>Tồn tại đến khi</th></tr>
+  <tr><td>Viết Dockerfile</td><td>(chưa có gì)</td><td>—</td></tr>
+  <tr><td><code>docker build</code></td><td><strong>IMAGE</strong> (các layer, read-only)</td><td><code>docker rmi</code> xóa</td></tr>
+  <tr><td><code>docker compose up</code></td><td><strong>NETWORK</strong></td><td><code>docker compose down</code></td></tr>
+  <tr><td><code>docker compose up</code></td><td><strong>VOLUME</strong> (named)</td><td><code>docker compose down -v</code></td></tr>
+  <tr><td><code>docker compose up</code></td><td><strong>CONTAINER</strong> + writable layer</td><td><code>docker compose down</code></td></tr>
+</table>
+
+<h2>Ví dụ thực tế với project của bạn</h2>
+
+<pre><code><span class="cmt"># Lần 1: chạy lần đầu tiên</span>
+docker compose up --build
+<span class="cmt">#  1. Build Image "myapp-backend"  từ ./backend/Dockerfile</span>
+<span class="cmt">#  2. Build Image "myapp-frontend" từ ./frontend/Dockerfile</span>
+<span class="cmt">#  3. Pull  Image "postgres:15-alpine" từ Docker Hub (nếu chưa có)</span>
+<span class="cmt">#  4. Pull  Image "nginx:1.25-alpine"  từ Docker Hub (nếu chưa có)</span>
+<span class="cmt">#  5. Tạo Network "deploy-1_app-net"</span>
+<span class="cmt">#  6. Tạo Volume  "deploy-1_postgres_data"</span>
+<span class="cmt">#  7. Tạo Container "myapp-db"       → chờ healthy</span>
+<span class="cmt">#  8. Tạo Container "myapp-backend"  → chờ db healthy xong mới tạo</span>
+<span class="cmt">#  9. Tạo Container "myapp-frontend"</span>
+<span class="cmt"># 10. Tạo Container "myapp-nginx"</span>
+
+<span class="cmt"># Xóa hết data Docker rồi chạy lại</span>
+docker compose up --build
+<span class="cmt">#  → Tất cả được tạo lại từ đầu ✅</span>
+<span class="cmt">#  → Image build lại từ source code ✅</span>
+<span class="cmt">#  → Volume mới tạo = DB rỗng hoàn toàn ⚠️</span>
+</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     2. KIẾN TRÚC TỔNG THỂ
+═════════════════════════════════════════════════ -->
+<h1 id="s2">2. Kiến trúc tổng thể của project</h1>
+
+<p>Project này gồm 4 service chạy trong Docker, kết nối qua một mạng nội bộ <code>app-net</code>:</p>
+
+<div class="arch">
+           Internet (browser)
+                 │
+                 ▼ port 80 / 443
+        ┌────────────────┐
+        │   Nginx        │  ← "cổng chính" — phân luồng request
+        │  (reverse      │
+        │   proxy)       │
+        └───────┬────────┘
+                │
+        ┌───────┴──────────────────────┐
+        │           app-net (Docker network)           │
+        │                                              │
+        │  ┌─────────────┐  ┌──────────────────────┐  │
+        │  │  Frontend   │  │      Backend          │  │
+        │  │  (React +   │  │  (Node.js / Express)  │  │
+        │  │   Nginx)    │  │    port 5000          │  │
+        │  └─────────────┘  └──────────┬────────────┘  │
+        │                              │               │
+        │                   ┌──────────▼────────────┐  │
+        │                   │    PostgreSQL DB        │  │
+        │                   │    port 5432           │  │
+        │                   └───────────────────────┘  │
+        └──────────────────────────────────────────────┘
+</div>
+
+<h3>Tại sao lại có 2 Nginx?</h3>
+<ul>
+  <li><strong>Nginx trong Frontend container</strong>: Chỉ phục vụ file tĩnh (HTML/CSS/JS) của React</li>
+  <li><strong>Nginx service bên ngoài</strong>: Đóng vai "cổng bảo vệ" — nhận request từ internet, quyết định chuyển đến frontend hay backend</li>
+</ul>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     3. DOCKERFILE
+═════════════════════════════════════════════════ -->
+<h1 id="s3">3. Dockerfile — Cách đóng gói ứng dụng</h1>
+
+<p>
+  <strong>Dockerfile</strong> là file chứa các lệnh để Docker xây dựng Image.
+  Đọc từ trên xuống dưới, mỗi dòng tạo ra một "layer" (lớp) của Image.
+</p>
+
+<h2>3.1 Multi-stage Build là gì?</h2>
+<p>
+  Cả 2 Dockerfile trong project đều dùng kỹ thuật <strong>multi-stage build</strong>:
+  build code ở stage 1 (có đầy đủ dev tools), rồi chỉ copy kết quả sang stage 2 (nhỏ gọn hơn nhiều).
+</p>
+
+<div class="arch">
+  Stage 1 (builder)              Stage 2 (production)
+  ┌─────────────────────┐        ┌──────────────────────┐
+  │ node:20-alpine      │        │ node:20-alpine (nhỏ) │
+  │ npm install         │        │ chỉ chứa:            │
+  │ npm run build       │───────▶│  - /app/dist         │
+  │ (tạo ra /app/dist)  │  copy  │  - node_modules prod │
+  │                     │        │  - không có src/     │
+  └─────────────────────┘        └──────────────────────┘
+  ~800MB                         ~180MB  ✓ nhẹ hơn 4x
+</div>
+
+<h2>3.2 Backend Dockerfile — Giải thích từng dòng</h2>
+
+<pre><code><span class="cmt"># ═══ STAGE 1: Build ═══</span>
+<span class="kw">FROM</span> <span class="str">node:20-alpine</span> AS builder
+<span class="cmt"># Dùng Node 20, alpine = bản Linux tối giản (~5MB, tiết kiệm dung lượng)</span>
+<span class="cmt"># "AS builder" đặt tên stage này để stage sau tham chiếu</span>
+
+<span class="kw">WORKDIR</span> /app
+<span class="cmt"># Mọi lệnh sau đây chạy trong thư mục /app bên trong container</span>
+
+<span class="kw">COPY</span> package*.json ./
+<span class="cmt"># Copy package.json + package-lock.json VÀO TRƯỚC (trick tối ưu cache)</span>
+<span class="cmt"># Nếu package.json không đổi, Docker dùng cache — npm install chạy lại nhanh hơn</span>
+
+<span class="kw">RUN</span> npm ci
+<span class="cmt"># npm ci = cài đúng phiên bản trong lock file (khác npm install có thể update)</span>
+
+<span class="kw">COPY</span> . .
+<span class="cmt"># Copy toàn bộ source code vào /app</span>
+
+<span class="kw">RUN</span> npm run build
+<span class="cmt"># Compile TypeScript → JavaScript vào thư mục /app/dist</span>
+
+<span class="cmt"># ═══ STAGE 2: Production image ═══</span>
+<span class="kw">FROM</span> <span class="str">node:20-alpine</span> AS production
+<span class="cmt"># Bắt đầu một Image HOÀN TOÀN MỚI — không có source code, không có dev tools</span>
+
+<span class="kw">RUN</span> apk add --no-cache curl dumb-init
+<span class="cmt"># curl: dùng trong HEALTHCHECK để kiểm tra server còn sống không</span>
+<span class="cmt"># dumb-init: xử lý signal đúng cách (Ctrl+C, docker stop…)</span>
+
+<span class="kw">RUN</span> addgroup -g 1001 nodejs && adduser -S -u 1001 -G nodejs nodejs
+<span class="cmt"># Tạo user "nodejs" KHÔNG phải root — bảo mật: nếu bị hack, attacker không có quyền root</span>
+
+<span class="kw">WORKDIR</span> /app
+<span class="kw">COPY</span> package*.json ./
+<span class="kw">RUN</span> npm ci --omit=dev && npm cache clean --force
+<span class="cmt"># --omit=dev = bỏ qua devDependencies (jest, nodemon…) — Image nhỏ hơn</span>
+
+<span class="kw">COPY</span> --from=builder --chown=nodejs:nodejs /app/dist ./dist
+<span class="cmt"># Lấy thư mục /app/dist từ stage "builder" copy sang đây</span>
+<span class="cmt"># --chown=nodejs:nodejs: đổi chủ sở hữu file sang user nodejs</span>
+
+<span class="kw">USER</span> nodejs
+<span class="cmt"># Từ đây mọi lệnh chạy với quyền user nodejs (không phải root)</span>
+
+<span class="kw">EXPOSE</span> 5000
+<span class="cmt"># Khai báo container lắng nghe port 5000 (chỉ là metadata, không mở port thật)</span>
+
+<span class="kw">HEALTHCHECK</span> --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:5000/api/health || exit 1
+<span class="cmt"># Docker tự động gọi URL này mỗi 30s để biết container còn hoạt động không</span>
+<span class="cmt"># Nếu fail 3 lần liên tiếp → container bị đánh dấu "unhealthy"</span>
+
+<span class="kw">ENTRYPOINT</span> ["dumb-init", "--"]
+<span class="kw">CMD</span> ["node", "dist/index.js"]
+<span class="cmt"># Lệnh khởi động: dumb-init node dist/index.js</span>
+</code></pre>
+
+<h2>3.3 Frontend Dockerfile — Giải thích từng dòng</h2>
+
+<pre><code><span class="cmt"># ═══ STAGE 1: Build React ═══</span>
+<span class="kw">FROM</span> <span class="str">node:20-slim</span> AS builder
+<span class="kw">WORKDIR</span> /app
+<span class="kw">COPY</span> package*.json ./
+<span class="kw">RUN</span> npm install --ignore-optional
+
+<span class="kw">COPY</span> . .
+
+<span class="kw">ARG</span> VITE_API_URL
+<span class="kw">ENV</span> VITE_API_URL=$VITE_API_URL
+<span class="cmt"># ARG: nhận tham số từ bên ngoài lúc build (docker build --build-arg VITE_API_URL=...)</span>
+<span class="cmt"># ENV: biến môi trường trong container — Vite sẽ nhúng giá trị này vào bundle JS</span>
+<span class="cmt"># QUAN TRỌNG: VITE_ prefix → Vite mới đưa vào bundle (bảo mật: không dùng cho secret)</span>
+
+<span class="kw">RUN</span> npm run build
+<span class="cmt"># Tạo ra /app/dist với index.html + các file JS/CSS đã bundle</span>
+
+<span class="cmt"># ═══ STAGE 2: Serve bằng Nginx ═══</span>
+<span class="kw">FROM</span> <span class="str">nginx:1.25-alpine</span> AS production
+<span class="cmt"># Dùng Nginx để serve file tĩnh — nhẹ hơn chạy Node để serve</span>
+
+<span class="kw">COPY</span> nginx.conf /etc/nginx/conf.d/default.conf
+<span class="cmt"># Dùng config Nginx tùy chỉnh của mình (xem mục 5)</span>
+
+<span class="kw">RUN</span> rm -rf /usr/share/nginx/html/*
+<span class="kw">COPY</span> --from=builder /app/dist /usr/share/nginx/html
+<span class="cmt"># Copy file build React vào thư mục Nginx serve</span>
+
+<span class="kw">EXPOSE</span> 80
+<span class="kw">CMD</span> ["nginx", "-g", "daemon off;"]
+<span class="cmt"># "daemon off;" = Nginx chạy foreground (không chạy ngầm)</span>
+<span class="cmt"># Docker yêu cầu process chính phải chạy foreground để biết container còn sống</span>
+</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     4. DOCKER COMPOSE
+═════════════════════════════════════════════════ -->
+<h1 id="s4">4. Docker Compose — Chạy nhiều container cùng lúc</h1>
+
+<p>
+  Thay vì gõ lệnh <code>docker run</code> dài dòng cho từng container,
+  <strong>Docker Compose</strong> cho phép định nghĩa tất cả trong file YAML và bật/tắt một lệnh.
+</p>
+
+<h2>4.1 Giải thích docker-compose.yml (môi trường dev)</h2>
+
+<pre><code>services:
+
+  <span class="cmt"># ─── PostgreSQL ───────────────────────────────────────</span>
+  db:
+    image: postgres:15-alpine      <span class="cmt"># Pull image từ Docker Hub — không cần build</span>
+    container_name: myapp-db       <span class="cmt"># Tên cố định (thay vì tên ngẫu nhiên)</span>
+    restart: unless-stopped        <span class="cmt"># Tự khởi động lại nếu crash (trừ khi tắt thủ công)</span>
+    env_file: ./backend/.env       <span class="cmt"># Đọc biến môi trường từ file .env</span>
+    environment:
+      POSTGRES_DB:       ${DB_NAME}    <span class="cmt"># ${} = đọc từ .env hoặc shell</span>
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      <span class="cmt"># postgres_data = volume có tên (Docker quản lý)</span>
+      <span class="cmt"># /var/lib/postgresql/data = nơi Postgres lưu dữ liệu trong container</span>
+      <span class="cmt"># Khi container bị xóa, dữ liệu VẪN CÒN trong volume</span>
+    ports:
+      - "5433:5432"   <span class="cmt"># host:container — dùng 5433 tránh conflict với Postgres local</span>
+    networks: [app-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s    <span class="cmt"># Kiểm tra mỗi 10 giây</span>
+      timeout: 5s      <span class="cmt"># Chờ tối đa 5 giây</span>
+      retries: 5       <span class="cmt"># Thử lại 5 lần trước khi báo unhealthy</span>
+
+  <span class="cmt"># ─── Node.js Backend ──────────────────────────────────</span>
+  backend:
+    build:
+      context: ./backend     <span class="cmt"># Thư mục chứa Dockerfile và source code</span>
+      dockerfile: Dockerfile  <span class="cmt"># Tên file Dockerfile</span>
+    environment:
+      DB_HOST: db      <span class="cmt"># "db" = tên service phía trên = hostname trong Docker network</span>
+      DB_PORT: 5432    <span class="cmt"># Port nội bộ (không phải 5433 — đó là port ra ngoài host)</span>
+      NODE_ENV: development
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy   <span class="cmt"># Chờ db healthy TRƯỚC khi khởi động backend</span>
+    volumes:
+      - ./backend/src:/app/src   <span class="cmt"># Bind mount: sửa code local → ngay lập tức phản ánh vào container</span>
+
+  <span class="cmt"># ─── React Frontend ───────────────────────────────────</span>
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on: [backend]   <span class="cmt"># Khởi động sau backend</span>
+    networks: [app-net]
+    <span class="cmt"># Không expose port ra ngoài — chỉ Nginx mới nhận request</span>
+
+  <span class="cmt"># ─── Nginx reverse proxy ──────────────────────────────</span>
+  nginx:
+    image: nginx:1.25-alpine   <span class="cmt"># Không build — dùng image có sẵn</span>
+    ports:
+      - "80:80"   <span class="cmt"># Chỉ Nginx mới expose ra internet (port 80)</span>
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      <span class="cmt"># :ro = read-only, container không sửa được file config</span>
+    depends_on: [frontend, backend]
+
+volumes:
+  postgres_data:   <span class="cmt"># Khai báo named volume — Docker quản lý, không bị xóa theo container</span>
+
+networks:
+  app-net:
+    driver: bridge   <span class="cmt"># Bridge network: các container cùng network nói chuyện được với nhau</span>
+</code></pre>
+
+<h2>4.2 So sánh dev vs production</h2>
+<table>
+  <tr><th>Điểm khác biệt</th><th>docker-compose.yml (dev)</th><th>docker-compose.prod.yml (prod)</th></tr>
+  <tr><td>Nguồn Image</td><td><code>build: ./backend</code> (build từ source)</td><td><code>image: ECR_URL/myapp-backend:tag</code> (pull từ ECR)</td></tr>
+  <tr><td>Port DB</td><td><code>5433:5432</code> (expose ra host để debug)</td><td>Không expose (bảo mật)</td></tr>
+  <tr><td>NODE_ENV</td><td><code>development</code></td><td><code>production</code></td></tr>
+  <tr><td>Volumes backend</td><td>Bind mount <code>./src</code> (hot-reload)</td><td>Không mount (dùng code trong Image)</td></tr>
+  <tr><td>Port Nginx</td><td>80</td><td>80 + 443 (HTTPS)</td></tr>
+  <tr><td>restart</td><td><code>unless-stopped</code></td><td><code>always</code> (khởi động lại cả khi reboot server)</td></tr>
+</table>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     5. NGINX
+═════════════════════════════════════════════════ -->
+<h1 id="s5">5. Nginx — Reverse Proxy là gì?</h1>
+
+<h2>5.1 Khái niệm Reverse Proxy</h2>
+
+<div class="arch">
+  Client (browser)
+       │
+       │  GET /api/todos
+       │  GET /
+       ▼
+  ┌────────────────────────────────────────────┐
+  │              Nginx (port 80)               │
+  │                                            │
+  │  /api/*  ──────────────────▶  Backend:5000 │
+  │  /*  (còn lại)  ────────────▶  Frontend:80 │
+  └────────────────────────────────────────────┘
+</div>
+
+<p>
+  Nginx đứng giữa internet và các service nội bộ. Client không biết Backend đang ở đâu —
+  họ chỉ thấy Nginx. Điều này giúp:
+</p>
+<ul>
+  <li>Tập trung SSL (HTTPS) tại một chỗ</li>
+  <li>Load balancing (phân tải giữa nhiều instance)</li>
+  <li>Cache, compression</li>
+  <li>Ẩn cổng nội bộ (bảo mật)</li>
+</ul>
+
+<h2>5.2 nginx.conf trong Frontend container</h2>
+
+<pre><code>server {
+    listen 80;
+    root /usr/share/nginx/html;   <span class="cmt"># Thư mục chứa file React build</span>
+    index index.html;
+
+    <span class="cmt"># Bật nén gzip — file JS 300KB → 80KB khi truyền qua mạng</span>
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    <span class="cmt"># Cache file static 1 năm — Vite đã hash tên file (main.a1b2c3d4.js)</span>
+    <span class="cmt"># Khi code thay đổi, tên file đổi → browser tự tải file mới</span>
+    location ~* \.(js|css|png|jpg|jpeg|svg|ico|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public,immutable";
+        access_log off;
+    }
+
+    <span class="cmt"># SPA routing: React Router xử lý URL bằng JS</span>
+    <span class="cmt"># Khi user vào /about, không có file /about trên server</span>
+    <span class="cmt"># try_files thử tìm file đó → không có → trả index.html → React Router xử lý</span>
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    <span class="cmt"># Chặn truy cập file ẩn: .env, .git, .htaccess…</span>
+    location ~ /\. { deny all; }
+}
+</code></pre>
+
+<div class="warn">
+  <strong>⚠️ SPA Routing — Lỗi thường gặp</strong>
+  Nếu không có dòng <code>try_files $uri $uri/ /index.html</code>, user vào trực tiếp
+  <code>/about</code> (F5 hoặc copy URL) sẽ nhận lỗi 404 từ Nginx vì file
+  <code>/about</code> không tồn tại trên disk.
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     6. BIẾN MÔI TRƯỜNG
+═════════════════════════════════════════════════ -->
+<h1 id="s6">6. Biến môi trường (.env)</h1>
+
+<p>
+  File <code>.env</code> chứa thông tin nhạy cảm (mật khẩu DB, API key…).
+  <strong>Không bao giờ commit file .env lên Git!</strong>
+</p>
+
+<h2>Cấu trúc file .env (theo .env.example)</h2>
+<pre><code><span class="cmt"># Database</span>
+DB_NAME=myapp
+DB_USER=admin
+DB_PASSWORD=changeme_in_production   <span class="cmt"># Đổi khi deploy thật!</span>
+
+<span class="cmt"># Backend</span>
+PORT=5000
+NODE_ENV=production
+
+<span class="cmt"># Chỉ cần khi deploy production (docker-compose.prod.yml)</span>
+ECR_REGISTRY=123456789.dkr.ecr.ap-southeast-1.amazonaws.com
+IMAGE_TAG=latest
+</code></pre>
+
+<h2>Cách Docker đọc biến môi trường</h2>
+<table>
+  <tr><th>Cách</th><th>Ví dụ</th><th>Khi nào dùng</th></tr>
+  <tr><td><code>env_file</code></td><td><code>env_file: ./backend/.env</code></td><td>Nhiều biến, file riêng</td></tr>
+  <tr><td><code>environment:</code></td><td><code>DB_HOST: db</code></td><td>Vài biến, ghi thẳng vào compose</td></tr>
+  <tr><td><code>${VAR}</code></td><td><code>${DB_NAME}</code></td><td>Đọc từ shell hoặc .env cùng cấp compose</td></tr>
+  <tr><td><code>ARG</code> trong Dockerfile</td><td><code>--build-arg VITE_API_URL=...</code></td><td>Truyền vào lúc build Image</td></tr>
+</table>
+
+<div class="tip">
+  <strong>✅ Quy tắc bảo mật</strong>
+  File <code>.gitignore</code> nên có dòng <code>.env</code> và <code>*.env</code>.
+  Chỉ commit file <code>.env.example</code> (không có giá trị thật) để người khác biết cần những biến gì.
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     7. LUỒNG DEV LOCAL
+═════════════════════════════════════════════════ -->
+<h1 id="s7">7. Luồng phát triển trên máy local</h1>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h4>Clone project và tạo file .env</h4>
+      <pre><code>git clone &lt;repo-url&gt;
+cd Deploy-1
+cp .env.example backend/.env
+<span class="cmt"># Mở backend/.env và điền giá trị thật</span></code></pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h4>Khởi động chỉ DB trước để test kết nối</h4>
+      <pre><code>docker compose up -d db
+<span class="cmt"># -d = detached mode (chạy ngầm, không giữ terminal)</span>
+
+docker compose ps
+<span class="cmt"># Kiểm tra db có status "healthy" chưa (chờ ~30s)</span></code></pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h4>Build và chạy tất cả service</h4>
+      <pre><code>docker compose up --build
+<span class="cmt"># --build: buộc build lại Image (dùng lần đầu hoặc khi sửa Dockerfile)</span>
+<span class="cmt"># Lần sau chỉ cần: docker compose up</span></code></pre>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h4>Kiểm tra kết quả</h4>
+      <pre><code>docker compose ps         <span class="cmt"># Xem trạng thái tất cả container</span>
+docker compose logs -f    <span class="cmt"># Xem log realtime (-f = follow)</span>
+docker compose logs backend  <span class="cmt"># Log của riêng backend</span></code></pre>
+      <p>Mở trình duyệt: <code>http://localhost</code> (port 80 → Nginx)</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <h4>Tắt khi xong việc</h4>
+      <pre><code>docker compose down          <span class="cmt"># Dừng và xóa container (giữ volumes)</span>
+docker compose down -v       <span class="cmt"># Xóa cả volumes (mất data DB!)</span></code></pre>
+    </div>
+  </div>
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     8. AWS
+═════════════════════════════════════════════════ -->
+<h1 id="s8">8. AWS EC2 + ECR — Deploy lên Cloud</h1>
+
+<h2>8.1 Các dịch vụ AWS cần dùng</h2>
+<table>
+  <tr><th>Dịch vụ</th><th>Tương đương</th><th>Vai trò trong project</th></tr>
+  <tr><td><strong>EC2</strong></td><td>Máy chủ ảo thuê của AWS</td><td>Chạy Docker Compose production</td></tr>
+  <tr><td><strong>ECR</strong></td><td>Docker Hub của AWS</td><td>Lưu trữ Images đã build</td></tr>
+  <tr><td><strong>IAM</strong></td><td>Quản lý quyền truy cập</td><td>Cấp quyền cho GitHub Actions push ECR</td></tr>
+  <tr><td><strong>Security Group</strong></td><td>Firewall của EC2</td><td>Cho phép port 80, 443, 22</td></tr>
+</table>
+
+<h2>8.2 Luồng deploy lên AWS</h2>
+
+<div class="arch">
+  Developer                  GitHub            AWS ECR           AWS EC2
+      │                         │                  │                │
+      │  git push origin main   │                  │                │
+      │────────────────────────▶│                  │                │
+      │                         │                  │                │
+      │              GitHub Actions bắt đầu chạy  │                │
+      │                         │  docker build    │                │
+      │                         │  docker push ───▶│                │
+      │                         │  (push Image lên ECR)             │
+      │                         │                  │                │
+      │                         │  SSH vào EC2 ───────────────────▶│
+      │                         │                  │  docker pull   │
+      │                         │                  │◀───────────────│
+      │                         │                  │  (lấy Image mới)│
+      │                         │                  │                │
+      │                         │                  │  docker compose│
+      │                         │                  │  up -d ────────│
+      │                         │                  │  (deploy xong!)│
+</div>
+
+<h2>8.3 Cài đặt EC2 lần đầu (manual)</h2>
+
+<pre><code><span class="cmt"># 1. SSH vào EC2</span>
+ssh -i key.pem ec2-user@&lt;EC2_PUBLIC_IP&gt;
+
+<span class="cmt"># 2. Cài Docker</span>
+sudo yum update -y
+sudo yum install -y docker git
+sudo service docker start
+sudo usermod -aG docker ec2-user
+newgrp docker
+
+<span class="cmt"># 3. Cài Docker Compose</span>
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+  -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+<span class="cmt"># 4. Cài AWS CLI (để pull ECR)</span>
+sudo yum install -y awscli
+
+<span class="cmt"># 5. Clone repo (chỉ cần file compose và config)</span>
+git clone &lt;repo-url&gt; ~/app
+cd ~/app
+cp .env.example backend/.env
+<span class="cmt"># Điền giá trị production vào .env</span>
+
+<span class="cmt"># 6. Login vào ECR</span>
+aws ecr get-login-password --region ap-southeast-1 | \
+  docker login --username AWS --password-stdin &lt;ECR_REGISTRY&gt;
+</code></pre>
+
+<h2>8.4 Giải thích docker-compose.prod.yml</h2>
+
+<p>Điểm khác quan trọng nhất so với dev:</p>
+
+<pre><code>backend:
+  image: ${ECR_REGISTRY}/myapp-backend:${IMAGE_TAG:-latest}
+  <span class="cmt"># Không BUILD từ source — dùng Image đã build sẵn trong ECR</span>
+  <span class="cmt"># ${IMAGE_TAG:-latest} = dùng biến IMAGE_TAG, nếu không có thì mặc định "latest"</span>
+  <span class="cmt"># Trong CI/CD, IMAGE_TAG thường là git commit SHA (e.g. abc1234)</span>
+  <span class="cmt"># → mỗi deploy có Image riêng, dễ rollback</span>
+</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     9. CI/CD GITHUB ACTIONS
+═════════════════════════════════════════════════ -->
+<h1 id="s9">9. CI/CD với GitHub Actions</h1>
+
+<h2>9.1 CI/CD là gì?</h2>
+<ul>
+  <li><strong>CI (Continuous Integration)</strong>: Mỗi lần push code → tự động test, build</li>
+  <li><strong>CD (Continuous Deployment)</strong>: Sau khi CI pass → tự động deploy lên server</li>
+</ul>
+<p>Kết quả: Code mới lên main → 5-10 phút sau đã live trên production — không cần thao tác thủ công.</p>
+
+<h2>9.2 File GitHub Actions (ví dụ đầy đủ)</h2>
+<p>Tạo file <code>.github/workflows/deploy.yml</code>:</p>
+
+<pre><code>name: Build and Deploy
+
+on:
+  push:
+    branches: [main]   <span class="cmt"># Chỉ chạy khi push lên branch main</span>
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest   <span class="cmt"># Chạy trên máy ảo Ubuntu của GitHub (miễn phí)</span>
+
+    steps:
+      <span class="cmt"># 1. Lấy source code</span>
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      <span class="cmt"># 2. Đăng nhập vào AWS</span>
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      <span class="cmt"># 3. Đăng nhập vào ECR</span>
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      <span class="cmt"># 4. Lấy git commit SHA làm tag Image (e.g. "abc1234")</span>
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      <span class="cmt"># 5. Build và push Backend Image</span>
+      - name: Build and push backend
+        run: |
+          docker build -t $ECR_REGISTRY/myapp-backend:$IMAGE_TAG ./backend
+          docker push $ECR_REGISTRY/myapp-backend:$IMAGE_TAG
+          docker tag  $ECR_REGISTRY/myapp-backend:$IMAGE_TAG \
+                      $ECR_REGISTRY/myapp-backend:latest
+
+      <span class="cmt"># 6. Build và push Frontend Image</span>
+      - name: Build and push frontend
+        run: |
+          docker build \
+            --build-arg VITE_API_URL=${{ secrets.VITE_API_URL }} \
+            -t $ECR_REGISTRY/myapp-frontend:$IMAGE_TAG \
+            ./frontend
+          docker push $ECR_REGISTRY/myapp-frontend:$IMAGE_TAG
+
+      <span class="cmt"># 7. SSH vào EC2, kéo Image mới, deploy</span>
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/app
+            export ECR_REGISTRY=${{ secrets.ECR_REGISTRY }}
+            export IMAGE_TAG=${{ env.IMAGE_TAG }}
+
+            <span class="cmt"># Login ECR từ EC2</span>
+            aws ecr get-login-password --region ap-southeast-1 | \
+              docker login --username AWS --password-stdin $ECR_REGISTRY
+
+            <span class="cmt"># Kéo Images mới nhất</span>
+            docker compose -f docker-compose.prod.yml pull
+
+            <span class="cmt"># Khởi động lại với Images mới (zero downtime với --no-deps)</span>
+            docker compose -f docker-compose.prod.yml up -d
+
+            <span class="cmt"># Dọn Images cũ (tiết kiệm disk)</span>
+            docker image prune -f
+</code></pre>
+
+<h2>9.3 GitHub Secrets cần tạo</h2>
+<p>Vào <strong>GitHub repo → Settings → Secrets and variables → Actions</strong> và thêm:</p>
+<table>
+  <tr><th>Secret name</th><th>Giá trị</th></tr>
+  <tr><td><code>AWS_ACCESS_KEY_ID</code></td><td>Access key của IAM user</td></tr>
+  <tr><td><code>AWS_SECRET_ACCESS_KEY</code></td><td>Secret key của IAM user</td></tr>
+  <tr><td><code>ECR_REGISTRY</code></td><td><code>123456789.dkr.ecr.ap-southeast-1.amazonaws.com</code></td></tr>
+  <tr><td><code>EC2_HOST</code></td><td>IP public của EC2</td></tr>
+  <tr><td><code>EC2_SSH_KEY</code></td><td>Nội dung file <code>.pem</code> (private key)</td></tr>
+  <tr><td><code>VITE_API_URL</code></td><td><code>https://yourdomain.com</code> hoặc IP EC2</td></tr>
+</table>
+
+<div class="danger">
+  <strong>🚨 Bảo mật Secrets</strong>
+  Không bao giờ paste Access Key trực tiếp trong code. GitHub Secrets được mã hóa và
+  không hiện thị trong log — an toàn để dùng.
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     10. BẢNG LỆNH
+═════════════════════════════════════════════════ -->
+<h1 id="s10">10. Bảng tổng hợp lệnh Docker hay dùng</h1>
+
+<h2>Docker cơ bản</h2>
+<table>
+  <tr><th>Lệnh</th><th>Ý nghĩa</th></tr>
+  <tr><td><code>docker ps</code></td><td>Xem container đang chạy</td></tr>
+  <tr><td><code>docker ps -a</code></td><td>Xem tất cả container (kể cả đã dừng)</td></tr>
+  <tr><td><code>docker images</code></td><td>Xem tất cả Image đang có</td></tr>
+  <tr><td><code>docker logs &lt;name&gt;</code></td><td>Xem log của container</td></tr>
+  <tr><td><code>docker logs -f &lt;name&gt;</code></td><td>Xem log realtime (Ctrl+C để thoát)</td></tr>
+  <tr><td><code>docker exec -it &lt;name&gt; sh</code></td><td>Vào bên trong container (shell)</td></tr>
+  <tr><td><code>docker stop &lt;name&gt;</code></td><td>Dừng container</td></tr>
+  <tr><td><code>docker rm &lt;name&gt;</code></td><td>Xóa container đã dừng</td></tr>
+  <tr><td><code>docker rmi &lt;image&gt;</code></td><td>Xóa Image</td></tr>
+  <tr><td><code>docker volume ls</code></td><td>Xem danh sách volume</td></tr>
+  <tr><td><code>docker network ls</code></td><td>Xem danh sách network</td></tr>
+  <tr><td><code>docker system prune</code></td><td>Dọn dẹp mọi thứ không dùng</td></tr>
+</table>
+
+<h2>Docker Compose</h2>
+<table>
+  <tr><th>Lệnh</th><th>Ý nghĩa</th></tr>
+  <tr><td><code>docker compose up</code></td><td>Khởi động tất cả service (foreground)</td></tr>
+  <tr><td><code>docker compose up -d</code></td><td>Khởi động tất cả service (background)</td></tr>
+  <tr><td><code>docker compose up --build</code></td><td>Build lại Image rồi khởi động</td></tr>
+  <tr><td><code>docker compose up -d db</code></td><td>Chỉ khởi động service "db"</td></tr>
+  <tr><td><code>docker compose down</code></td><td>Dừng và xóa container</td></tr>
+  <tr><td><code>docker compose down -v</code></td><td>Dừng, xóa container + volumes</td></tr>
+  <tr><td><code>docker compose ps</code></td><td>Trạng thái các service</td></tr>
+  <tr><td><code>docker compose logs -f</code></td><td>Xem log tất cả service realtime</td></tr>
+  <tr><td><code>docker compose logs -f backend</code></td><td>Log riêng của backend</td></tr>
+  <tr><td><code>docker compose exec backend sh</code></td><td>Vào trong container backend</td></tr>
+  <tr><td><code>docker compose restart nginx</code></td><td>Khởi động lại Nginx</td></tr>
+  <tr><td><code>docker compose pull</code></td><td>Pull Images mới nhất từ registry</td></tr>
+  <tr><td><code>docker compose -f docker-compose.prod.yml up -d</code></td><td>Dùng file compose khác</td></tr>
+</table>
+
+<h2>Build Image thủ công</h2>
+<pre><code><span class="cmt"># Build Image với tag</span>
+docker build -t myapp-backend:v1.0 ./backend
+
+<span class="cmt"># Build với build argument</span>
+docker build \
+  --build-arg VITE_API_URL=https://api.example.com \
+  -t myapp-frontend:latest \
+  ./frontend
+
+<span class="cmt"># Push lên ECR</span>
+docker tag myapp-backend:latest 123456.dkr.ecr.ap-southeast-1.amazonaws.com/myapp-backend:latest
+docker push 123456.dkr.ecr.ap-southeast-1.amazonaws.com/myapp-backend:latest
+</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     11. SƠ ĐỒ LUỒNG TOÀN HỆ THỐNG
+═════════════════════════════════════════════════ -->
+<h1 id="s11">11. Sơ đồ luồng hoạt động toàn hệ thống</h1>
+
+<h2>Luồng một request từ browser đến database</h2>
+
+<div class="arch">
+Browser: GET https://myapp.com/api/todos
+        │
+        ▼
+   [DNS] myapp.com → EC2 IP
+        │
+        ▼ port 443/80
+┌───────────────────────────────────────────────────────┐
+│                     EC2 Server                         │
+│                                                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │               Nginx (container)                  │  │
+│  │  Nhận request, check path:                       │  │
+│  │    /api/* → chuyển tiếp đến backend:5000         │  │
+│  │    /*     → chuyển tiếp đến frontend:80          │  │
+│  └──────────────┬───────────────────────────────────┘  │
+│                 │  /api/todos                           │
+│                 ▼                                       │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │          Backend (Node.js container)             │  │
+│  │  1. Nhận request từ Nginx                        │  │
+│  │  2. Xử lý business logic                        │  │
+│  │  3. Query database                              │  │
+│  └──────────────┬───────────────────────────────────┘  │
+│                 │  SELECT * FROM todos                  │
+│                 ▼                                       │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │        PostgreSQL (container)                    │  │
+│  │  Trả về dữ liệu                                  │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                        │
+│   [Tất cả container trong cùng Docker network app-net] │
+└───────────────────────────────────────────────────────┘
+        │
+        ▼
+Browser nhận response JSON [{"id":1,"title":"Buy milk"},...]
+</div>
+
+<h2>Luồng CI/CD đầy đủ</h2>
+
+<div class="arch">
+Developer                GitHub           GitHub Actions         AWS
+   │                       │                    │                │
+   │ git push main         │                    │                │
+   │──────────────────────▶│                    │                │
+   │                       │  trigger workflow  │                │
+   │                       │───────────────────▶│                │
+   │                       │                    │ 1. Checkout    │
+   │                       │                    │ 2. AWS login   │
+   │                       │                    │ 3. ECR login   │
+   │                       │                    │ 4. docker build│
+   │                       │                    │    backend     │
+   │                       │                    │ 5. docker build│
+   │                       │                    │    frontend    │
+   │                       │                    │ 6. docker push │──▶ ECR
+   │                       │                    │ 7. SSH to EC2 ─────────────▶ EC2
+   │                       │                    │                │ docker pull
+   │                       │                    │                │ docker compose up -d
+   │                       │                    │                │ (deploy xong!)
+   │                       │  workflow done     │                │
+   │                       │◀───────────────────│                │
+   │ notification          │                    │                │
+   │◀──────────────────────│                    │                │
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     12. FAQ
+═════════════════════════════════════════════════ -->
+<h1 id="s12">12. Câu hỏi thường gặp (FAQ)</h1>
+
+<h3>❓ Sự khác biệt giữa <code>docker compose up</code> và <code>docker compose up --build</code>?</h3>
+<p>
+  <code>up</code> dùng Image đã có sẵn (từ lần build trước).
+  <code>up --build</code> buộc build lại Image từ Dockerfile.
+  Dùng <code>--build</code> khi bạn sửa Dockerfile hoặc thêm dependency mới.
+</p>
+
+<h3>❓ Tại sao backend dùng DB_HOST là "db" chứ không phải "localhost"?</h3>
+<p>
+  Trong Docker network, mỗi service được truy cập bằng <strong>tên service</strong> (không phải localhost).
+  Backend container và DB container là 2 "máy" khác nhau — muốn kết nối phải dùng hostname
+  là tên service trong compose: <code>db</code>.
+</p>
+
+<h3>❓ Port 5433 vs 5432 — dùng khi nào?</h3>
+<ul>
+  <li><code>5432</code>: Port Postgres bên trong Docker network (backend dùng cái này)</li>
+  <li><code>5433</code>: Port trên máy host (bạn dùng pgAdmin/DBeaver kết nối DB để debug)</li>
+</ul>
+<p>Rule: <code>host_port:container_port</code> → <code>5433:5432</code></p>
+
+<h3>❓ <code>restart: unless-stopped</code> vs <code>restart: always</code>?</h3>
+<ul>
+  <li><code>unless-stopped</code>: Tự restart nếu crash, KHÔNG restart nếu bạn <code>docker stop</code> thủ công</li>
+  <li><code>always</code>: Luôn luôn restart, kể cả sau khi reboot server hoặc <code>docker stop</code></li>
+  <li>Production dùng <code>always</code> — server reboot sau update vẫn tự bật lại</li>
+</ul>
+
+<h3>❓ Volume bind mount vs named volume?</h3>
+<ul>
+  <li><strong>Bind mount</strong> (<code>./src:/app/src</code>): Link thẳng thư mục trên host vào container. Dùng khi dev để hot-reload.</li>
+  <li><strong>Named volume</strong> (<code>postgres_data:/var/lib/postgresql/data</code>): Docker quản lý, không phụ thuộc đường dẫn host. Dùng cho dữ liệu cần lưu bền vững.</li>
+</ul>
+
+<h3>❓ Khi nào cần rebuild Image?</h3>
+<ul>
+  <li>Thêm/xóa package trong <code>package.json</code></li>
+  <li>Sửa <code>Dockerfile</code></li>
+  <li>Thêm file config mới cần COPY vào Image</li>
+</ul>
+<p>Chỉ sửa code TypeScript/JavaScript? Không cần rebuild nếu đang dev với bind mount!</p>
+
+<h3>❓ Image tag "latest" có vấn đề gì?</h3>
+<p>
+  <code>:latest</code> không đảm bảo là phiên bản mới nhất — chỉ là tên tag mặc định.
+  Trong production, dùng tag cụ thể (git SHA: <code>abc1234</code>) để biết chính xác phiên bản nào đang chạy
+  và rollback dễ dàng bằng cách đổi tag.
+</p>
+
+<h3>❓ Cách rollback khi deploy lỗi?</h3>
+<pre><code><span class="cmt"># Trên EC2, đổi IMAGE_TAG về commit SHA cũ</span>
+export IMAGE_TAG=abc1234   <span class="cmt"># tag của phiên bản tốt</span>
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+</code></pre>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>Hướng dẫn Docker · Nginx · AWS · CI/CD</strong></p>
+  <p>Dựa trên project: React + Node.js + PostgreSQL + Docker Compose</p>
+  <p style="margin-top:8px;">
+    Để in/lưu PDF: nhấn <strong>Ctrl+P</strong> → chọn <strong>"Save as PDF"</strong> → Save
+  </p>
+</div>
+
+</body>
+</html>

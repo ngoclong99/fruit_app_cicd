@@ -6,7 +6,7 @@ interface Todo {
   done: boolean;
 }
 
-const API = '/todos';
+const API = '/api/todos';
 
 export default function App() {
   const [todos, setTodos] = useState<Todo[]>([]);
