@@ -210,7 +210,15 @@
     <li><a href="#s5">Nginx — Reverse Proxy là gì?</a></li>
     <li><a href="#s6">Biến môi trường (.env)</a></li>
     <li><a href="#s7">Luồng phát triển trên máy local</a></li>
-    <li><a href="#s8">AWS EC2 + ECR — Deploy lên Cloud</a></li>
+    <li><a href="#s8">AWS EC2 + ECR — Deploy lên Cloud</a>
+      <ol style="margin-top:4px;">
+        <li><a href="#s8">8.1 Các dịch vụ AWS cần dùng</a></li>
+        <li><a href="#s8">8.2 Luồng deploy lên AWS</a></li>
+        <li><a href="#s8">8.3 Chuẩn bị AWS (IAM + ECR + EC2)</a></li>
+        <li><a href="#s8">8.4 Cài đặt EC2 lần đầu</a></li>
+        <li><a href="#s8">8.5 Giải thích docker-compose.prod.yml</a></li>
+      </ol>
+    </li>
     <li><a href="#s9">CI/CD với GitHub Actions</a></li>
     <li><a href="#s10">Bảng tổng hợp lệnh Docker hay dùng</a></li>
     <li><a href="#s11">Sơ đồ luồng hoạt động toàn hệ thống</a></li>
@@ -897,38 +905,240 @@ docker compose down -v       <span class="cmt"># Xóa cả volumes (mất data D
       │                         │                  │  (deploy xong!)│
 </div>
 
-<h2>8.3 Cài đặt EC2 lần đầu (manual)</h2>
+<h2>8.3 Chuẩn bị AWS (làm 1 lần trước khi deploy lần đầu)</h2>
 
-<pre><code><span class="cmt"># 1. SSH vào EC2</span>
-ssh -i key.pem ec2-user@&lt;EC2_PUBLIC_IP&gt;
+<p>Thứ tự thực hiện trên AWS Console:</p>
 
-<span class="cmt"># 2. Cài Docker</span>
-sudo yum update -y
-sudo yum install -y docker git
-sudo service docker start
-sudo usermod -aG docker ec2-user
-newgrp docker
+<div class="steps">
 
-<span class="cmt"># 3. Cài Docker Compose</span>
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
-  -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h4>Tạo IAM User cho GitHub Actions (deploy-bot)</h4>
+      <p><strong>IAM → Users → Create user</strong></p>
+      <ul>
+        <li>Tên: <code>deploy-bot</code></li>
+        <li>Không cần Console access — chỉ cần Programmatic access</li>
+        <li>Sau khi tạo: <strong>Security credentials → Create access key</strong> → chọn <em>Application running outside AWS</em></li>
+        <li>Download CSV hoặc copy <code>Access Key ID</code> + <code>Secret Access Key</code> → lưu vào GitHub Secrets</li>
+      </ul>
+      <p>Tạo inline policy cho user này (<strong>Add permissions → Create inline policy → JSON</strong>):</p>
+      <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:PutImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "*"
+    }
+  ]
+}</code></pre>
+      <p>Tên policy: <code>ECRPushPull</code></p>
+    </div>
+  </div>
 
-<span class="cmt"># 4. Cài AWS CLI (để pull ECR)</span>
-sudo yum install -y awscli
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h4>Tạo IAM Role cho EC2 (để EC2 tự pull ECR)</h4>
+      <p><strong>IAM → Roles → Create role</strong></p>
+      <ul>
+        <li>Trusted entity: <strong>AWS service → EC2</strong></li>
+        <li>Gắn policy: <code>AmazonEC2ContainerRegistryReadOnly</code></li>
+        <li>Tên role: <code>ec2-ecr-pull-role</code></li>
+      </ul>
+      <div class="tip">
+        <strong>✅ Tại sao cần role này?</strong>
+        EC2 dùng role để xác thực với ECR mà không cần lưu AWS credentials trên server —
+        an toàn hơn nhiều so với lưu Access Key trên EC2.
+      </div>
+    </div>
+  </div>
 
-<span class="cmt"># 5. Clone repo (chỉ cần file compose và config)</span>
-git clone &lt;repo-url&gt; ~/app
-cd ~/app
-cp .env.example backend/.env
-<span class="cmt"># Điền giá trị production vào .env</span>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h4>Tạo ECR Repositories</h4>
+      <p><strong>ECR → Repositories → Create repository</strong> — tạo lần lượt 2 repo:</p>
+      <table>
+        <tr><th>Repository name</th><th>Visibility</th></tr>
+        <tr><td><code>myapp-backend</code></td><td>Private</td></tr>
+        <tr><td><code>myapp-frontend</code></td><td>Private</td></tr>
+      </table>
+      <p>Sau khi tạo xong, copy <strong>URI</strong> của repository (không phải tên):</p>
+      <pre><code>123456789012.dkr.ecr.ap-southeast-1.amazonaws.com</code></pre>
+      <p>Đây là giá trị của secret <code>ECR_REGISTRY</code> trong GitHub.</p>
+      <div class="warn">
+        <strong>⚠️ Chọn đúng Region</strong>
+        Tạo ECR và EC2 cùng một region (<code>ap-southeast-1</code>) để tránh phí transfer data giữa region.
+      </div>
 
-<span class="cmt"># 6. Login vào ECR</span>
-aws ecr get-login-password --region ap-southeast-1 | \
-  docker login --username AWS --password-stdin &lt;ECR_REGISTRY&gt;
+      <h4>Test push image lên ECR (chạy trên máy local)</h4>
+      <p>Sau khi tạo ECR xong, test ngay để chắc chắn IAM user có đủ quyền trước khi setup CI/CD:</p>
+      <div class="warn">
+        <strong>⚠️ Windows — Git Bash / MINGW64</strong>
+        Không dùng dấu <code>\</code> xuống dòng trong Git Bash — sẽ lỗi <code>syntax error near unexpected token 'newline'</code>.
+        Viết các lệnh pipe trên <strong>1 dòng duy nhất</strong> hoặc dùng <strong>PowerShell</strong> thay thế.
+      </div>
+      <pre><code><span class="cmt"># 1. Cài AWS CLI trên máy local nếu chưa có</span>
+<span class="cmt">#    Windows: https://awscli.amazonaws.com/AWSCLIV2.msi</span>
+<span class="cmt">#    Mac:     brew install awscli</span>
+
+<span class="cmt"># 2. Cấu hình credentials của IAM user deploy-bot</span>
+aws configure
+<span class="cmt"># AWS Access Key ID:     &lt;access key của deploy-bot&gt;</span>
+<span class="cmt"># AWS Secret Access Key: &lt;secret key của deploy-bot&gt;</span>
+<span class="cmt"># Default region:        ap-southeast-1</span>
+<span class="cmt"># Default output format: json</span>
+
+<span class="cmt"># 3. Login Docker vào ECR</span>
+<span class="cmt"># Chạy 1 dòng duy nhất (tránh lỗi newline trên Git Bash / Windows)</span>
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin &lt;ECR_REGISTRY&gt;
+<span class="cmt"># Kết quả mong đợi: Login Succeeded</span>
+
+<span class="cmt"># 4. Build thử image backend</span>
+docker build -t myapp-backend:test ./backend
+
+<span class="cmt"># 5. Tag image với ECR URI</span>
+docker tag myapp-backend:test &lt;ECR_REGISTRY&gt;/myapp-backend:test
+
+<span class="cmt"># 6. Push lên ECR</span>
+<span class="cmt"># Nếu dùng Git Bash / Windows — tránh dùng \ xuống dòng, viết 1 dòng</span>
+docker push &lt;ECR_REGISTRY&gt;/myapp-backend:test
+<span class="cmt"># Kết quả mong đợi: thấy các layer được push lên</span>
+
+<span class="cmt"># 7. Kiểm tra trên AWS Console</span>
+<span class="cmt">#    ECR → Repositories → myapp-backend → Images</span>
+<span class="cmt">#    → thấy image tag "test" là thành công ✅</span>
+
+<span class="cmt"># 8. Xóa image test sau khi verify xong</span>
+aws ecr batch-delete-image \
+  --repository-name myapp-backend \
+  --image-ids imageTag=test \
+  --region ap-southeast-1</code></pre>
+
+      <div class="tip">
+        <strong>✅ Nếu push thành công</strong>
+        IAM user <code>deploy-bot</code> có đủ quyền → GitHub Actions sẽ hoạt động.
+      </div>
+      <div class="danger">
+        <strong>🚨 Nếu lỗi "denied: User is not authorized"</strong>
+        Kiểm tra lại policy <code>ECRPushPull</code> đã gắn đúng vào user <code>deploy-bot</code> chưa.
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h4>Tạo EC2 Instance</h4>
+      <p><strong>EC2 → Launch Instance</strong></p>
+      <table>
+        <tr><th>Cài đặt</th><th>Giá trị</th></tr>
+        <tr><td>AMI</td><td>Ubuntu Server 26.04 LTS (HVM)</td></tr>
+        <tr><td>Instance type</td><td><code>t3.micro</code> (test) / <code>t3.small</code> (production nhỏ)</td></tr>
+        <tr><td>Key pair</td><td>Tạo mới → download <code>.pem</code> → <strong>lưu kỹ, mất là không SSH được</strong></td></tr>
+        <tr><td>IAM Instance Profile</td><td><code>ec2-ecr-pull-role</code> (tạo ở bước 2)</td></tr>
+        <tr><td>Storage</td><td>20 GB gp3</td></tr>
+      </table>
+      <p><strong>Security Group — mở đúng các port sau:</strong></p>
+      <table>
+        <tr><th>Type</th><th>Port</th><th>Source</th></tr>
+        <tr><td>SSH</td><td>22</td><td>My IP (chỉ IP của bạn)</td></tr>
+        <tr><td>HTTP</td><td>80</td><td>0.0.0.0/0</td></tr>
+        <tr><td>HTTPS</td><td>443</td><td>0.0.0.0/0</td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<h2>8.4 Cài đặt EC2 lần đầu (chỉ làm 1 lần duy nhất)</h2>
+
+<div class="info">
+  <strong>ℹ️ Ubuntu 22.04 / 24.04 / 26.04 — username SSH là <code>ubuntu</code></strong>
+  EC2 chỉ cần Docker + Swap + AWS CLI. Không clone repo, không có source code trên server.
+  Mọi deploy về sau do GitHub Actions tự động hoàn toàn.
+</div>
+
+<pre><code><span class="cmt"># SSH vào EC2</span>
+ssh -i key.pem ubuntu@&lt;EC2_PUBLIC_IP&gt;
+
+<span class="cmt"># ─── BƯỚC 1: Tạo Swap (quan trọng với t3.micro 1GB RAM) ───</span>
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+echo 'vm.swappiness=10'           | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
+free -h   <span class="cmt"># Kiểm tra: Swap 2.0Gi</span>
+
+<span class="cmt"># ─── BƯỚC 2: Cài Docker từ repo chính thức ────────────────</span>
+sudo apt remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg lsb-release
+
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update
+
+<span class="cmt"># Xem version có sẵn rồi chọn mới nhất</span>
+apt-cache madison docker-ce
+<span class="cmt"># → thay version bên dưới cho khớp với kết quả trên</span>
+
+sudo apt install -y \
+  docker-ce=5:29.4.2-1~ubuntu.26.04~resolute \
+  docker-ce-cli=5:29.4.2-1~ubuntu.26.04~resolute \
+  containerd.io docker-buildx-plugin docker-compose-plugin
+
+sudo systemctl enable docker
+sudo systemctl start docker
+sudo usermod -aG docker ubuntu
+
+<span class="cmt"># Logout và SSH lại để group docker có hiệu lực</span>
+exit
 </code></pre>
 
-<h2>8.4 Giải thích docker-compose.prod.yml</h2>
+<p>SSH lại rồi verify:</p>
+
+<pre><code>docker --version        <span class="cmt"># Docker version 29.x.x</span>
+docker compose version  <span class="cmt"># Docker Compose version v2.x.x</span>
+
+<span class="cmt"># ─── BƯỚC 3: Cài AWS CLI v2 ───────────────────────────────</span>
+sudo apt install -y unzip
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip && sudo ./aws/install
+rm -rf awscliv2.zip aws/
+aws --version   <span class="cmt"># aws-cli/2.x.x</span>
+
+<span class="cmt"># ─── BƯỚC 4: Tạo thư mục app (GitHub Actions sẽ deploy vào đây) ──</span>
+mkdir -p ~/app/nginx ~/app/backend
+</code></pre>
+
+<div class="tip">
+  <strong>✅ Xong — EC2 đã sẵn sàng => Test push image lên ECR (chạy trên máy local) </strong>
+  Từ đây về sau không cần SSH thủ công nữa. Mỗi lần <code>git push</code> lên main,
+  GitHub Actions sẽ tự động build → push ECR → copy config → deploy.
+</div>
+
+<h2>8.5 Giải thích docker-compose.prod.yml</h2>
 
 <p>Điểm khác quan trọng nhất so với dev:</p>
 
@@ -954,103 +1164,233 @@ aws ecr get-login-password --region ap-southeast-1 | \
 </ul>
 <p>Kết quả: Code mới lên main → 5-10 phút sau đã live trên production — không cần thao tác thủ công.</p>
 
-<h2>9.2 File GitHub Actions (ví dụ đầy đủ)</h2>
-<p>Tạo file <code>.github/workflows/deploy.yml</code>:</p>
+<h2>9.2 File GitHub Actions (production-ready)</h2>
+<p>File <code>.github/workflows/deploy.yml</code> — tách thành 2 job độc lập:</p>
 
-<pre><code>name: Build and Deploy
+<table>
+  <tr><th>Job</th><th>Làm gì</th></tr>
+  <tr><td><strong>build</strong></td><td>Build Docker image → push lên ECR</td></tr>
+  <tr><td><strong>deploy</strong></td><td>Copy config → tạo .env → pull image → restart</td></tr>
+</table>
+
+<pre><code>name: Build &amp; Deploy
 
 on:
   push:
-    branches: [main]   <span class="cmt"># Chỉ chạy khi push lên branch main</span>
+    branches: [main]
 
 env:
   AWS_REGION: ap-southeast-1
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest   <span class="cmt"># Chạy trên máy ảo Ubuntu của GitHub (miễn phí)</span>
+
+  <span class="cmt"># ── JOB 1: Build ──────────────────────────────────────────</span>
+  build:
+    name: Build &amp; Push to ECR
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}   <span class="cmt"># truyền tag sang job deploy</span>
 
     steps:
-      <span class="cmt"># 1. Lấy source code</span>
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      <span class="cmt"># 2. Đăng nhập vào AWS</span>
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region:            ${{ env.AWS_REGION }}
 
-      <span class="cmt"># 3. Đăng nhập vào ECR</span>
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      <span class="cmt"># 4. Lấy git commit SHA làm tag Image (e.g. "abc1234")</span>
-      - name: Set image tag
-        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+      - name: Set image tag (git short SHA)
+        id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        <span class="cmt"># tag = 7 ký tự đầu của commit SHA → ví dụ: "a1b2c3d"</span>
+        <span class="cmt"># Lợi ích: biết chính xác commit nào đang chạy, rollback dễ dàng</span>
 
-      <span class="cmt"># 5. Build và push Backend Image</span>
-      - name: Build and push backend
+      - name: Build &amp; push backend
         run: |
-          docker build -t $ECR_REGISTRY/myapp-backend:$IMAGE_TAG ./backend
-          docker push $ECR_REGISTRY/myapp-backend:$IMAGE_TAG
-          docker tag  $ECR_REGISTRY/myapp-backend:$IMAGE_TAG \
+          docker build \
+            -t $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }} \
+            ./backend
+          docker push $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }}
+          <span class="cmt"># Tag thêm "latest" để tiện dùng thủ công</span>
+          docker tag  $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }} \
                       $ECR_REGISTRY/myapp-backend:latest
+          docker push $ECR_REGISTRY/myapp-backend:latest
 
-      <span class="cmt"># 6. Build và push Frontend Image</span>
-      - name: Build and push frontend
+      - name: Build &amp; push frontend
         run: |
           docker build \
             --build-arg VITE_API_URL=${{ secrets.VITE_API_URL }} \
-            -t $ECR_REGISTRY/myapp-frontend:$IMAGE_TAG \
+            -t $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }} \
             ./frontend
-          docker push $ECR_REGISTRY/myapp-frontend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }}
+          docker tag  $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }} \
+                      $ECR_REGISTRY/myapp-frontend:latest
+          docker push $ECR_REGISTRY/myapp-frontend:latest
 
-      <span class="cmt"># 7. SSH vào EC2, kéo Image mới, deploy</span>
-      - name: Deploy to EC2
+  <span class="cmt"># ── JOB 2: Deploy ─────────────────────────────────────────</span>
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: build   <span class="cmt"># chỉ chạy khi job build thành công</span>
+
+    steps:
+      - uses: actions/checkout@v4
+
+      <span class="cmt"># Copy file config (không nhạy cảm) lên EC2 qua SCP</span>
+      <span class="cmt"># EC2 không cần clone repo — chỉ cần 2 file này</span>
+      - name: Copy config files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:             ${{ secrets.EC2_HOST }}
+          username:         ubuntu
+          key:              ${{ secrets.EC2_SSH_KEY }}
+          source:           "docker-compose.prod.yml,nginx/default.conf"
+          target:           ~/app
+          strip_components: 0
+
+      <span class="cmt"># SSH vào EC2: tạo .env từ Secrets → login ECR → deploy</span>
+      - name: Deploy
         uses: appleboy/ssh-action@v1
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          IMAGE_TAG:    ${{ needs.build.outputs.image_tag }}
+          DB_NAME:      ${{ secrets.DB_NAME }}
+          DB_USER:      ${{ secrets.DB_USER }}
+          DB_PASSWORD:  ${{ secrets.DB_PASSWORD }}
         with:
           host:     ${{ secrets.EC2_HOST }}
-          username: ec2-user
+          username: ubuntu
           key:      ${{ secrets.EC2_SSH_KEY }}
+          envs:     ECR_REGISTRY,IMAGE_TAG,DB_NAME,DB_USER,DB_PASSWORD
           script: |
+            set -e
             cd ~/app
-            export ECR_REGISTRY=${{ secrets.ECR_REGISTRY }}
-            export IMAGE_TAG=${{ env.IMAGE_TAG }}
+
+            <span class="cmt"># Tạo .env từ GitHub Secrets — không lưu trên git, không có trên server</span>
+            mkdir -p backend
+            cat > backend/.env &lt;&lt; EOF
+            DB_NAME=${DB_NAME}
+            DB_USER=${DB_USER}
+            DB_PASSWORD=${DB_PASSWORD}
+            PORT=5000
+            NODE_ENV=production
+            EOF
 
             <span class="cmt"># Login ECR từ EC2</span>
             aws ecr get-login-password --region ap-southeast-1 | \
-              docker login --username AWS --password-stdin $ECR_REGISTRY
+              docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-            <span class="cmt"># Kéo Images mới nhất</span>
-            docker compose -f docker-compose.prod.yml pull
+            <span class="cmt"># Pull images mới</span>
+            ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} \
+              docker compose -f docker-compose.prod.yml pull
 
-            <span class="cmt"># Khởi động lại với Images mới (zero downtime với --no-deps)</span>
-            docker compose -f docker-compose.prod.yml up -d
+            <span class="cmt"># Restart với images mới</span>
+            ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} \
+              docker compose -f docker-compose.prod.yml up -d
 
-            <span class="cmt"># Dọn Images cũ (tiết kiệm disk)</span>
+            <span class="cmt"># Dọn images cũ — tiết kiệm disk EC2</span>
             docker image prune -f
+
+            echo "Deployed: ${IMAGE_TAG}"
 </code></pre>
 
 <h2>9.3 GitHub Secrets cần tạo</h2>
-<p>Vào <strong>GitHub repo → Settings → Secrets and variables → Actions</strong> và thêm:</p>
+<p>Vào <strong>GitHub repo → Settings → Secrets and variables → Actions → New repository secret</strong>:</p>
 <table>
-  <tr><th>Secret name</th><th>Giá trị</th></tr>
-  <tr><td><code>AWS_ACCESS_KEY_ID</code></td><td>Access key của IAM user</td></tr>
-  <tr><td><code>AWS_SECRET_ACCESS_KEY</code></td><td>Secret key của IAM user</td></tr>
-  <tr><td><code>ECR_REGISTRY</code></td><td><code>123456789.dkr.ecr.ap-southeast-1.amazonaws.com</code></td></tr>
-  <tr><td><code>EC2_HOST</code></td><td>IP public của EC2</td></tr>
-  <tr><td><code>EC2_SSH_KEY</code></td><td>Nội dung file <code>.pem</code> (private key)</td></tr>
-  <tr><td><code>VITE_API_URL</code></td><td><code>https://yourdomain.com</code> hoặc IP EC2</td></tr>
+  <tr><th>Secret name</th><th>Giá trị</th><th>Lấy ở đâu</th></tr>
+  <tr><td><code>AWS_ACCESS_KEY_ID</code></td><td>Access key của IAM user <code>deploy-bot</code></td><td>IAM → Users → Security credentials</td></tr>
+  <tr><td><code>AWS_SECRET_ACCESS_KEY</code></td><td>Secret key của IAM user</td><td>Lưu lại lúc tạo IAM user</td></tr>
+  <tr><td><code>ECR_REGISTRY</code></td><td><code>123456789.dkr.ecr.ap-southeast-1.amazonaws.com</code></td><td>ECR → Repositories</td></tr>
+  <tr><td><code>EC2_HOST</code></td><td>IP public của EC2</td><td>EC2 → Instances</td></tr>
+  <tr><td><code>EC2_SSH_KEY</code></td><td>Toàn bộ nội dung file <code>.pem</code></td><td>File download khi tạo EC2</td></tr>
+  <tr><td><code>VITE_API_URL</code></td><td><code>http://&lt;EC2_IP&gt;</code> hoặc domain</td><td>IP EC2 hoặc domain của bạn</td></tr>
+  <tr><td><code>DB_NAME</code></td><td><code>myapp</code></td><td>Tự đặt</td></tr>
+  <tr><td><code>DB_USER</code></td><td><code>admin</code></td><td>Tự đặt</td></tr>
+  <tr><td><code>DB_PASSWORD</code></td><td>Mật khẩu mạnh</td><td>Tự đặt — không dùng <code>changeme</code></td></tr>
 </table>
+
+<div class="tip">
+  <strong>✅ Tại sao DB credentials là Secrets?</strong>
+  GitHub Actions tạo file <code>.env</code> trực tiếp trên EC2 từ các Secrets này mỗi lần deploy.
+  File <code>.env</code> không bao giờ tồn tại trong repo hay trong Docker image — đây là cách chuẩn production.
+</div>
 
 <div class="danger">
   <strong>🚨 Bảo mật Secrets</strong>
   Không bao giờ paste Access Key trực tiếp trong code. GitHub Secrets được mã hóa và
   không hiện thị trong log — an toàn để dùng.
+</div>
+
+<h2>9.4 Checklist trước khi push lần đầu</h2>
+
+<p>Kiểm tra đủ các mục sau trước khi chạy <code>git push</code> — nếu thiếu bất kỳ mục nào workflow sẽ fail.</p>
+
+<h3>AWS đã chuẩn bị</h3>
+<table>
+  <tr><th>Hạng mục</th><th>Kiểm tra</th></tr>
+  <tr><td>IAM user <code>deploy-bot</code> đã tạo</td><td>IAM → Users</td></tr>
+  <tr><td>Policy <code>ECRPushPull</code> đã gắn vào <code>deploy-bot</code></td><td>IAM → Users → deploy-bot → Permissions</td></tr>
+  <tr><td>IAM role <code>ec2-ecr-pull-role</code> đã tạo</td><td>IAM → Roles</td></tr>
+  <tr><td>ECR repo <code>myapp-backend</code> đã tạo</td><td>ECR → Repositories</td></tr>
+  <tr><td>ECR repo <code>myapp-frontend</code> đã tạo</td><td>ECR → Repositories</td></tr>
+  <tr><td>EC2 đang chạy, IAM role đã gắn</td><td>EC2 → Instances → IAM instance profile</td></tr>
+  <tr><td>Security Group mở port 22, 80, 443</td><td>EC2 → Security Groups</td></tr>
+  <tr><td>Test push image lên ECR thành công</td><td>Xem mục 8.3 bước 3</td></tr>
+</table>
+
+<h3>EC2 đã setup</h3>
+<table>
+  <tr><th>Hạng mục</th><th>Lệnh kiểm tra</th></tr>
+  <tr><td>Swap 2GB đã tạo</td><td><code>free -h</code></td></tr>
+  <tr><td>Docker đã cài</td><td><code>docker --version</code></td></tr>
+  <tr><td>Docker Compose v2 đã cài</td><td><code>docker compose version</code></td></tr>
+  <tr><td>AWS CLI v2 đã cài</td><td><code>aws --version</code></td></tr>
+  <tr><td>Thư mục app đã tạo</td><td><code>ls ~/app/nginx</code></td></tr>
+</table>
+
+<div class="warn">
+  <strong>⚠️ Tạo thư mục trước khi chạy workflow lần đầu</strong>
+  <pre style="margin-top:8px;"><code>ssh -i key.pem ubuntu@&lt;EC2_IP&gt;
+mkdir -p ~/app/nginx ~/app/backend</code></pre>
+</div>
+
+<h3>GitHub Secrets đã điền đủ</h3>
+<table>
+  <tr><th>Secret</th><th>Đã điền</th></tr>
+  <tr><td><code>AWS_ACCESS_KEY_ID</code></td><td>Vào Settings → Secrets → Actions kiểm tra</td></tr>
+  <tr><td><code>AWS_SECRET_ACCESS_KEY</code></td><td></td></tr>
+  <tr><td><code>ECR_REGISTRY</code></td><td></td></tr>
+  <tr><td><code>EC2_HOST</code></td><td></td></tr>
+  <tr><td><code>EC2_SSH_KEY</code></td><td>Paste toàn bộ nội dung file <code>.pem</code> kể cả dòng <code>-----BEGIN...</code></td></tr>
+  <tr><td><code>VITE_API_URL</code></td><td><code>http://&lt;EC2_IP&gt;</code> nếu chưa có domain</td></tr>
+  <tr><td><code>DB_NAME</code></td><td></td></tr>
+  <tr><td><code>DB_USER</code></td><td></td></tr>
+  <tr><td><code>DB_PASSWORD</code></td><td></td></tr>
+</table>
+
+<h3>Khi đã tick đủ tất cả — push và theo dõi</h3>
+<pre><code>git add .
+git commit -m "add ci/cd workflow"
+git push origin main
+<span class="cmt"># Vào GitHub → Actions → xem workflow đang chạy</span>
+<span class="cmt"># Build job xong (~3-5 phút) → Deploy job chạy tiếp</span>
+<span class="cmt"># Xanh hết = deploy thành công → mở http://&lt;EC2_IP&gt; kiểm tra</span>
+</code></pre>
+
+<div class="tip">
+  <strong>✅ Nếu workflow fail</strong>
+  Click vào job bị đỏ → xem log chi tiết → lỗi thường gặp:
+  <ul style="margin-top:6px;">
+    <li><strong>denied: not authorized</strong> → kiểm tra lại IAM policy của <code>deploy-bot</code></li>
+    <li><strong>Permission denied (publickey)</strong> → kiểm tra lại secret <code>EC2_SSH_KEY</code></li>
+    <li><strong>no such file or directory</strong> → chưa tạo thư mục <code>~/app/nginx</code> trên EC2</li>
+  </ul>
 </div>
 
 <hr/>
