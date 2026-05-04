@@ -219,6 +219,13 @@
         <li><a href="#s8">8.5 Giải thích docker-compose.prod.yml</a></li>
       </ol>
     </li>
+    <li><a href="#s9">CI/CD với GitHub Actions</a>
+      <ol style="margin-top:4px;">
+        <li><a href="#s9">9.3 GitHub Secrets cần tạo</a></li>
+        <li><a href="#s9">9.4 Checklist trước khi push</a></li>
+        <li><a href="#s9">9.5 Kiểm tra sau khi deploy</a></li>
+      </ol>
+    </li>
     <li><a href="#s9">CI/CD với GitHub Actions</a></li>
     <li><a href="#s10">Bảng tổng hợp lệnh Docker hay dùng</a></li>
     <li><a href="#s11">Sơ đồ luồng hoạt động toàn hệ thống</a></li>
@@ -1392,6 +1399,66 @@ git push origin main
     <li><strong>no such file or directory</strong> → chưa tạo thư mục <code>~/app/nginx</code> trên EC2</li>
   </ul>
 </div>
+
+<h2>9.5 Kiểm tra sau khi deploy</h2>
+
+<p>Sau khi GitHub Actions chạy xanh, thực hiện các bước sau để xác nhận app hoạt động đúng:</p>
+
+<h3>Bước 1 — Kiểm tra trên trình duyệt</h3>
+<pre><code><span class="cmt"># Mở trình duyệt vào (HTTP, chưa có HTTPS ở bước này)</span>
+http://&lt;EC2_PUBLIC_IP&gt;
+
+<span class="cmt"># Kết quả mong đợi: app React hiển thị bình thường</span>
+<span class="cmt"># Nếu thấy trang trắng hoặc 502 → xem bước 2</span></code></pre>
+
+<div class="warn">
+  <strong>⚠️ Chưa có HTTPS là bình thường</strong>
+  HTTPS cần domain + SSL certificate (Let's Encrypt). Giai đoạn test dùng <code>http://</code> là đủ.
+  Không dùng được IP với HTTPS.
+</div>
+
+<h3>Bước 2 — SSH vào EC2 kiểm tra containers</h3>
+<pre><code>ssh -i key.pem ubuntu@&lt;EC2_PUBLIC_IP&gt;
+
+<span class="cmt"># Xem trạng thái tất cả container</span>
+docker compose -f ~/app/docker-compose.prod.yml ps
+
+<span class="cmt"># Kết quả mong đợi — 4 container đều "running":</span>
+<span class="cmt"># myapp-db        running (healthy)</span>
+<span class="cmt"># myapp-backend   running (healthy)</span>
+<span class="cmt"># myapp-frontend  running</span>
+<span class="cmt"># myapp-nginx     running</span></code></pre>
+
+<h3>Bước 3 — Kiểm tra log nếu có container lỗi</h3>
+<pre><code><span class="cmt"># Xem log tất cả service</span>
+docker compose -f ~/app/docker-compose.prod.yml logs
+
+<span class="cmt"># Xem log riêng từng service</span>
+docker compose -f ~/app/docker-compose.prod.yml logs backend
+docker compose -f ~/app/docker-compose.prod.yml logs nginx
+docker compose -f ~/app/docker-compose.prod.yml logs db
+
+<span class="cmt"># Xem log realtime (Ctrl+C để thoát)</span>
+docker compose -f ~/app/docker-compose.prod.yml logs -f</code></pre>
+
+<h3>Bước 4 — Kiểm tra API backend trực tiếp</h3>
+<pre><code><span class="cmt"># Test API health check từ EC2</span>
+curl http://localhost/api/health
+
+<span class="cmt"># Hoặc từ máy local</span>
+curl http://&lt;EC2_PUBLIC_IP&gt;/api/health
+
+<span class="cmt"># Kết quả mong đợi: {"status":"ok"} hoặc tương tự</span></code></pre>
+
+<h3>Bảng lỗi thường gặp sau deploy</h3>
+<table>
+  <tr><th>Triệu chứng</th><th>Nguyên nhân</th><th>Cách fix</th></tr>
+  <tr><td>Trình duyệt không load, timeout</td><td>Security Group chưa mở port 80</td><td>EC2 → Security Groups → thêm Inbound rule HTTP 80</td></tr>
+  <tr><td>502 Bad Gateway</td><td>Backend hoặc Frontend container chưa chạy</td><td><code>docker compose logs backend</code> xem lỗi</td></tr>
+  <tr><td>Container <code>db</code> không healthy</td><td>Sai DB credentials trong <code>.env</code></td><td>Kiểm tra lại GitHub Secrets <code>DB_USER</code>, <code>DB_PASSWORD</code></td></tr>
+  <tr><td>Backend lỗi "cannot connect to DB"</td><td>Backend khởi động trước DB healthy</td><td>Tự recover sau vài giây, hoặc <code>docker compose restart backend</code></td></tr>
+  <tr><td>Trang trắng (frontend load nhưng API lỗi)</td><td>Sai <code>VITE_API_URL</code></td><td>Kiểm tra secret <code>VITE_API_URL</code> đúng IP/domain chưa</td></tr>
+</table>
 
 <hr/>
 
