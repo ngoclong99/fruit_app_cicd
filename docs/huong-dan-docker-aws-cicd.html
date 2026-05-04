@@ -230,6 +230,7 @@
     <li><a href="#s10">Bảng tổng hợp lệnh Docker hay dùng</a></li>
     <li><a href="#s11">Sơ đồ luồng hoạt động toàn hệ thống</a></li>
     <li><a href="#s12">Câu hỏi thường gặp (FAQ)</a></li>
+    <li><a href="#s13">Tất cả file cần thiết (copy &amp; dùng ngay)</a></li>
   </ol>
 </div>
 
@@ -1653,6 +1654,362 @@ export IMAGE_TAG=abc1234   <span class="cmt"># tag của phiên bản tốt</spa
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 </code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     13. TẤT CẢ FILE CẦN THIẾT
+═════════════════════════════════════════════════ -->
+<h1 id="s13">13. Tất cả file cần thiết (copy &amp; dùng ngay)</h1>
+
+<p>Tạo đúng cấu trúc thư mục sau, copy nội dung từng file bên dưới là có thể chạy được toàn bộ pipeline:</p>
+
+<pre><code>my-app/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml
+├── backend/
+│   └── Dockerfile
+├── frontend/
+│   ├── Dockerfile
+│   └── nginx.conf          ← nginx cho React SPA (trong container frontend)
+├── nginx/
+│   └── default.conf        ← nginx reverse proxy (ngoài, nhận request internet)
+├── docker-compose.yml      ← chạy local
+├── docker-compose.prod.yml ← chạy trên EC2
+└── .env.example</code></pre>
+
+<hr/>
+
+<h2>13.1 backend/Dockerfile</h2>
+<pre><code># ═══ STAGE 1: Build ═══
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+# ═══ STAGE 2: Production image ═══
+FROM node:20-alpine AS production
+
+RUN apk add --no-cache curl dumb-init
+RUN addgroup -g 1001 nodejs &amp;&amp; adduser -S -u 1001 -G nodejs nodejs
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --omit=dev &amp;&amp; npm cache clean --force
+
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+
+USER nodejs
+EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:5000/api/health || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/index.js"]</code></pre>
+
+<hr/>
+
+<h2>13.2 frontend/Dockerfile</h2>
+<pre><code># ═══ STAGE 1: Build React ═══
+FROM node:20-slim AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
+RUN chmod +x node_modules/.bin/tsc node_modules/.bin/vite
+RUN npm run build
+
+# ═══ STAGE 2: Serve bằng Nginx ═══
+FROM nginx:1.25-alpine AS production
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -rf /usr/share/nginx/html/*
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD wget -q --spider http://localhost || exit 1
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]</code></pre>
+
+<hr/>
+
+<h2>13.3 frontend/nginx.conf (serve React SPA)</h2>
+<pre><code>server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    location ~* \.(js|css|png|jpg|jpeg|svg|ico|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public,immutable";
+        access_log off;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~ /\. { deny all; }
+}</code></pre>
+
+<hr/>
+
+<h2>13.4 nginx/default.conf (reverse proxy)</h2>
+<pre><code>upstream backend_srv  { server backend:5000; }
+upstream frontend_srv { server frontend:80; }
+
+server {
+    listen 80;
+    server_name _;
+
+    client_max_body_size 50M;
+
+    location /api/ {
+        proxy_pass         http://backend_srv/;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 90s;
+    }
+
+    location / {
+        proxy_pass         http://frontend_srv;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}
+
+# ── Bổ sung sau khi có domain + SSL ──────────────────────
+# server {
+#     listen 80;
+#     server_name yourdomain.com www.yourdomain.com;
+#     location /.well-known/acme-challenge/ { root /var/www/certbot; }
+#     location / { return 301 https://$host$request_uri; }
+# }
+#
+# server {
+#     listen 443 ssl http2;
+#     server_name yourdomain.com www.yourdomain.com;
+#     ssl_certificate     /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+# }</code></pre>
+
+<hr/>
+
+<h2>13.5 docker-compose.prod.yml</h2>
+<pre><code>services:
+
+  db:
+    image: postgres:15-alpine
+    container_name: myapp-db
+    restart: always
+    environment:
+      POSTGRES_DB:       ${DB_NAME}
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [app-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ${ECR_REGISTRY}/myapp-backend:${IMAGE_TAG:-latest}
+    container_name: myapp-backend
+    restart: always
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [app-net]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    image: ${ECR_REGISTRY}/myapp-frontend:${IMAGE_TAG:-latest}
+    container_name: myapp-frontend
+    restart: always
+    networks: [app-net]
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: myapp-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [frontend, backend]
+    networks: [app-net]
+
+volumes:
+  postgres_data:
+
+networks:
+  app-net:
+    driver: bridge</code></pre>
+
+<hr/>
+
+<h2>13.6 .env.example</h2>
+<pre><code># Database
+DB_NAME=myapp
+DB_USER=admin
+DB_PASSWORD=changeme   # ← đổi khi deploy thật
+
+# Backend
+PORT=5000
+NODE_ENV=production
+
+# Production only
+ECR_REGISTRY=123456789.dkr.ecr.ap-southeast-1.amazonaws.com
+IMAGE_TAG=latest</code></pre>
+
+<hr/>
+
+<h2>13.7 .github/workflows/deploy.yml</h2>
+<pre><code>name: Build &amp; Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+
+jobs:
+
+  build:
+    name: Build &amp; Push to ECR
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Build &amp; push backend
+        run: |
+          docker build -t $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }} ./backend
+          docker push $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }}
+          docker tag  $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }} $ECR_REGISTRY/myapp-backend:latest
+          docker push $ECR_REGISTRY/myapp-backend:latest
+
+      - name: Build &amp; push frontend
+        run: |
+          docker build \
+            --build-arg VITE_API_URL=${{ secrets.VITE_API_URL }} \
+            -t $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }} \
+            ./frontend
+          docker push $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }}
+          docker tag  $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }} $ECR_REGISTRY/myapp-frontend:latest
+          docker push $ECR_REGISTRY/myapp-frontend:latest
+
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy config files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:             ${{ secrets.EC2_HOST }}
+          username:         ubuntu
+          key:              ${{ secrets.EC2_SSH_KEY }}
+          source:           "docker-compose.prod.yml,nginx/default.conf"
+          target:           ~/app
+          strip_components: 0
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1
+        env:
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          IMAGE_TAG:    ${{ needs.build.outputs.image_tag }}
+          DB_NAME:      ${{ secrets.DB_NAME }}
+          DB_USER:      ${{ secrets.DB_USER }}
+          DB_PASSWORD:  ${{ secrets.DB_PASSWORD }}
+        with:
+          host:     ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key:      ${{ secrets.EC2_SSH_KEY }}
+          envs:     ECR_REGISTRY,IMAGE_TAG,DB_NAME,DB_USER,DB_PASSWORD
+          script: |
+            set -e
+            cd ~/app
+            mkdir -p backend
+            cat &gt; backend/.env &lt;&lt; EOF
+            DB_NAME=${DB_NAME}
+            DB_USER=${DB_USER}
+            DB_PASSWORD=${DB_PASSWORD}
+            PORT=5000
+            NODE_ENV=production
+            EOF
+            aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+            ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.prod.yml pull
+            ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} docker compose -f docker-compose.prod.yml up -d
+            docker image prune -f
+            echo "Deployed: ${IMAGE_TAG}"</code></pre>
+
+<div class="tip">
+  <strong>✅ Lưu ý khi dùng lại cho project mới</strong>
+  <ul style="margin-top:6px;">
+    <li>Đổi <code>myapp-backend</code> / <code>myapp-frontend</code> thành tên project của bạn</li>
+    <li>Đổi <code>ap-southeast-1</code> nếu dùng region khác</li>
+    <li>Tạo lại ECR repositories với tên mới</li>
+    <li>Cập nhật lại tất cả GitHub Secrets</li>
+  </ul>
+</div>
 
 <hr/>
 
