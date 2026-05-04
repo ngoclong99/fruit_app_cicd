@@ -3,7 +3,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm run ci
 
 COPY . .
 RUN npm run build
@@ -20,7 +20,7 @@ RUN addgroup -g 1001 nodejs && adduser -S -u 1001 -G nodejs nodejs
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm run ci --omit=dev && npm cache clean --force
 
 # Copy built output từ stage builder
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist

@@ -3,7 +3,7 @@ FROM node:20-slim AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install ci
+RUN npm run ci
 
 COPY . .
 
@@ -11,6 +11,7 @@ COPY . .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
+RUN chmod +x node_modules/.bin/tsc node_modules/.bin/vite
 RUN npm run build
 
 # ═══ STAGE 2: Serve bằng Nginx ═══
