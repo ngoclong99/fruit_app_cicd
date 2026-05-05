@@ -160,6 +160,13 @@ jobs:
             ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} ENVIRONMENT=${ENVIRONMENT} \
               docker compose -p myapp-${ENVIRONMENT} -f docker-compose.prod.yml pull
 
+            # Dung containers cu truoc khi deploy moi -- giai phong port
+            # "--remove-orphans": xoa container cu khong con trong compose file
+            # "|| true": khong bao loi neu chua co container nao (lan deploy dau tien)
+            # Volume (postgres_data) KHONG bi xoa -- data van con
+            ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} ENVIRONMENT=${ENVIRONMENT} \
+              docker compose -p myapp-${ENVIRONMENT} -f docker-compose.prod.yml down --remove-orphans || true
+
             ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} ENVIRONMENT=${ENVIRONMENT} \
               docker compose -p myapp-${ENVIRONMENT} -f docker-compose.prod.yml up -d
 
