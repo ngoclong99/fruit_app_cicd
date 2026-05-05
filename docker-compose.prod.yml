@@ -1,17 +1,20 @@
 services:
 
-  # ─── PostgreSQL ───────────────────────────────────────
+  # ─── PostgreSQL ───────────────────────────────────────────────────────────
+  # Data luu trong Docker volume tren EC2.
+  # CANH BAO: EC2 bi xoa => mat data. Dung AWS RDS neu can data ben vung.
   db:
     image: postgres:15-alpine
-    container_name: myapp-db
     restart: always
     environment:
       POSTGRES_DB:       ${DB_NAME}
       POSTGRES_USER:     ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
+      # Ten volume thuc te: myapp-<environment>_postgres_data (tu dong tao boi project name)
+      # 1 EC2: moi moi truong co volume rieng, khong lan lon data
+      # 3 EC2: moi EC2 co volume rieng theo may chu
       - postgres_data:/var/lib/postgresql/data
-    # KHÔNG expose port ra ngoài trong production!
     networks: [app-net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
@@ -19,16 +22,16 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── Node.js Backend ──────────────────────────────────
+  # ─── Node.js Backend ──────────────────────────────────────────────────────
   backend:
     image: ${ECR_REGISTRY}/myapp-backend:${IMAGE_TAG:-latest}
-    container_name: myapp-backend
     restart: always
     env_file: ./backend/.env
     environment:
+      # DB_HOST phai trung voi ten service "db" o tren, khong phai localhost
       DB_HOST: db
       DB_PORT: 5432
-      NODE_ENV: production
+      NODE_ENV: ${ENVIRONMENT}
     depends_on:
       db:
         condition: service_healthy
@@ -39,30 +42,54 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  # ─── React Frontend ───────────────────────────────────
+  # ─── React Frontend ───────────────────────────────────────────────────────
   frontend:
     image: ${ECR_REGISTRY}/myapp-frontend:${IMAGE_TAG:-latest}
-    container_name: myapp-frontend
     restart: always
     networks: [app-net]
 
-  # ─── Nginx (nhận request từ internet) ─────────────────
+  # ─── Nginx ────────────────────────────────────────────────────────────────
+  # 1 EC2 nhieu moi truong: moi truong dung port khac nhau
+  #   production  -> NGINX_HTTP_PORT=80
+  #   staging     -> NGINX_HTTP_PORT=8080
+  #
+  # Neu doi sang 3 EC2 rieng:
+  #   - Xoa bien NGINX_HTTP_PORT, doi lai thanh "80:80" co dinh
+  #   - Xoa NGINX_HTTP_PORT khoi SSM va deploy.yml
   nginx:
     image: nginx:1.25-alpine
-    container_name: myapp-nginx
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "${NGINX_HTTP_PORT}:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      # Bổ sung sau khi có SSL:
-      # - ./certbot/conf:/etc/letsencrypt:ro
-      # - ./certbot/www:/var/www/certbot:ro
     depends_on: [frontend, backend]
     networks: [app-net]
 
+  # ─── pgAdmin (Giao dien quan ly PostgreSQL qua trinh duyet) ───────────────
+  # 1 EC2 nhieu moi truong: moi truong dung port khac nhau
+  #   production  -> PGADMIN_PORT=5050 -> http://[EC2-IP]:5050
+  #   staging     -> PGADMIN_PORT=5051 -> http://[EC2-IP]:5051
+  #
+  # Neu doi sang 3 EC2 rieng:
+  #   - Xoa bien PGADMIN_PORT, doi lai thanh "5050:80" co dinh
+  #   - Xoa PGADMIN_PORT khoi SSM va deploy.yml
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL:    ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT}:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [app-net]
+
 volumes:
+  # Docker tu them prefix tu project name thanh: myapp-<environment>_postgres_data
+  # Vi du: myapp-production_postgres_data, myapp-staging_postgres_data
   postgres_data:
 
 networks:

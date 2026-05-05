@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Environment Deployment — AWS CI/CD</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 32px; max-width: 960px; margin: 0 auto; }
+    .cover { text-align: center; padding: 60px 0 40px; border-bottom: 3px solid #2563eb; margin-bottom: 48px; }
+    .cover h1 { font-size: 2rem; color: #2563eb; margin-bottom: 8px; }
+    .badge { display: inline-block; background: #dbeafe; color: #1d4ed8; border-radius: 9999px; padding: 2px 12px; font-size: 0.8rem; margin: 4px 2px; }
+    .toc { background: #f8fafc; border-left: 4px solid #2563eb; padding: 20px 24px; margin-bottom: 48px; border-radius: 0 8px 8px 0; }
+    .toc h2 { font-size: 1rem; color: #2563eb; margin-bottom: 10px; text-transform: uppercase; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a { color: #2563eb; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    h1 { font-size: 1.8rem; color: #1e3a8a; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #1d4ed8; margin: 32px 0 10px; border-bottom: 1px solid #bfdbfe; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #1e40af; margin: 20px 0 8px; }
+    p { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    pre { background: #1e293b; color: #e2e8f0; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 12px 0 20px; font-size: 0.82rem; line-height: 1.6; }
+    code { background: #e0f2fe; color: #0369a1; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    .cmt { color: #94a3b8; }
+    .kw  { color: #93c5fd; }
+    .str { color: #86efac; }
+    .info, .warn, .tip, .danger { border-left: 4px solid; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+    .info   { border-color: #3b82f6; background: #eff6ff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong { color: #1d4ed8; display: block; margin-bottom: 4px; }
+    .warn strong { color: #b45309; display: block; margin-bottom: 4px; }
+    .tip strong  { color: #065f46; display: block; margin-bottom: 4px; }
+    .danger strong { color: #b91c1c; display: block; margin-bottom: 4px; }
+    .arch { border: 2px solid #bfdbfe; border-radius: 12px; padding: 20px; margin: 16px 0; background: #f0f9ff; font-family: monospace; font-size: 0.82rem; line-height: 1.8; white-space: pre; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.88rem; }
+    th { background: #1d4ed8; color: #fff; padding: 8px 12px; text-align: left; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    hr { border: none; border-top: 2px dashed #bfdbfe; margin: 40px 0; }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Multi-Environment Deployment</h1>
+  <p>Chạy nhiều môi trường trên 1 EC2 — AWS Parameter Store — GitHub Environments</p>
+  <br/>
+  <span class="badge">develop</span>
+  <span class="badge">staging</span>
+  <span class="badge">production</span>
+  <span class="badge">AWS SSM</span>
+  <span class="badge">GitHub Actions</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">EC2: 13.229.216.57 · Region: ap-southeast-1</p>
+</div>
+
+<div class="toc">
+  <h2>Muc luc</h2>
+  <ol>
+    <li><a href="#s1">Kien truc tong the</a></li>
+    <li><a href="#s2">Branch strategy — Branch nao deploy moi truong nao</a></li>
+    <li><a href="#s3">Quan ly secrets — 3 lop</a></li>
+    <li><a href="#s4">AWS Parameter Store — Giai thich chi tiet</a></li>
+    <li><a href="#s5">GitHub Environments — Giai thich chi tiet</a></li>
+    <li><a href="#s6">deploy.yml — Giai thich tung buoc</a></li>
+    <li><a href="#s7">docker-compose.prod.yml — Giai thich tung buoc</a></li>
+    <li><a href="#s8">Ports va URLs</a></li>
+    <li><a href="#s9">Lenh hay dung de kiem tra</a></li>
+    <li><a href="#s10">Neu doi sang 3 EC2 rieng — can thay doi gi</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════
+     1. KIEN TRUC
+════════════════════════════════════════ -->
+<h1 id="s1">1. Kien truc tong the</h1>
+
+<p>
+  1 EC2 chay 3 moi truong doc lap nhau bang cach dung <strong>port khac nhau</strong>
+  va <strong>thu muc rieng</strong> cho tung moi truong.
+</p>
+
+<div class="arch">
+Developer (may local)
+    │
+    │  git push origin staging
+    ▼
+GitHub
+    │
+    │  trigger workflow
+    ▼
+GitHub Actions Runner
+    │
+    ├─ 1. Xac dinh moi truong tu branch name
+    │      main    → production
+    │      staging → staging
+    │      develop → development (chay local, khong deploy EC2)
+    │
+    ├─ 2. Build Docker image → push len ECR
+    │      tag: staging-abc1234
+    │
+    ├─ 3. Fetch secrets tu AWS Parameter Store
+    │      /myapp/staging/DB_PASSWORD
+    │      /myapp/staging/NGINX_HTTP_PORT = 8080
+    │      ...
+    │
+    ├─ 4. Tao file backend/.env tu secrets
+    │
+    └─ 5. SSH len EC2 → deploy
+           cd ~/app/staging/
+           docker compose -p myapp-staging up -d
+
+EC2 (13.229.216.57)
+    ├── ~/app/production/    ← branch main    → port 80
+    └── ~/app/staging/       ← branch staging → port 8080
+</div>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     2. BRANCH STRATEGY
+════════════════════════════════════════ -->
+<h1 id="s2">2. Branch strategy</h1>
+
+<p>Quy tac: code chi di mot chieu, tu thap len cao, khong bao gio nhay coc.</p>
+
+<div class="arch">
+feature/abc  →  develop  →  staging  →  main
+                  │              │          │
+              chay local    EC2 :8080   EC2 :80
+              (khong deploy)  (auto)    (can approve)
+</div>
+
+<table>
+  <tr><th>Branch</th><th>Moi truong</th><th>Deploy den</th><th>Thu muc EC2</th><th>Auto deploy?</th></tr>
+  <tr><td><code>main</code></td><td>production</td><td>EC2 port 80</td><td>~/app/production/</td><td>Can approve</td></tr>
+  <tr><td><code>staging</code></td><td>staging</td><td>EC2 port 8080</td><td>~/app/staging/</td><td>Tu dong</td></tr>
+  <tr><td><code>develop</code></td><td>development</td><td>May local</td><td>—</td><td>Chay local</td></tr>
+</table>
+
+<div class="tip">
+  <strong>Quy trinh lam viec hang ngay</strong>
+  <ol style="margin-top:6px;">
+    <li>Viet code tren branch <code>feature/xxx</code></li>
+    <li>Merge vao <code>develop</code> → test tren may local</li>
+    <li>Merge <code>develop</code> vao <code>staging</code> → GitHub Actions tu deploy len EC2:8080</li>
+    <li>Test ky tren staging → Merge <code>staging</code> vao <code>main</code></li>
+    <li>GitHub cho hoi approve → Confirm → Deploy len production</li>
+  </ol>
+</div>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     3. QUAN LY SECRETS — 3 LOP
+════════════════════════════════════════ -->
+<h1 id="s3">3. Quan ly secrets — 3 lop</h1>
+
+<div class="arch">
+Lop 1 — May local (chi ban biet)
+    backend/.env         ← DB local, chay docker-compose up
+    frontend/.env.local  ← VITE_API_URL=http://localhost:5000
+
+Lop 2 — GitHub Secrets (infra keys, it thay doi)
+    AWS_ACCESS_KEY_ID     ← credentials cua github-actions-deploy
+    AWS_SECRET_ACCESS_KEY ← credentials cua github-actions-deploy
+    ECR_REGISTRY          ← URL kho Docker images tren AWS
+    EC2_HOST              ← IP cua EC2 (trong Environment secrets)
+    EC2_SSH_KEY           ← SSH key vao EC2 (trong Environment secrets)
+
+Lop 3 — AWS Parameter Store (app secrets, them/sua tu do)
+    /myapp/production/DB_NAME
+    /myapp/production/DB_PASSWORD
+    /myapp/production/NGINX_HTTP_PORT = 80
+    /myapp/staging/DB_NAME
+    /myapp/staging/NGINX_HTTP_PORT    = 8080
+    ...
+</div>
+
+<table>
+  <tr><th>Luu o dau</th><th>Chua gi</th><th>Them key moi</th><th>Chi phi</th></tr>
+  <tr><td>May local (.env)</td><td>Secrets chay local</td><td>Sua file tay</td><td>Mien phi</td></tr>
+  <tr><td>GitHub Secrets</td><td>5 infra keys co dinh</td><td>Qua GitHub UI/CLI</td><td>Mien phi</td></tr>
+  <tr><td>AWS SSM</td><td>App secrets moi moi truong</td><td>1 lenh AWS CLI</td><td>~$0.05/param/thang</td></tr>
+</table>
+
+<div class="warn">
+  <strong>Tai sao khong luu het vao GitHub Secrets?</strong>
+  GitHub Secrets kho quan ly khi co nhieu moi truong va nhieu keys.
+  Them key moi phai vao GitHub UI tung cai.
+  AWS SSM co the them bang CLI 1 lenh va workflow tu dong fetch — khong can sua code.
+</div>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     4. AWS PARAMETER STORE
+════════════════════════════════════════ -->
+<h1 id="s4">4. AWS Parameter Store — Giai thich chi tiet</h1>
+
+<h2>4.1 Cau truc dat ten</h2>
+
+<p>Dung cu phap <code>/app/moi-truong/TEN_KEY</code> de nhom theo moi truong:</p>
+
+<pre><code>/myapp/
+  production/
+    DB_NAME           = todos_db
+    DB_PASSWORD       = (ma hoa)
+    NGINX_HTTP_PORT   = 80
+    PGADMIN_PORT      = 5050
+    VITE_API_URL      = http://13.229.216.57
+  staging/
+    DB_NAME           = todos_db_staging   <span class="cmt"># DB rieng, khong loi vao production</span>
+    DB_PASSWORD       = (ma hoa)
+    NGINX_HTTP_PORT   = 8080               <span class="cmt"># Port khac de chay chung 1 EC2</span>
+    PGADMIN_PORT      = 5051
+    VITE_API_URL      = http://13.229.216.57:8080
+</code></pre>
+
+<h2>4.2 String vs SecureString</h2>
+
+<table>
+  <tr><th></th><th>String</th><th>SecureString</th></tr>
+  <tr><td>Luu o dau</td><td>AWS SSM</td><td>AWS SSM</td></tr>
+  <tr><td>Ma hoa</td><td>Khong</td><td>Co (KMS key)</td></tr>
+  <tr><td>Hien thi tren Console</td><td>Thay gia tri that</td><td>Hien thi ***</td></tr>
+  <tr><td>Chi phi</td><td>Mien phi</td><td>~$0.05/param/thang</td></tr>
+  <tr><td>Dung cho</td><td>Hoc tap / dev</td><td>Production that</td></tr>
+</table>
+
+<h2>4.3 Lenh tao parameters</h2>
+
+<pre><code><span class="cmt"># Windows Git Bash: can them MSYS_NO_PATHCONV=1 truoc lenh</span>
+<span class="cmt"># Windows PowerShell: chay binh thuong, khong can them</span>
+
+<span class="cmt"># Tao parameter</span>
+aws ssm put-parameter \
+  --region ap-southeast-1 \
+  --name "/myapp/production/DB_PASSWORD" \
+  --value "mat_khau_cua_ban" \
+  --type SecureString
+
+<span class="cmt"># Cap nhat gia tri cu (them --overwrite)</span>
+aws ssm put-parameter \
+  --region ap-southeast-1 \
+  --name "/myapp/production/DB_PASSWORD" \
+  --value "mat_khau_moi" \
+  --type SecureString \
+  --overwrite
+
+<span class="cmt"># Them key moi bat ky luc nao — khong can sua deploy.yml</span>
+aws ssm put-parameter \
+  --region ap-southeast-1 \
+  --name "/myapp/production/JWT_SECRET" \
+  --value "jwt_secret_cua_ban" \
+  --type SecureString
+</code></pre>
+
+<h2>4.4 Cach workflow fetch secrets</h2>
+
+<p>
+  Trong <code>deploy.yml</code>, buoc "Fetch secrets from Parameter Store" lam viec nhu sau:
+</p>
+
+<pre><code>aws ssm get-parameters-by-path \
+  --path "/myapp/production/" \      <span class="cmt"># Lay tat ca keys trong thu muc nay</span>
+  --with-decryption \                 <span class="cmt"># Giai ma SecureString</span>
+  --query "Parameters[*].[Name,Value]" \
+  --output text | \
+awk -F'\t' '{n=split($1,a,"/"); print a[n]"="$2}' > backend/.env
+<span class="cmt"># awk: tach lay phan cuoi cua path lam ten bien</span>
+<span class="cmt"># /myapp/production/DB_NAME → DB_NAME=todos_db</span>
+<span class="cmt"># /myapp/production/DB_PASSWORD → DB_PASSWORD=xxx</span>
+<span class="cmt"># Ket qua: tao file backend/.env voi day du tat ca keys</span>
+</code></pre>
+
+<div class="info">
+  <strong>Them key moi chi can 1 buoc</strong>
+  Them parameter vao SSM → deploy lan sau tu dong co key do trong .env — khong can sua bat ky file code nao.
+</div>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     5. GITHUB ENVIRONMENTS
+════════════════════════════════════════ -->
+<h1 id="s5">5. GitHub Environments — Giai thich chi tiet</h1>
+
+<h2>5.1 GitHub Environments la gi?</h2>
+
+<p>
+  GitHub Environments cho phep nhom secrets + rules rieng cho tung moi truong.
+  Khi job <code>deploy</code> chay, no biet dang deploy moi truong nao va lay dung secrets cua moi truong do.
+</p>
+
+<div class="arch">
+GitHub Environments
+├── production
+│   ├── Required reviewers: ngoclong99   ← phai approve moi deploy
+│   └── Secrets:
+│       EC2_HOST    = 13.229.216.57
+│       EC2_SSH_KEY = -----BEGIN RSA...
+│
+├── staging
+│   └── Secrets:
+│       EC2_HOST    = 13.229.216.57      ← cung EC2, khac moi truong
+│       EC2_SSH_KEY = -----BEGIN RSA...
+│
+└── development
+    └── (trong rong, chay local)
+</div>
+
+<h2>5.2 Required reviewers (production)</h2>
+
+<p>
+  Khi <code>Required reviewers</code> duoc bat cho environment <code>production</code>:
+</p>
+
+<ul>
+  <li>Push len <code>main</code> → build chay binh thuong</li>
+  <li>Truoc buoc deploy production → GitHub dung lai, gui thong bao</li>
+  <li>Ban (nguoi reviewer) vao GitHub Actions → bam <strong>Review deployments → Approve</strong></li>
+  <li>Deploy moi chay tiep</li>
+</ul>
+
+<div class="tip">
+  <strong>Tai sao can approve?</strong>
+  Dam bao khong ai deploy nham len production. Nen chi 1 nguoi co quyen approve.
+  Voi team nho co the de chinh minh lam reviewer — van can bam approve thu cong.
+</div>
+
+<h2>5.3 Environment URL (APP_URL variable)</h2>
+
+<p>Trong <code>deploy.yml</code> co dong:</p>
+
+<pre><code>environment:
+  name: ${{ needs.build.outputs.environment }}
+  url:  ${{ vars.APP_URL }}   <span class="cmt"># Hien thi link truy cap tren GitHub Actions UI</span>
+</code></pre>
+
+<p>
+  Them <code>APP_URL</code> vao <strong>Environment variables</strong> (khong phai secrets) thi sau moi deploy
+  GitHub hien thi nut link truc tiep den app:
+</p>
+<ul>
+  <li>production: <code>http://13.229.216.57</code></li>
+  <li>staging: <code>http://13.229.216.57:8080</code></li>
+</ul>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     6. DEPLOY.YML — GIAI THICH
+════════════════════════════════════════ -->
+<h1 id="s6">6. deploy.yml — Giai thich tung buoc</h1>
+
+<h2>6.1 Job 1: Build</h2>
+
+<pre><code>on:
+  push:
+    branches: [develop, staging, main]
+<span class="cmt"># Workflow chay khi push len bat ky 3 branch nay</span>
+
+- name: Determine environment from branch
+  run: |
+    case "${{ github.ref_name }}" in
+      main)    echo "environment=production"  >> $GITHUB_OUTPUT ;;
+      staging) echo "environment=staging"     >> $GITHUB_OUTPUT ;;
+      *)       echo "environment=development" >> $GITHUB_OUTPUT ;;
+    esac
+<span class="cmt"># Doc ten branch → map sang ten moi truong</span>
+<span class="cmt"># main    → production</span>
+<span class="cmt"># staging → staging</span>
+<span class="cmt"># khac    → development</span>
+<span class="cmt"># Luu vao GITHUB_OUTPUT de cac buoc sau dung duoc</span>
+
+- name: Set image tag (branch + git short SHA)
+  run: echo "tag=${{ github.ref_name }}-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+<span class="cmt"># Tao tag duy nhat cho moi commit: staging-abc1234</span>
+<span class="cmt"># github.ref_name = ten branch (staging, main...)</span>
+<span class="cmt"># GITHUB_SHA::7  = 7 ky tu dau cua commit hash</span>
+<span class="cmt"># Vi du: main-a1b2c3d, staging-x7y8z9w</span>
+<span class="cmt"># → De rollback: chi can doi lai IMAGE_TAG ve tag cu</span>
+
+- name: Fetch VITE_API_URL from Parameter Store
+  run: |
+    VITE_API_URL=$(aws ssm get-parameter \
+      --name "/myapp/${{ steps.env.outputs.environment }}/VITE_API_URL" \
+      --with-decryption \
+      --query "Parameter.Value" \
+      --output text)
+    echo "VITE_API_URL=$VITE_API_URL" >> $GITHUB_ENV
+<span class="cmt"># Lay VITE_API_URL tu SSM truoc khi build frontend</span>
+<span class="cmt"># Vi URL khac nhau theo moi truong:</span>
+<span class="cmt">#   production: http://13.229.216.57</span>
+<span class="cmt">#   staging:    http://13.229.216.57:8080</span>
+<span class="cmt"># >> $GITHUB_ENV: luu vao bien moi truong de buoc sau dung</span>
+
+- name: Build & push frontend
+  run: |
+    docker build \
+      --build-arg VITE_API_URL=$VITE_API_URL \   <span class="cmt"># Truyen vao luc build</span>
+      -t $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }} \
+      ./frontend
+<span class="cmt"># VITE_API_URL duoc nhung thang vao bundle JS luc build</span>
+<span class="cmt"># → moi moi truong co bundle khac nhau voi URL khac nhau</span>
+</code></pre>
+
+<h2>6.2 Job 2: Deploy</h2>
+
+<pre><code>deploy:
+  environment:
+    name: ${{ needs.build.outputs.environment }}
+<span class="cmt"># Khai bao se deploy len moi truong nao</span>
+<span class="cmt"># GitHub tu dong lay secrets cua moi truong do (EC2_HOST, EC2_SSH_KEY)</span>
+<span class="cmt"># Neu environment=production va co Required reviewers → doi approve</span>
+
+- name: Fetch secrets from Parameter Store
+  run: |
+    aws ssm get-parameters-by-path \
+      --path "/myapp/${{ needs.build.outputs.environment }}/" \
+      --with-decryption \
+      --query "Parameters[*].[Name,Value]" \
+      --output text | \
+    awk -F'\t' '{n=split($1,a,"/"); print a[n]"="$2}' > backend/.env
+    echo "PORT=5000" >> backend/.env
+    echo "ENVIRONMENT=${{ needs.build.outputs.environment }}" >> backend/.env
+<span class="cmt"># Lay TAT CA keys trong /myapp/staging/ hoac /myapp/production/</span>
+<span class="cmt"># Convert thanh dinh dang KEY=VALUE roi ghi vao backend/.env</span>
+<span class="cmt"># File .env nay se duoc SCP len EC2</span>
+
+- name: Copy config files to EC2
+  with:
+    target: ~/app/${{ needs.build.outputs.environment }}
+    <span class="cmt"># 1 EC2: deploy vao thu muc rieng</span>
+    <span class="cmt">#   main    → ~/app/production/</span>
+    <span class="cmt">#   staging → ~/app/staging/</span>
+    <span class="cmt"># Neu 3 EC2 rieng: doi thanh "target: ~/app"</span>
+
+script: |
+  cd ~/app/${ENVIRONMENT}
+  docker compose -p myapp-${ENVIRONMENT} -f docker-compose.prod.yml pull
+  docker compose -p myapp-${ENVIRONMENT} -f docker-compose.prod.yml up -d
+  <span class="cmt"># "-p myapp-${ENVIRONMENT}": project name de namespace</span>
+  <span class="cmt"># Container production: myapp-production-backend-1</span>
+  <span class="cmt"># Container staging:    myapp-staging-backend-1</span>
+  <span class="cmt"># Volume production:    myapp-production_postgres_data</span>
+  <span class="cmt"># Volume staging:       myapp-staging_postgres_data</span>
+  <span class="cmt"># → Khong container nao dung chung ten → khong xung dot</span>
+</code></pre>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     7. DOCKER-COMPOSE.PROD.YML
+════════════════════════════════════════ -->
+<h1 id="s7">7. docker-compose.prod.yml — Giai thich tung buoc</h1>
+
+<pre><code>nginx:
+  ports:
+    - "${NGINX_HTTP_PORT}:80"
+<span class="cmt"># NGINX_HTTP_PORT den tu SSM (da ghi vao backend/.env)</span>
+<span class="cmt"># production: NGINX_HTTP_PORT=80  → map port 80  cua EC2 vao port 80  cua container</span>
+<span class="cmt"># staging:    NGINX_HTTP_PORT=8080 → map port 8080 cua EC2 vao port 80  cua container</span>
+<span class="cmt"># Ben trong container nginx van nghe port 80</span>
+<span class="cmt"># Chi khac o port phia ngoai (EC2)</span>
+
+pgadmin:
+  ports:
+    - "${PGADMIN_PORT}:80"
+<span class="cmt"># Tuong tu:</span>
+<span class="cmt"># production: 5050:80 → http://13.229.216.57:5050</span>
+<span class="cmt"># staging:    5051:80 → http://13.229.216.57:5051</span>
+
+volumes:
+  postgres_data:
+<span class="cmt"># Docker Compose tu them prefix tu project name:</span>
+<span class="cmt"># -p myapp-production → volume: myapp-production_postgres_data</span>
+<span class="cmt"># -p myapp-staging    → volume: myapp-staging_postgres_data</span>
+<span class="cmt"># => Data production va staging doc lap, khong loi vao nhau</span>
+</code></pre>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     8. PORTS VA URLS
+════════════════════════════════════════ -->
+<h1 id="s8">8. Ports va URLs</h1>
+
+<table>
+  <tr><th>Moi truong</th><th>App URL</th><th>pgAdmin URL</th><th>DB Volume</th></tr>
+  <tr><td>production</td><td>http://13.229.216.57</td><td>http://13.229.216.57:5050</td><td>myapp-production_postgres_data</td></tr>
+  <tr><td>staging</td><td>http://13.229.216.57:8080</td><td>http://13.229.216.57:5051</td><td>myapp-staging_postgres_data</td></tr>
+  <tr><td>development</td><td>http://localhost</td><td>http://localhost:5050</td><td>postgres_data (local)</td></tr>
+</table>
+
+<div class="warn">
+  <strong>Security Group tren EC2 phai mo cac port:</strong>
+  22 (SSH), 80 (production), 8080 (staging), 5050 (pgAdmin prod), 5051 (pgAdmin staging)
+</div>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     9. LENH KIEM TRA
+════════════════════════════════════════ -->
+<h1 id="s9">9. Lenh hay dung de kiem tra</h1>
+
+<pre><code><span class="cmt"># Kiem tra SSM parameters da tao</span>
+aws ssm get-parameters-by-path \
+  --region ap-southeast-1 \
+  --path "/myapp/" \
+  --recursive \
+  --query "Parameters[*].Name" \
+  --output table
+
+<span class="cmt"># Xem gia tri 1 parameter cu the</span>
+aws ssm get-parameter \
+  --region ap-southeast-1 \
+  --name "/myapp/production/DB_PASSWORD" \
+  --with-decryption \
+  --query "Parameter.Value" \
+  --output text
+
+<span class="cmt"># SSH vao EC2</span>
+ssh -i myapp-key.pem ubuntu@13.229.216.57
+
+<span class="cmt"># Xem containers dang chay (sau khi SSH vao EC2)</span>
+docker ps
+<span class="cmt"># Ket qua mong doi:</span>
+<span class="cmt">#   myapp-production-nginx-1</span>
+<span class="cmt">#   myapp-production-backend-1</span>
+<span class="cmt">#   myapp-production-frontend-1</span>
+<span class="cmt">#   myapp-production-db-1</span>
+<span class="cmt">#   myapp-staging-nginx-1 (sau khi deploy staging)</span>
+<span class="cmt">#   ...</span>
+
+<span class="cmt"># Xem log backend production</span>
+docker logs myapp-production-backend-1 --tail 50
+
+<span class="cmt"># Xem log backend staging</span>
+docker logs myapp-staging-backend-1 --tail 50
+
+<span class="cmt"># Xem tat ca volumes (moi moi truong co volume rieng)</span>
+docker volume ls
+<span class="cmt"># Ket qua:</span>
+<span class="cmt">#   myapp-production_postgres_data</span>
+<span class="cmt">#   myapp-staging_postgres_data</span>
+
+<span class="cmt"># Deploy staging thu cong</span>
+git checkout staging
+git merge main
+git push origin staging
+
+<span class="cmt"># Rollback ve phien ban cu (chay tren EC2)</span>
+cd ~/app/production
+IMAGE_TAG=main-abc1234 \
+  ECR_REGISTRY=xxx.dkr.ecr.ap-southeast-1.amazonaws.com \
+  ENVIRONMENT=production \
+  docker compose -p myapp-production -f docker-compose.prod.yml up -d
+</code></pre>
+
+<hr/>
+
+<!-- ═══════════════════════════════════════
+     10. NEU DOI SANG 3 EC2
+════════════════════════════════════════ -->
+<h1 id="s10">10. Neu doi sang 3 EC2 rieng — can thay doi gi</h1>
+
+<p>Tat ca nhung gi can doi da duoc comment trong code. Chi can sua 3 cho:</p>
+
+<table>
+  <tr><th>File</th><th>Dong can sua</th><th>Hien tai (1 EC2)</th><th>Sau khi doi (3 EC2)</th></tr>
+  <tr>
+    <td><code>deploy.yml</code></td>
+    <td>target:</td>
+    <td><code>~/app/${{ env }}</code></td>
+    <td><code>~/app</code></td>
+  </tr>
+  <tr>
+    <td><code>deploy.yml</code></td>
+    <td>docker compose</td>
+    <td><code>-p myapp-${ENVIRONMENT}</code></td>
+    <td>Bo flag -p di</td>
+  </tr>
+  <tr>
+    <td><code>docker-compose.prod.yml</code></td>
+    <td>nginx ports</td>
+    <td><code>${NGINX_HTTP_PORT}:80</code></td>
+    <td><code>80:80</code></td>
+  </tr>
+  <tr>
+    <td><code>docker-compose.prod.yml</code></td>
+    <td>pgadmin ports</td>
+    <td><code>${PGADMIN_PORT}:80</code></td>
+    <td><code>5050:80</code></td>
+  </tr>
+  <tr>
+    <td>GitHub Environments</td>
+    <td>EC2_HOST</td>
+    <td>Cung 1 IP</td>
+    <td>IP rieng tung moi truong</td>
+  </tr>
+  <tr>
+    <td>AWS SSM</td>
+    <td>NGINX_HTTP_PORT, PGADMIN_PORT</td>
+    <td>Can thiet</td>
+    <td>Co the xoa di</td>
+  </tr>
+</table>
+
+<div class="info">
+  <strong>Chi phi so sanh</strong>
+  1 EC2: ~$8/thang — staging loi co the anh huong production.<br/>
+  3 EC2: ~$24/thang — hoan toan doc lap, an toan hon cho production that.
+</div>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>Multi-Environment Deployment Guide</strong></p>
+  <p>EC2: 13.229.216.57 · Region: ap-southeast-1 · Project: ngoclong99/start</p>
+</div>
+
+</body>
+</html>

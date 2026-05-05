@@ -231,6 +231,7 @@
     <li><a href="#s11">Sơ đồ luồng hoạt động toàn hệ thống</a></li>
     <li><a href="#s12">Câu hỏi thường gặp (FAQ)</a></li>
     <li><a href="#s13">Tất cả file cần thiết (copy &amp; dùng ngay)</a></li>
+    <li><a href="#s14">Multi-Environment — 1 EC2, nhiều môi trường</a></li>
   </ol>
 </div>
 
@@ -2013,11 +2014,107 @@ jobs:
 
 <hr/>
 
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     14. MULTI-ENVIRONMENT
+═════════════════════════════════════════════════ -->
+<h1 id="s14">14. Multi-Environment — 1 EC2, nhieu moi truong</h1>
+
+<p>
+  Thay vi dung 3 EC2 rieng (ton ~$24/thang), chay ca 3 moi truong tren 1 EC2
+  bang cach dung <strong>port khac nhau</strong> va <strong>thu muc rieng</strong>.
+</p>
+
+<h2>14.1 Kien truc tren EC2</h2>
+
+<div class="arch">
+EC2 (13.229.216.57)
+├── ~/app/production/     ← branch main
+│   ├── docker-compose.prod.yml
+│   ├── nginx/default.conf
+│   └── backend/.env      ← secrets tu /myapp/production/
+│
+└── ~/app/staging/        ← branch staging
+    ├── docker-compose.prod.yml
+    ├── nginx/default.conf
+    └── backend/.env      ← secrets tu /myapp/staging/
+
+Ports:
+  production → nginx:80,  pgAdmin:5050
+  staging    → nginx:8080, pgAdmin:5051
+</div>
+
+<h2>14.2 Branch → Moi truong → Port</h2>
+
+<table>
+  <tr><th>Branch</th><th>Moi truong</th><th>App</th><th>pgAdmin</th><th>Thu muc EC2</th></tr>
+  <tr><td><code>main</code></td><td>production</td><td>:80</td><td>:5050</td><td>~/app/production/</td></tr>
+  <tr><td><code>staging</code></td><td>staging</td><td>:8080</td><td>:5051</td><td>~/app/staging/</td></tr>
+  <tr><td><code>develop</code></td><td>development</td><td>localhost</td><td>localhost:5050</td><td>May local</td></tr>
+</table>
+
+<h2>14.3 Namespace containers bang project name</h2>
+
+<p>
+  Lenh <code>docker compose -p myapp-production</code> dam bao moi container va volume co ten rieng,
+  khong xung dot giua cac moi truong:
+</p>
+
+<pre><code><span class="cmt"># production</span>
+docker compose -p myapp-production up -d
+<span class="cmt"># Container: myapp-production-backend-1, myapp-production-db-1</span>
+<span class="cmt"># Volume:    myapp-production_postgres_data</span>
+
+<span class="cmt"># staging</span>
+docker compose -p myapp-staging up -d
+<span class="cmt"># Container: myapp-staging-backend-1, myapp-staging-db-1</span>
+<span class="cmt"># Volume:    myapp-staging_postgres_data</span>
+
+<span class="cmt"># Kiem tra tat ca containers dang chay</span>
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+</code></pre>
+
+<h2>14.4 Quan ly secrets theo 3 lop</h2>
+
+<table>
+  <tr><th>Lop</th><th>Luu o dau</th><th>Chua gi</th><th>Them key moi</th></tr>
+  <tr><td>1</td><td>May local (.env)</td><td>Secrets chay local</td><td>Sua file tay</td></tr>
+  <tr><td>2</td><td>GitHub Secrets</td><td>5 infra keys: AWS creds, ECR, EC2 host/key</td><td>GitHub UI</td></tr>
+  <tr><td>3</td><td>AWS SSM</td><td>App secrets moi moi truong: DB, ports, pgAdmin</td><td>1 lenh CLI</td></tr>
+</table>
+
+<pre><code><span class="cmt"># Them key moi bat ky luc nao — workflow tu fetch, khong can sua code</span>
+aws ssm put-parameter --region ap-southeast-1 \
+  --name "/myapp/production/JWT_SECRET" \
+  --value "secret_cua_ban" \
+  --type SecureString
+</code></pre>
+
+<h2>14.5 Neu muon doi sang 3 EC2 rieng</h2>
+
+<p>Chi can sua 3 cho trong code (da duoc comment san):</p>
+
+<table>
+  <tr><th>File</th><th>Thay doi</th></tr>
+  <tr><td><code>deploy.yml</code></td><td><code>target: ~/app/${ENVIRONMENT}</code> → <code>target: ~/app</code></td></tr>
+  <tr><td><code>deploy.yml</code></td><td>Bo flag <code>-p myapp-${ENVIRONMENT}</code></td></tr>
+  <tr><td><code>docker-compose.prod.yml</code></td><td>Port co dinh: <code>80:80</code> va <code>5050:80</code></td></tr>
+</table>
+
+<div class="tip">
+  <strong>Xem huong dan day du</strong>
+  Mo file <code>docs/multi-environment.html</code> de xem giai thich chi tiet tung dong lenh,
+  cach fetch secrets, va so sanh 1 EC2 vs 3 EC2.
+</div>
+
+<hr/>
+
 <div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
-  <p><strong>Hướng dẫn Docker · Nginx · AWS · CI/CD</strong></p>
-  <p>Dựa trên project: React + Node.js + PostgreSQL + Docker Compose</p>
+  <p><strong>Huong dan Docker · Nginx · AWS · CI/CD</strong></p>
+  <p>Dua tren project: React + Node.js + PostgreSQL + Docker Compose</p>
   <p style="margin-top:8px;">
-    Để in/lưu PDF: nhấn <strong>Ctrl+P</strong> → chọn <strong>"Save as PDF"</strong> → Save
+    De in/luu PDF: nhan <strong>Ctrl+P</strong> → chon <strong>"Save as PDF"</strong> → Save
   </p>
 </div>
 
