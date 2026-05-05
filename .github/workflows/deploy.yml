@@ -2,7 +2,8 @@ name: Build & Deploy
 
 on:
   push:
-    branches: [develop, staging, main]
+    # develop chi chay local, khong deploy EC2 nen khong trigger workflow
+    branches: [staging, main]
 
 env:
   AWS_REGION: ap-southeast-1
