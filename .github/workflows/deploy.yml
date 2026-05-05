@@ -149,6 +149,10 @@ jobs:
             aws ecr get-login-password --region ap-southeast-1 | \
               docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
+            # Load bien tu backend/.env vao shell environment
+            # Docker Compose doc ${NGINX_HTTP_PORT}, ${DB_NAME},... tu shell — phai load truoc
+            set -a && source backend/.env && set +a
+
             # Dung project name "-p myapp-${ENVIRONMENT}" de namespace rieng tung moi truong
             # Container: myapp-production-backend-1, myapp-staging-backend-1
             # Volume:    myapp-production_postgres_data, myapp-staging_postgres_data
