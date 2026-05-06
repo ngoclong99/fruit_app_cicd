@@ -4,7 +4,7 @@ services:
   # CHE DO HIEN TAI: Docker PostgreSQL + EBS volume (tiet kiem chi phi)
   #
   # CHUYEN SANG RDS: chi can 3 buoc:
-  #   1. Xoa service "db" nay va volumes "postgres_data" o cuoi file
+  #   1. Xoa service depends_on "db" nay va volumes "postgres_data" o cuoi file
   #   2. Xoa "depends_on: db" trong backend va pgadmin
   #   3. Cap nhat SSM: DB_HOST=<rds-endpoint>, DB_USER, DB_PASSWORD cho khop RDS
   #   (backend/src/db.ts tu dong bat SSL khi DB_HOST chua "rds.amazonaws.com")
@@ -63,9 +63,11 @@ services:
     image: nginx:1.25-alpine
     restart: always
     ports:
-      - "${NGINX_HTTP_PORT}:80"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on: [frontend, backend]
     networks: [app-net]
 
