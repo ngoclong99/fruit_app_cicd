@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giai đoạn 2 — Data & Bảo mật</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; line-height: 1.7; }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+    h1 { font-size: 2rem; color: #63b3ed; margin-bottom: 8px; }
+    .subtitle { color: #718096; margin-bottom: 40px; }
+    h2 { font-size: 1.3rem; color: #90cdf4; margin: 40px 0 16px; border-left: 4px solid #63b3ed; padding-left: 12px; }
+    h3 { font-size: 1rem; color: #fbd38d; margin: 24px 0 8px; }
+    p { margin-bottom: 12px; color: #cbd5e0; }
+    .step { background: #1a202c; border: 1px solid #2d3748; border-radius: 8px; padding: 20px 24px; margin-bottom: 20px; }
+    .step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .step-num { background: #63b3ed; color: #0f1117; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; }
+    .step-title { font-size: 1.1rem; font-weight: 600; color: #e2e8f0; }
+    .done { color: #68d391; }
+    .done::before { content: "✓ "; }
+    pre { background: #171923; border: 1px solid #2d3748; border-radius: 6px; padding: 16px; overflow-x: auto; margin: 10px 0; }
+    code { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.85rem; color: #e2e8f0; }
+    .cmd-block { margin: 12px 0; }
+    .cmd-label { font-size: 0.78rem; color: #68d391; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .cmd-desc { font-size: 0.9rem; color: #a0aec0; margin: 6px 0 4px; }
+    .error-box { background: #2d1515; border: 1px solid #742a2a; border-radius: 6px; padding: 14px 16px; margin: 10px 0; }
+    .error-title { color: #fc8181; font-weight: 600; margin-bottom: 6px; }
+    .error-cause { color: #a0aec0; font-size: 0.9rem; margin-bottom: 6px; }
+    .error-fix { color: #68d391; font-size: 0.9rem; }
+    .note { background: #1a2744; border: 1px solid #2b4590; border-radius: 6px; padding: 12px 16px; margin: 10px 0; color: #90cdf4; font-size: 0.9rem; }
+    .warn { background: #2d2106; border: 1px solid #744210; border-radius: 6px; padding: 12px 16px; margin: 10px 0; color: #fbd38d; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.9rem; }
+    th { background: #2d3748; color: #90cdf4; padding: 10px 12px; text-align: left; }
+    td { padding: 9px 12px; border-bottom: 1px solid #2d3748; color: #cbd5e0; }
+    tr:last-child td { border-bottom: none; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-left: 8px; }
+    .tag-done { background: #276749; color: #68d391; }
+    .tag-skip { background: #2d3748; color: #718096; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Giai đoạn 2 — Data & Bảo mật</h1>
+  <p class="subtitle">Mục tiêu: Data không mất, app an toàn hơn</p>
+
+  <!-- OVERVIEW -->
+  <div class="step">
+    <table>
+      <tr><th>Hạng mục</th><th>Trạng thái</th><th>Ghi chú</th></tr>
+      <tr><td>Security Group</td><td class="done" style="color:#68d391">Hoàn thành</td><td>Mở đúng port: 22, 80, 443, 5050, 5051, 8080</td></tr>
+      <tr><td>RDS</td><td class="done" style="color:#68d391">Đã học</td><td>Revert về Docker DB để tiết kiệm. Xem RDS_GUIDE.md</td></tr>
+      <tr><td>HTTPS</td><td class="done" style="color:#68d391">Hoàn thành</td><td>https://vhnlong.store với Let's Encrypt</td></tr>
+      <tr><td>IAM</td><td class="done" style="color:#68d391">Hoàn thành</td><td>EC2 Instance Role myapp-ec2-role</td></tr>
+      <tr><td>S3</td><td style="color:#718096">Bỏ qua</td><td>App chưa có tính năng upload file</td></tr>
+    </table>
+  </div>
+
+  <!-- SECURITY GROUP -->
+  <h2>Bước 1 — Security Group</h2>
+  <div class="step">
+    <p>Security Group là firewall của EC2 — kiểm soát traffic vào/ra. Nguyên tắc: <strong>chỉ mở đúng port cần thiết</strong>, đóng hết còn lại.</p>
+
+    <h3>Các port cần mở (Inbound rules)</h3>
+    <table>
+      <tr><th>Port</th><th>Protocol</th><th>Source</th><th>Mục đích</th></tr>
+      <tr><td>22</td><td>TCP</td><td>0.0.0.0/0</td><td>SSH vào EC2</td></tr>
+      <tr><td>80</td><td>TCP</td><td>0.0.0.0/0</td><td>HTTP (redirect sang HTTPS)</td></tr>
+      <tr><td>443</td><td>TCP</td><td>0.0.0.0/0</td><td>HTTPS</td></tr>
+      <tr><td>5050</td><td>TCP</td><td>IP của bạn/32</td><td>pgAdmin production</td></tr>
+      <tr><td>5051</td><td>TCP</td><td>IP của bạn/32</td><td>pgAdmin staging</td></tr>
+      <tr><td>8080</td><td>TCP</td><td>IP của bạn/32</td><td>Nginx staging</td></tr>
+    </table>
+
+    <div class="note">pgAdmin và staging nên giới hạn source về IP của bạn thay vì 0.0.0.0/0 để tránh expose công khai.</div>
+
+    <h3>Kiểm tra port có mở không (chạy local)</h3>
+    <div class="cmd-block">
+      <div class="cmd-label">Lệnh</div>
+      <pre><code>aws ec2 describe-security-groups \
+  --filters "Name=tag:Name,Values=*" \
+  --query "SecurityGroups[*].{ID:GroupId,Rules:IpPermissions}" \
+  --output table --region ap-southeast-1</code></pre>
+      <div class="cmd-desc">Liệt kê tất cả Security Group và inbound rules hiện tại.</div>
+    </div>
+
+    <div class="error-box">
+      <div class="error-title">Lỗi: site không truy cập được dù app đang chạy</div>
+      <div class="error-cause">Nguyên nhân: Port chưa được mở trong Security Group.</div>
+      <div class="error-fix">Fix: Vào EC2 → Security Groups → Inbound rules → Add rule → thêm port cần thiết.</div>
+    </div>
+  </div>
+
+  <!-- RDS -->
+  <h2>Bước 2 — RDS <span class="tag tag-skip">Revert về Docker DB</span></h2>
+  <div class="step">
+    <p>RDS là managed PostgreSQL của AWS — data không mất khi EC2 bị xóa. Đây là cách đúng cho production.</p>
+    <p>Hiện tại revert về Docker PostgreSQL để tiết kiệm chi phí demo (~$23/tháng). Xem <strong>docs/RDS_GUIDE.md</strong> để migrate khi cần.</p>
+
+    <h3>Tạo RDS (AWS Console)</h3>
+    <table>
+      <tr><th>Field</th><th>Giá trị</th></tr>
+      <tr><td>Engine</td><td>PostgreSQL 15</td></tr>
+      <tr><td>Template</td><td>Free tier</td></tr>
+      <tr><td>Instance class</td><td>db.t3.micro</td></tr>
+      <tr><td>Storage</td><td>20GB gp2, tắt autoscaling</td></tr>
+      <tr><td>Public access</td><td>No</td></tr>
+      <tr><td>Security Group</td><td>myapp-rds-sg (port 5432, source = EC2 SG)</td></tr>
+      <tr><td>Backup retention</td><td>0 days</td></tr>
+    </table>
+
+    <h3>Tạo database và user trong RDS (chạy trên EC2)</h3>
+    <div class="cmd-block">
+      <div class="cmd-label">Kết nối RDS bằng master user</div>
+      <pre><code>psql -h &lt;rds-endpoint&gt; -U postgres -d postgres</code></pre>
+      <div class="cmd-desc">Kết nối vào RDS bằng user postgres (master user do AWS tạo).</div>
+    </div>
+    <div class="cmd-block">
+      <div class="cmd-label">Tạo user, database, phân quyền</div>
+      <pre><code>CREATE USER "userPostgres" WITH PASSWORD '&lt;password&gt;';
+CREATE DATABASE todos_db;
+GRANT ALL PRIVILEGES ON DATABASE todos_db TO "userPostgres";
+\c todos_db
+CREATE TABLE IF NOT EXISTS todos (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  done BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+GRANT ALL ON TABLE todos TO "userPostgres";
+GRANT ALL ON SEQUENCE todos_id_seq TO "userPostgres";
+\q</code></pre>
+      <div class="cmd-desc">Tạo bảng bằng postgres vì RDS PostgreSQL 15 không cho user thường tạo bảng trong schema public.</div>
+    </div>
+
+    <h3>Cập nhật SSM sau khi có RDS endpoint</h3>
+    <div class="cmd-block">
+      <div class="cmd-label">Chạy local (PowerShell)</div>
+      <pre><code>aws ssm put-parameter --name "/myapp/production/DB_HOST" `
+  --value "&lt;rds-endpoint&gt;" --type String --overwrite --region ap-southeast-1</code></pre>
+      <div class="cmd-desc">Cập nhật DB_HOST trong SSM để backend kết nối RDS thay vì Docker container.</div>
+    </div>
+
+    <div class="error-box">
+      <div class="error-title">no pg_hba.conf entry ... no encryption</div>
+      <div class="error-cause">Nguyên nhân: Backend kết nối không SSL, RDS bắt buộc SSL.</div>
+      <div class="error-fix">Fix: backend/src/db.ts tự bật SSL khi DB_HOST chứa "rds.amazonaws.com". Đảm bảo code mới nhất đã deploy.</div>
+    </div>
+    <div class="error-box">
+      <div class="error-title">password authentication failed for user "userPostgres"</div>
+      <div class="error-cause">Nguyên nhân: Password trong SSM không khớp với password đặt trong RDS.</div>
+      <div class="error-fix">Fix: Lấy DB_PASSWORD từ SSM rồi chạy: ALTER USER "userPostgres" WITH PASSWORD '&lt;password&gt;';</div>
+    </div>
+    <div class="error-box">
+      <div class="error-title">permission denied for schema public (code 42501)</div>
+      <div class="error-cause">Nguyên nhân: RDS PostgreSQL 15 thu hồi quyền CREATE TABLE mặc định của schema public.</div>
+      <div class="error-fix">Fix: Tạo bảng bằng master user postgres, sau đó GRANT ALL ON TABLE todos TO "userPostgres".</div>
+    </div>
+
+    <h3>Chi phí</h3>
+    <table>
+      <tr><th>Loại</th><th>Chi phí</th></tr>
+      <tr><td>db.t3.micro on-demand</td><td>~$0.021/giờ</td></tr>
+      <tr><td>Storage 20GB gp2</td><td>~$2.76/tháng</td></tr>
+      <tr><td>1 buổi học (2h)</td><td>~$0.04</td></tr>
+    </table>
+    <div class="warn">Tắt (Stop) RDS vẫn tốn phí storage. Nên Delete ngay sau khi học xong để tiết kiệm.</div>
+  </div>
+
+  <!-- HTTPS -->
+  <h2>Bước 3 — HTTPS với Let's Encrypt</h2>
+  <div class="step">
+    <p>Certbot lấy SSL certificate miễn phí từ Let's Encrypt. Certificate có hiệu lực 90 ngày, có thể tự động gia hạn.</p>
+
+    <h3>Yêu cầu trước khi cài</h3>
+    <ul style="color:#cbd5e0; padding-left:20px; margin-bottom:12px;">
+      <li>Có domain trỏ A record về IP EC2</li>
+      <li>Port 80 và 443 đã mở trong Security Group</li>
+    </ul>
+
+    <h3>Cài Certbot và lấy certificate (chạy trên EC2)</h3>
+    <div class="cmd-block">
+      <div class="cmd-label">Bước 1 — Cài Certbot</div>
+      <pre><code>sudo apt update && sudo apt install -y certbot</code></pre>
+      <div class="cmd-desc">Cài Certbot lên EC2.</div>
+    </div>
+    <div class="cmd-block">
+      <div class="cmd-label">Bước 2 — Dừng nginx để Certbot verify domain</div>
+      <pre><code>docker stop myapp-production-nginx-1</code></pre>
+      <div class="cmd-desc">Certbot cần port 80 trống để verify domain. Dừng nginx tạm thời.</div>
+    </div>
+    <div class="cmd-block">
+      <div class="cmd-label">Bước 3 — Lấy certificate</div>
+      <pre><code>sudo certbot certonly --standalone -d vhnlong.store -d www.vhnlong.store</code></pre>
+      <div class="cmd-desc">--standalone: Certbot tự chạy web server tạm trên port 80 để verify. Certificate lưu tại /etc/letsencrypt/live/vhnlong.store/</div>
+    </div>
+    <div class="cmd-block">
+      <div class="cmd-label">Bước 4 — Start nginx lại</div>
+      <pre><code>docker start myapp-production-nginx-1</code></pre>
+    </div>
+
+    <h3>Cấu hình nginx HTTPS (nginx/default.conf)</h3>
+    <pre><code># HTTP → redirect sang HTTPS
+server {
+    listen 80;
+    server_name vhnlong.store www.vhnlong.store;
+    location / { return 301 https://$host$request_uri; }
+}
+
+# HTTPS
+server {
+    listen 443 ssl http2;
+    server_name vhnlong.store www.vhnlong.store;
+    ssl_certificate     /etc/letsencrypt/live/vhnlong.store/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/vhnlong.store/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ...
+}</code></pre>
+
+    <h3>Mount certificate vào nginx container (docker-compose.prod.yml)</h3>
+    <pre><code>nginx:
+  ports:
+    - "80:80"
+    - "443:443"
+  volumes:
+    - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    - /etc/letsencrypt:/etc/letsencrypt:ro  # mount cert từ EC2 vào container</code></pre>
+    <div class="note">/etc/letsencrypt nằm trên EC2, cần mount vào container nginx mới đọc được certificate.</div>
+
+    <h3>Kiểm tra certificate còn hạn không</h3>
+    <div class="cmd-block">
+      <div class="cmd-label">Chạy trên EC2</div>
+      <pre><code>sudo certbot certificates</code></pre>
+      <div class="cmd-desc">Hiển thị tất cả certificate, ngày hết hạn, và domain.</div>
+    </div>
+    <div class="cmd-block">
+      <div class="cmd-label">Gia hạn certificate thủ công</div>
+      <pre><code>docker stop myapp-production-nginx-1
+sudo certbot renew
+docker start myapp-production-nginx-1</code></pre>
+    </div>
+
+    <div class="error-box">
+      <div class="error-title">Certbot: Could not bind to IPv4 / port 80 in use</div>
+      <div class="error-cause">Nguyên nhân: Nginx vẫn đang chạy trên port 80.</div>
+      <div class="error-fix">Fix: docker stop myapp-production-nginx-1 trước khi chạy certbot.</div>
+    </div>
+    <div class="error-box">
+      <div class="error-title">Certbot: DNS problem / domain not found</div>
+      <div class="error-cause">Nguyên nhân: A record chưa trỏ về IP EC2, hoặc DNS chưa propagate.</div>
+      <div class="error-fix">Fix: Kiểm tra bằng nslookup vhnlong.store 8.8.8.8. Chờ 15-60 phút để DNS propagate.</div>
+    </div>
+    <div class="error-box">
+      <div class="error-title">Nginx crash sau khi thêm SSL config</div>
+      <div class="error-cause">Nguyên nhân: Certificate chưa được mount vào container, hoặc path sai.</div>
+      <div class="error-fix">Fix: Kiểm tra volumes trong docker-compose.prod.yml có dòng /etc/letsencrypt:/etc/letsencrypt:ro chưa.</div>
+    </div>
+  </div>
+
+  <!-- IAM -->
+  <h2>Bước 4 — IAM Instance Role</h2>
+  <div class="step">
+    <p>Thay vì hardcode <code>AWS_ACCESS_KEY_ID</code> và <code>AWS_SECRET_ACCESS_KEY</code>, EC2 dùng IAM Role để tự xác thực với AWS. Token tự động rotate, không có key nào để lộ.</p>
+
+    <h3>Tạo IAM Role (AWS Console)</h3>
+    <table>
+      <tr><th>Field</th><th>Giá trị</th></tr>
+      <tr><td>Trusted entity</td><td>AWS service → EC2</td></tr>
+      <tr><td>Policies</td><td>AmazonEC2ContainerRegistryReadOnly, AmazonSSMReadOnlyAccess</td></tr>
+      <tr><td>Role name</td><td>myapp-ec2-role</td></tr>
+    </table>
+
+    <h3>Gắn role vào EC2</h3>
+    <p style="color:#cbd5e0;">EC2 Console → Instances → chọn instance → Actions → Security → Modify IAM role → chọn myapp-ec2-role → Update IAM role</p>
+
+    <h3>Verify role hoạt động (chạy trên EC2)</h3>
+    <div class="cmd-block">
+      <div class="cmd-label">Lấy token IMDSv2 rồi kiểm tra role</div>
+      <pre><code>TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/iam/security-credentials/</code></pre>
+      <div class="cmd-desc">169.254.169.254 là địa chỉ metadata của EC2 — chỉ truy cập được từ bên trong EC2. Output phải trả về "myapp-ec2-role".</div>
+    </div>
+    <div class="cmd-block">
+      <div class="cmd-label">Test thực tế — login ECR không cần credentials</div>
+      <pre><code>aws ecr get-login-password --region ap-southeast-1 | \
+  docker login --username AWS --password-stdin \
+  529568113348.dkr.ecr.ap-southeast-1.amazonaws.com</code></pre>
+      <div class="cmd-desc">Nếu login thành công mà không cần AWS_ACCESS_KEY_ID → IAM role hoạt động đúng.</div>
+    </div>
+
+    <div class="error-box">
+      <div class="error-title">curl trả về empty khi gọi metadata endpoint</div>
+      <div class="error-cause">Nguyên nhân: EC2 đang dùng IMDSv2 (bắt buộc token), không dùng IMDSv1.</div>
+      <div class="error-fix">Fix: Dùng lệnh có token ở trên thay vì curl trực tiếp.</div>
+    </div>
+    <div class="error-box">
+      <div class="error-title">curl 169.254.169.254: Couldn't connect to server</div>
+      <div class="error-cause">Nguyên nhân: Đang chạy lệnh trên máy local, không phải EC2.</div>
+      <div class="error-fix">Fix: SSH vào EC2 trước rồi mới chạy lệnh.</div>
+    </div>
+
+    <h3>Tại sao IAM Role quan trọng</h3>
+    <table>
+      <tr><th></th><th>Hardcode credentials</th><th>IAM Role</th></tr>
+      <tr><td>Key lộ ra ngoài</td><td style="color:#fc8181">Có thể</td><td style="color:#68d391">Không có key để lộ</td></tr>
+      <tr><td>Rotate tự động</td><td style="color:#fc8181">Không</td><td style="color:#68d391">Có (vài giờ/lần)</td></tr>
+      <tr><td>Giới hạn quyền</td><td style="color:#fc8181">Theo user</td><td style="color:#68d391">Chỉ đúng quyền cần</td></tr>
+    </table>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="margin-top:40px; padding-top:20px; border-top:1px solid #2d3748; color:#718096; font-size:0.85rem;">
+    Hoàn thành: 06/05/2026 &nbsp;|&nbsp; Domain: https://vhnlong.store &nbsp;|&nbsp; Xem thêm: <a href="RDS_GUIDE.md" style="color:#63b3ed;">RDS_GUIDE.md</a>
+  </div>
+
+</div>
+</body>
+</html>

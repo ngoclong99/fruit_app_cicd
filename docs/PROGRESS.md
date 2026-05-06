@@ -121,11 +121,11 @@ git checkout staging && git merge main && git push origin staging
 ## Giai đoạn 2 — Data & Bảo mật
 > Mục tiêu: Data không mất, app an toàn hơn
 
-- [ ] **RDS** — chuyển DB từ Docker volume sang AWS RDS (mất data khi EC2 chết → cần fix)
+- [x] **RDS** — học xong, hiểu migrate Docker DB → RDS. Hiện revert về Docker DB để tiết kiệm chi phí demo. Xem [RDS_GUIDE.md](RDS_GUIDE.md)
 - [ ] **S3** — lưu file upload (ảnh, documents)
-- [ ] **HTTPS** — cài SSL với Certbot hoặc ACM
-- [ ] **Security Group** — chỉ mở đúng port cần thiết
-- [ ] **IAM** — phân quyền tối thiểu (least privilege)
+- [x] **HTTPS** — `https://vhnlong.store` với Let's Encrypt + Certbot
+- [x] **Security Group** — mở đúng port: 22, 80, 443, 5050, 5051, 8080
+- [x] **IAM** — EC2 Instance Role `myapp-ec2-role`, least privilege (ECR read, SSM read)
 
 ---
 
