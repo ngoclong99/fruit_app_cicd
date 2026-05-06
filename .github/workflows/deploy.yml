@@ -114,7 +114,7 @@ jobs:
             --with-decryption \
             --query "Parameters[*].[Name,Value]" \
             --output text | \
-          awk -F'\t' '{n=split($1,a,"/"); print a[n]"="$2}' > backend/.env
+          awk -F'\t' '{n=split($1,a,"/"); print a[n]"='"'"'"$2"'"'"'"}' > backend/.env
           echo "PORT=5000"                                           >> backend/.env
           echo "ENVIRONMENT=${{ needs.build.outputs.environment }}" >> backend/.env
 
