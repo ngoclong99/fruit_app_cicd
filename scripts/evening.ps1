@@ -29,6 +29,26 @@ aws ec2 terminate-instances --instance-ids $INSTANCE_IDS --region $REGION
 Write-Host ">>> Dang xoa EC2: $INSTANCE_IDS" -ForegroundColor Red
 
 Write-Host ""
+
+# Dọn ECR images cũ — giữ lại 5 images mới nhất mỗi repo
+Write-Host ">>> Don dep ECR images cu..." -ForegroundColor Cyan
+foreach ($repo in @("myapp-backend", "myapp-frontend")) {
+    $allImages = aws ecr describe-images --repository-name $repo --region $REGION `
+        --query "sort_by(imageDetails, &imagePushedAt)[*].imageDigest" --output json | ConvertFrom-Json
+
+    # Xóa tất cả trừ 5 cái mới nhất
+    $toDelete = $allImages | Select-Object -First ($allImages.Count - 5)
+    if ($toDelete.Count -gt 0) {
+        $imageIds = $toDelete | ForEach-Object { @{ imageDigest = $_ } }
+        aws ecr batch-delete-image --repository-name $repo --region $REGION `
+            --image-ids ($imageIds | ConvertTo-Json -Compress) | Out-Null
+        Write-Host "  $repo : xoa $($toDelete.Count) images cu, giu lai 5 moi nhat." -ForegroundColor Green
+    } else {
+        Write-Host "  $repo : khong co image nao can xoa." -ForegroundColor Gray
+    }
+}
+
+Write-Host ""
 Write-Host "=== HOAN THANH ===" -ForegroundColor Green
 Write-Host "EC2 da duoc xoa. Chi phi dung lai."
 Write-Host "Route 53 va GitHub Secret van giu nguyen cho ngay mai."
