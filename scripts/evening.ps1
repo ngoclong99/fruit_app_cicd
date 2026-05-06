@@ -47,6 +47,20 @@ foreach ($repo in @("myapp-backend", "myapp-frontend")) {
 }
 
 Write-Host ""
+
+# Release Elastic IPs chua gan vao EC2 nao
+Write-Host ">>> Release Elastic IPs..." -ForegroundColor Cyan
+$eips = aws ec2 describe-addresses --query "Addresses[?AssociationId==null].AllocationId" --output json --region $REGION | ConvertFrom-Json
+if ($eips.Count -gt 0) {
+    foreach ($eip in $eips) {
+        aws ec2 release-address --allocation-id $eip --region $REGION | Out-Null
+        Write-Host "  Released: $eip" -ForegroundColor Green
+    }
+} else {
+    Write-Host "  Khong co Elastic IP nao can release." -ForegroundColor Gray
+}
+
+Write-Host ""
 Write-Host "=== HOAN THANH ===" -ForegroundColor Green
-Write-Host "EC2 da duoc xoa. Chi phi dung lai."
+Write-Host "EC2 terminated, ECR cleared, Elastic IP released."
 Write-Host "Route 53 va GitHub Secret van giu nguyen cho ngay mai."
