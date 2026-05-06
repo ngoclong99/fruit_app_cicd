@@ -14,19 +14,16 @@ $INSTANCE_IDS = aws ec2 describe-instances `
 
 if (-not $INSTANCE_IDS) {
   Write-Host "Khong co EC2 nao dang chay." -ForegroundColor Yellow
-  exit
+} else {
+  Write-Host "Tim thay EC2: $INSTANCE_IDS" -ForegroundColor Yellow
+  $confirm = Read-Host "Xac nhan xoa? (y/n)"
+  if ($confirm -ne "y") {
+    Write-Host "Bo qua xoa EC2." -ForegroundColor Yellow
+  } else {
+    aws ec2 terminate-instances --instance-ids $INSTANCE_IDS --region $REGION | Out-Null
+    Write-Host ">>> Dang xoa EC2: $INSTANCE_IDS" -ForegroundColor Red
+  }
 }
-
-Write-Host "Tim thay EC2: $INSTANCE_IDS" -ForegroundColor Yellow
-$confirm = Read-Host "Xac nhan xoa? (y/n)"
-if ($confirm -ne "y") {
-  Write-Host "Huy bo." -ForegroundColor Red
-  exit
-}
-
-# Xóa EC2
-aws ec2 terminate-instances --instance-ids $INSTANCE_IDS --region $REGION
-Write-Host ">>> Dang xoa EC2: $INSTANCE_IDS" -ForegroundColor Red
 
 Write-Host ""
 
@@ -37,9 +34,13 @@ foreach ($repo in @("myapp-backend", "myapp-frontend")) {
         --query "imageDetails[*].imageDigest" --output json | ConvertFrom-Json
 
     if ($allImages.Count -gt 0) {
-        $imageIds = $allImages | ForEach-Object { @{ imageDigest = $_ } }
-        aws ecr batch-delete-image --repository-name $repo --region $REGION `
-            --image-ids ($imageIds | ConvertTo-Json -Compress) | Out-Null
+        # PS 5.1 strips quotes from args to native commands — write JSON to temp file instead
+        $items = $allImages | ForEach-Object { '{"imageDigest":"' + $_ + '"}' }
+        $inputJson = '{"repositoryName":"' + $repo + '","imageIds":[' + ($items -join ',') + ']}'
+        $tmpFile = [System.IO.Path]::GetTempFileName()
+        [System.IO.File]::WriteAllText($tmpFile, $inputJson)
+        aws ecr batch-delete-image --region $REGION --cli-input-json "file://$tmpFile" | Out-Null
+        Remove-Item $tmpFile -Force
         Write-Host "  $repo : da xoa $($allImages.Count) images." -ForegroundColor Green
     } else {
         Write-Host "  $repo : khong co image nao." -ForegroundColor Gray

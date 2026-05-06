@@ -47,7 +47,8 @@ $CHANGE = '{"Changes":[{"Action":"UPSERT","ResourceRecordSet":{"Name":"' + $DOMA
 aws route53 change-resource-record-sets --hosted-zone-id $HOSTED_ZONE_ID --change-batch $CHANGE | Out-Null
 
 $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
-gh secret set EC2_HOST --body $PUBLIC_IP --repo $GITHUB_REPO
+gh secret set EC2_HOST --env production --body $PUBLIC_IP --repo $GITHUB_REPO
+gh secret set EC2_HOST --env staging   --body $PUBLIC_IP --repo $GITHUB_REPO
 Write-Host "    DNS: $DOMAIN -> $PUBLIC_IP" -ForegroundColor Green
 
 # ─── Buoc 3: Cho SSH san sang ────────────────────────────────
