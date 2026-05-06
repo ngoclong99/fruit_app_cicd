@@ -13,7 +13,7 @@ $IAM_PROFILE    = "myapp-ec2-role"
 $HOSTED_ZONE_ID = "Z0999500HD1JE8VHHDN2"
 $DOMAIN         = "vhnlong.store"
 $GITHUB_REPO    = "ngoclong99/start"
-$KEY_PATH       = "$env:USERPROFILE\.ssh\deploy-ec2.pem"
+$KEY_PATH       = "E:\AWS\deploy-ec2.pem"
 $EMAIL          = "longvhn1999@gmail.com"
 
 # ─── Buoc 1: Tao EC2 ─────────────────────────────────────────
