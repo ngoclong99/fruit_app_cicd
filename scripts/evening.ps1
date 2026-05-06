@@ -34,17 +34,15 @@ Write-Host ""
 Write-Host ">>> Don dep ECR images cu..." -ForegroundColor Cyan
 foreach ($repo in @("myapp-backend", "myapp-frontend")) {
     $allImages = aws ecr describe-images --repository-name $repo --region $REGION `
-        --query "sort_by(imageDetails, &imagePushedAt)[*].imageDigest" --output json | ConvertFrom-Json
+        --query "imageDetails[*].imageDigest" --output json | ConvertFrom-Json
 
-    # Xóa tất cả trừ 5 cái mới nhất
-    $toDelete = $allImages | Select-Object -First ($allImages.Count - 5)
-    if ($toDelete.Count -gt 0) {
-        $imageIds = $toDelete | ForEach-Object { @{ imageDigest = $_ } }
+    if ($allImages.Count -gt 0) {
+        $imageIds = $allImages | ForEach-Object { @{ imageDigest = $_ } }
         aws ecr batch-delete-image --repository-name $repo --region $REGION `
             --image-ids ($imageIds | ConvertTo-Json -Compress) | Out-Null
-        Write-Host "  $repo : xoa $($toDelete.Count) images cu, giu lai 5 moi nhat." -ForegroundColor Green
+        Write-Host "  $repo : da xoa $($allImages.Count) images." -ForegroundColor Green
     } else {
-        Write-Host "  $repo : khong co image nao can xoa." -ForegroundColor Gray
+        Write-Host "  $repo : khong co image nao." -ForegroundColor Gray
     }
 }
 
