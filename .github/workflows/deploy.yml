@@ -4,6 +4,14 @@ on:
   push:
     # develop chi chay local, khong deploy EC2 nen khong trigger workflow
     branches: [staging, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        default: "production"
+        type: choice
+        options: [production, staging]
 
 env:
   AWS_REGION: ap-southeast-1
