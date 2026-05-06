@@ -29,7 +29,7 @@
 ### Còn lại
 - [x] Test deploy branch `main` → http://13.229.216.57 ✓
 - [x] pgAdmin http://13.229.216.57:5050 ✓
-- [ ] Test deploy branch `staging` → xác nhận http://13.229.216.57:8080
+- [x] Test deploy branch `staging` → xác nhận http://13.229.216.57:8080
 
 ---
 
