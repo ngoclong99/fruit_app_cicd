@@ -15,12 +15,5 @@ export const pool = new Pool({
 });
 
 export async function initDB() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS todos (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      done BOOLEAN DEFAULT false,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
+  await pool.query('SELECT 1');
 }
