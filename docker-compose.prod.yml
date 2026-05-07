@@ -4,93 +4,111 @@ services:
   # CHE DO HIEN TAI: Docker PostgreSQL + EBS volume (tiet kiem chi phi)
   #
   # CHUYEN SANG RDS: chi can 3 buoc:
-  #   1. Xoa service depends_on "db" nay va volumes "postgres_data" o cuoi file
+  #   1. Xoa service "db" nay va volumes "postgres_data" o cuoi file
   #   2. Xoa "depends_on: db" trong backend va pgadmin
   #   3. Cap nhat SSM: DB_HOST=<rds-endpoint>, DB_USER, DB_PASSWORD cho khop RDS
   #   (backend/src/db.ts tu dong bat SSL khi DB_HOST chua "rds.amazonaws.com")
   db:
-    image: postgres:15-alpine
-    restart: always
+    image: postgres:15-alpine   # Dung Alpine de nhe hon, tiet kiem RAM va disk
+    restart: always             # Tu dong khoi dong lai neu container bi crash
     environment:
-      POSTGRES_DB:       ${DB_NAME}
-      POSTGRES_USER:     ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB:       ${DB_NAME}       # Ten database, doc tu backend/.env
+      POSTGRES_USER:     ${DB_USER}       # User PostgreSQL, doc tu backend/.env
+      POSTGRES_PASSWORD: ${DB_PASSWORD}   # Mat khau, doc tu backend/.env
     volumes:
+      # Luu data PostgreSQL ra ngoai container, tranh mat data khi restart
       - postgres_data:/var/lib/postgresql/data
     networks: [app-net]
     healthcheck:
+      # Kiem tra PostgreSQL da san sang nhan ket noi chua
+      # Backend va pgadmin se chi khoi dong sau khi healthcheck nay pass
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 10s   # Kiem tra moi 10 giay
+      timeout: 5s     # Cho toi da 5 giay moi lan kiem tra
+      retries: 5      # Thu lai 5 lan truoc khi coi la unhealthy
 
   # ─── Node.js Backend ──────────────────────────────────────────────────────
   backend:
+    # Image duoc build tu ./backend va push len ECR boi GitHub Actions
+    # IMAGE_TAG duoc truyen vao tu deploy script (vd: main-a1b2c3d)
     image: ${ECR_REGISTRY}/myapp-backend:${IMAGE_TAG:-latest}
     restart: always
-    env_file: ./backend/.env
+    env_file: ./backend/.env   # Doc tat ca bien moi truong tu file .env
     environment:
-      # Docker mode: DB_HOST = ten service "db"
+      # Docker mode: DB_HOST = ten service "db" (Docker DNS tu giai quyet)
       # RDS mode:    DB_HOST = <rds-endpoint> (cap nhat trong SSM)
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: 5432
-      NODE_ENV: ${ENVIRONMENT}
+      NODE_ENV: ${ENVIRONMENT}   # production hoac staging
     depends_on:
       db:
+        # Chi khoi dong backend sau khi PostgreSQL healthcheck pass
         condition: service_healthy
     networks: [app-net]
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "5"
+        max-size: "10m"   # Moi file log toi da 10MB
+        max-file: "5"     # Giu lai toi da 5 file log, xoa file cu nhat khi day
 
   # ─── React Frontend ───────────────────────────────────────────────────────
   frontend:
+    # Image duoc build tu ./frontend voi VITE_API_URL da duoc nhung vao bundle
     image: ${ECR_REGISTRY}/myapp-frontend:${IMAGE_TAG:-latest}
     restart: always
     networks: [app-net]
 
-  # ─── Nginx ────────────────────────────────────────────────────────────────
-  # 1 EC2 nhieu moi truong: moi truong dung port khac nhau
-  #   production  -> NGINX_HTTP_PORT=80
-  #   staging     -> NGINX_HTTP_PORT=8080
+  # ─── Nginx (Reverse Proxy) ────────────────────────────────────────────────
+  # Nginx nhan request tu internet va phan phoi:
+  #   /api/* -> Backend container (port 5000)
+  #   /*     -> Frontend container (port 80)
   #
-  # Neu doi sang 3 EC2 rieng:
-  #   - Xoa bien NGINX_HTTP_PORT, doi lai thanh "80:80" co dinh
+  # 1 EC2 nhieu moi truong: moi truong dung port khac nhau
+  #   production  -> NGINX_HTTP_PORT=80   -> https://vhnlong.store
+  #   staging     -> NGINX_HTTP_PORT=8080 -> http://[EC2-IP]:8080
+  #
+  # Neu doi sang EC2 rieng tung moi truong:
+  #   - Xoa bien NGINX_HTTP_PORT, doi lai thanh ports co dinh: "80:80"
   #   - Xoa NGINX_HTTP_PORT khoi SSM va deploy.yml
   nginx:
     image: nginx:1.25-alpine
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80"     # HTTP (chuyen huong sang HTTPS)
+      - "443:443"   # HTTPS (SSL/TLS)
     volumes:
+      # Mount file cau hinh nginx tu host vao container (read-only)
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount thu muc SSL certificate cua Let's Encrypt vao container (read-only)
       - /etc/letsencrypt:/etc/letsencrypt:ro
-    depends_on: [frontend, backend]
+    depends_on: [frontend, backend]   # Khoi dong sau khi frontend va backend da san sang
     networks: [app-net]
 
   # ─── pgAdmin (Giao dien quan ly PostgreSQL qua trinh duyet) ───────────────
-  # 1 EC2 nhieu moi truong: moi truong dung port khac nhau
+  # Truy cap tai: http://[EC2-IP]:[PGADMIN_PORT]
   #   production  -> PGADMIN_PORT=5050 -> http://[EC2-IP]:5050
   #   staging     -> PGADMIN_PORT=5051 -> http://[EC2-IP]:5051
   pgadmin:
     image: dpage/pgadmin4:latest
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL:    ${PGADMIN_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_DEFAULT_EMAIL:    ${PGADMIN_EMAIL}      # Email dang nhap pgAdmin
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}   # Mat khau dang nhap pgAdmin
     ports:
-      - "${PGADMIN_PORT}:80"
+      - "${PGADMIN_PORT}:80"   # Port ngoai lay tu SSM, port trong luon la 80
     depends_on:
       db:
+        # Chi khoi dong pgAdmin sau khi PostgreSQL healthcheck pass
         condition: service_healthy
     networks: [app-net]
 
+# Volume nay giu data PostgreSQL khi container khoi dong lai
+# Volume KHONG bi xoa khi chay "docker compose down" (phai them --volumes moi xoa)
 volumes:
   postgres_data:
 
+# Tat ca services giao tiep voi nhau qua network nay
+# Tung service co the truy cap service khac bang ten service (vd: backend truy cap db qua hostname "db")
 networks:
   app-net:
     driver: bridge
