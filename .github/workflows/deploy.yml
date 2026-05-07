@@ -5,6 +5,7 @@ on:
     # develop chi chay local, khong deploy EC2 nen khong trigger workflow
     branches: [staging, main]
   workflow_dispatch:
+    # Cho phep chay thu cong tu GitHub UI hoac lenh: gh workflow run deploy.yml
     inputs:
       environment:
         description: "Environment to deploy"
@@ -18,7 +19,7 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────────────────
-  # JOB 1: Build Docker images và push lên ECR
+  # JOB 1: Build Docker images va push len ECR
   # ─────────────────────────────────────────────────────────
   build:
     name: Build & Push to ECR
@@ -29,11 +30,14 @@ jobs:
 
     steps:
       - name: Checkout code
+        # Tai source code tu GitHub ve may runner de build
         uses: actions/checkout@v4
 
       - name: Determine environment from branch
         id: env
         run: |
+          # Xac dinh moi truong dua vao ten branch dang chay
+          # main -> production | staging -> staging | khac -> development
           case "${{ github.ref_name }}" in
             main)    echo "environment=production"  >> $GITHUB_OUTPUT ;;
             staging) echo "environment=staging"     >> $GITHUB_OUTPUT ;;
@@ -41,6 +45,7 @@ jobs:
           esac
 
       - name: Configure AWS credentials
+        # Xac thuc voi AWS bang Access Key luu trong GitHub Secrets
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -48,30 +53,40 @@ jobs:
           aws-region:            ${{ env.AWS_REGION }}
 
       - name: Login to ECR
+        # Dang nhap vao Elastic Container Registry de duoc phep push image
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set image tag (branch + git short SHA)
         id: tag
+        # Tao tag duy nhat cho moi build, vi du: main-a1b2c3d
+        # Giup trace duoc chinh xac commit nao dang chay tren EC2
         run: echo "tag=${{ github.ref_name }}-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      # Lấy VITE_API_URL từ Parameter Store thay vì GitHub Secrets
       - name: Fetch VITE_API_URL from Parameter Store
         run: |
+          # Lay URL cua API tu SSM Parameter Store thay vi hardcode trong code
+          # React (Vite) can biet API_URL ngay luc build vi no duoc nhung vao bundle
           VITE_API_URL=$(aws ssm get-parameter \
             --name "/myapp/${{ steps.env.outputs.environment }}/VITE_API_URL" \
             --with-decryption \
             --query "Parameter.Value" \
             --output text)
+          # Luu vao bien moi truong cua GitHub Actions de buoc sau dung
           echo "VITE_API_URL=$VITE_API_URL" >> $GITHUB_ENV
 
       - name: Build & push backend
         env:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
         run: |
+          # Build Docker image cho backend tu thu muc ./backend (dung Dockerfile o do)
           docker build \
             -t $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }} \
             ./backend
+
+          # Push image len ECR voi tag chinh xac (vd: main-a1b2c3d)
           docker push $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }}
+
+          # Tag them ten ngan hon (vd: main-latest) de deploy co the dung tag don gian hon
           docker tag  $ECR_REGISTRY/myapp-backend:${{ steps.tag.outputs.tag }} \
                       $ECR_REGISTRY/myapp-backend:${{ github.ref_name }}-latest
           docker push $ECR_REGISTRY/myapp-backend:${{ github.ref_name }}-latest
@@ -80,66 +95,80 @@ jobs:
         env:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
         run: |
+          # Build Docker image cho frontend
+          # --build-arg: truyen VITE_API_URL vao luc build (React can bien nay khi compile)
           docker build \
             --build-arg VITE_API_URL=$VITE_API_URL \
             -t $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }} \
             ./frontend
+
+          # Push image voi tag chinh xac
           docker push $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }}
+
+          # Tag them ten ngan hon
           docker tag  $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }} \
                       $ECR_REGISTRY/myapp-frontend:${{ github.ref_name }}-latest
           docker push $ECR_REGISTRY/myapp-frontend:${{ github.ref_name }}-latest
 
   # ─────────────────────────────────────────────────────────
-  # JOB 2: Deploy lên EC2 (environment-specific)
+  # JOB 2: Deploy len EC2
   # ─────────────────────────────────────────────────────────
   deploy:
     name: Deploy to ${{ needs.build.outputs.environment }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: build   # Bat buoc phai doi job build hoan thanh truoc khi deploy
     environment:
       name: ${{ needs.build.outputs.environment }}
       url:  ${{ vars.APP_URL }}
 
     steps:
       - name: Checkout code
+        # Tai code ve de lay file docker-compose.prod.yml va nginx/default.conf
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
+        # Xac thuc AWS de lay secrets tu SSM Parameter Store
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
 
-      # Fetch tất cả app secrets từ Parameter Store → tạo backend/.env
-      # Keys can co trong SSM: DB_NAME, DB_USER, DB_PASSWORD, VITE_API_URL,
-      #   NGINX_HTTP_PORT, PGADMIN_PORT, PGADMIN_EMAIL, PGADMIN_PASSWORD
       - name: Fetch secrets from Parameter Store
         run: |
+          # Lay tat ca secrets cua moi truong tu SSM Parameter Store va ghi vao backend/.env
+          # Keys hien co trong SSM: DB_NAME, DB_USER, DB_PASSWORD, VITE_API_URL,
+          #   NGINX_HTTP_PORT, PGADMIN_PORT, PGADMIN_EMAIL, PGADMIN_PASSWORD
           mkdir -p backend
           aws ssm get-parameters-by-path \
             --path "/myapp/${{ needs.build.outputs.environment }}/" \
             --with-decryption \
             --query "Parameters[*].[Name,Value]" \
             --output text | \
+          # Tach ten parameter lay phan cuoi: /myapp/production/DB_NAME -> DB_NAME
+          # Boc gia tri trong dau '' de xu ly password co ky tu dac biet (!, @, ), ...)
           awk -F'\t' '{n=split($1,a,"/"); print a[n]"='"'"'"$2"'"'"'"}' > backend/.env
+
+          # Them cac bien co dinh khong luu trong SSM
           echo "PORT=5000"                                           >> backend/.env
           echo "ENVIRONMENT=${{ needs.build.outputs.environment }}" >> backend/.env
 
       - name: Copy config files to EC2
+        # Chep cac file cau hinh tu GitHub Actions runner len EC2 qua giao thuc SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host:     ${{ secrets.EC2_HOST }}
           username: ubuntu
           key:      ${{ secrets.EC2_SSH_KEY }}
           source:   "docker-compose.prod.yml,nginx/default.conf,backend/.env"
-          # 1 EC2: deploy vao thu muc rieng cho tung moi truong
+          # 1 EC2 chay ca 2 moi truong: moi moi truong co thu muc rieng
           #   ~/app/production/ va ~/app/staging/
-          # Neu dung 3 EC2 rieng: doi thanh "target: ~/app" (bo thu muc con)
+          # Neu doi sang EC2 rieng cho moi moi truong: doi thanh "target: ~/app"
           target:   ~/app/${{ needs.build.outputs.environment }}
           strip_components: 0
 
       - name: Deploy
+        # SSH vao EC2 va chay cac lenh deploy
         uses: appleboy/ssh-action@v1
         env:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
@@ -151,35 +180,37 @@ jobs:
           key:      ${{ secrets.EC2_SSH_KEY }}
           envs:     ECR_REGISTRY,IMAGE_TAG,ENVIRONMENT
           script: |
+            # Dung ngay khi co bat ky lenh nao that bai
             set -e
             cd ~/app/${ENVIRONMENT}
 
-            # Login ECR
+            # Dang nhap ECR de EC2 co quyen pull image tu registry
             aws ecr get-login-password --region ap-southeast-1 | \
               docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-            # Load bien tu backend/.env vao shell environment
-            # Docker Compose doc ${NGINX_HTTP_PORT}, ${DB_NAME},... tu shell — phai load truoc
+            # Load bien tu backend/.env vao shell truoc khi chay docker compose
+            # Vi Docker Compose can doc ${NGINX_HTTP_PORT}, ${DB_NAME},... tu shell
             set -a && source backend/.env && set +a
 
-            # Dung project name "-p myapp-${ENVIRONMENT}" de namespace rieng tung moi truong
-            # Container: myapp-production-backend-1, myapp-staging-backend-1
-            # Volume:    myapp-production_postgres_data, myapp-staging_postgres_data
-            # Neu dung 3 EC2 rieng: bo flag "-p myapp-${ENVIRONMENT}" vi moi EC2 chi co 1 moi truong
+            # Pull image moi tu ECR ve EC2
+            # "-p myapp-${ENVIRONMENT}": dat ten project rieng, tranh 2 moi truong xung dot
+            #   Container se co ten: myapp-production-backend-1, myapp-staging-backend-1
+            #   Volume se co ten:    myapp-production_postgres_data, myapp-staging_postgres_data
             ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} ENVIRONMENT=${ENVIRONMENT} \
               docker compose -p myapp-${ENVIRONMENT} -f docker-compose.prod.yml pull
 
-            # Dung containers cu truoc khi deploy moi -- giai phong port
-            # "--remove-orphans": xoa container cu khong con trong compose file
-            # "|| true": khong bao loi neu chua co container nao (lan deploy dau tien)
-            # Volume (postgres_data) KHONG bi xoa -- data van con
+            # Dung tat containers cu truoc khi khoi dong containers moi
+            # "--remove-orphans": xoa container cu neu bi xoa khoi compose file
+            # "|| true": bo qua loi neu chua co container nao (lan deploy dau tien)
+            # Volume postgres_data KHONG bi xoa nen data PostgreSQL van duoc giu lai
             ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} ENVIRONMENT=${ENVIRONMENT} \
               docker compose -p myapp-${ENVIRONMENT} -f docker-compose.prod.yml down --remove-orphans || true
 
+            # Khoi dong tat ca containers o che do background (-d = detached)
             ECR_REGISTRY=${ECR_REGISTRY} IMAGE_TAG=${IMAGE_TAG} ENVIRONMENT=${ENVIRONMENT} \
               docker compose -p myapp-${ENVIRONMENT} -f docker-compose.prod.yml up -d
 
-            # Dọn images cũ — tiết kiệm disk
+            # Xoa cac Docker image cu khong con duoc dung -- tiet kiem dung luong disk EC2
             docker image prune -f
 
             echo "Deployed ${IMAGE_TAG} to ${ENVIRONMENT}"
