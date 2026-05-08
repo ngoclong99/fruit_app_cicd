@@ -16,7 +16,6 @@
     "@tailwindcss/vite": "^4.2.2",
     "@types/react-router-dom": "^5.3.3",
     "axios": "^1.14.0",
-    "esbuild": "^0.27.7",
     "i18next": "^26.0.3",
     "i18next-browser-languagedetector": "^8.2.1",
     "react": "^19.2.4",
