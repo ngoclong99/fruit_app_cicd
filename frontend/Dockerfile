@@ -4,17 +4,17 @@ WORKDIR /app
 
 COPY package.json ./
 
-# Skip ALL optional deps -> tranh install nham Windows binaries
-# (yarn.lock/package-lock.json sinh tu Windows ghim sai platform)
-RUN npm install --omit=optional
+# Install full deps (cho phep optional). Sau do se don dep platform binaries.
+RUN npm install
 
-# Install Linux binaries voi VERSION khop chinh xac voi host esbuild da cai
-# (esbuild loader yeu cau host va binary cung version, mismatch -> "Host version 0.21.5 does not match binary 0.28.0")
-RUN ESBUILD_VERSION=$(node -p "require('./node_modules/esbuild/package.json').version") && \
-    echo "Installing @esbuild/linux-x64@$ESBUILD_VERSION" && \
-    npm install --no-save \
-      @rollup/rollup-linux-x64-gnu \
-      @esbuild/linux-x64@$ESBUILD_VERSION
+# Xoa cac platform-specific packages cua esbuild/rollup tu Windows lockfile da/co
+# (npm install fresh on Linux van co the keo Win binaries qua transitive deps)
+# Sau do install/rebuild dung Linux binaries:
+#   - npm rebuild esbuild: chay install script -> tai dung Linux binary cho esbuild
+#   - npm install rollup linux binary explicit (npm/cli#4828: rollup deps khong tu install)
+RUN rm -rf node_modules/@esbuild node_modules/@rollup
+RUN npm rebuild esbuild
+RUN npm install --no-save @rollup/rollup-linux-x64-gnu
 
 COPY . .
 
@@ -22,7 +22,7 @@ COPY . .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-# Goi vite truc tiep qua node (bypass .bin symlink permission issue tren Linux)
+# Goi vite truc tiep qua node (bypass .bin symlink permission issue)
 RUN node ./node_modules/vite/bin/vite.js build
 
 # ═══ STAGE 2: Serve bằng Nginx ═══
