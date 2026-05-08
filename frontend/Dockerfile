@@ -2,12 +2,14 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-COPY package.json ./
-# KHONG copy package-lock.json (lock platform-specific binaries tu Windows local)
-RUN npm install
-# Workaround npm/cli#4828: optional deps cho rollup va esbuild khong install dung
-# -> install thang Linux binary (Docker luon chay Linux nen hardcode duoc)
-RUN npm install --no-save @rollup/rollup-linux-x64-gnu @esbuild/linux-x64
+# Enable yarn qua corepack (built-in trong node 20+)
+# Yarn xu ly optional/platform-specific deps tot hon npm
+# (npm/cli#4828: rollup va esbuild Linux binary khong install dung khi build tu Windows lock)
+RUN corepack enable
+
+COPY package.json yarn.lock ./
+# --network-timeout: tang timeout vi cac package nang (recharts, botpress)
+RUN yarn install --network-timeout 100000
 
 COPY . .
 
@@ -15,8 +17,7 @@ COPY . .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-RUN chmod +x node_modules/.bin/tsc node_modules/.bin/vite
-RUN npm run build
+RUN yarn build
 
 # ═══ STAGE 2: Serve bằng Nginx ═══
 FROM nginx:1.25-alpine AS production
