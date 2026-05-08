@@ -5,9 +5,9 @@ WORKDIR /app
 COPY package.json ./
 # KHONG copy package-lock.json (lock platform-specific binaries tu Windows local)
 RUN npm install
-# Workaround npm/cli#4828: optional deps cua rollup khong duoc install dung
+# Workaround npm/cli#4828: optional deps cho rollup va esbuild khong install dung
 # -> install thang Linux binary (Docker luon chay Linux nen hardcode duoc)
-RUN npm install --no-save @rollup/rollup-linux-x64-gnu
+RUN npm install --no-save @rollup/rollup-linux-x64-gnu @esbuild/linux-x64
 
 COPY . .
 
