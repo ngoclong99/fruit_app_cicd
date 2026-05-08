@@ -8,9 +8,13 @@ COPY package.json ./
 # (yarn.lock/package-lock.json sinh tu Windows ghim sai platform)
 RUN npm install --omit=optional
 
-# Install rieng Linux platform binaries cho rollup va esbuild
-# (Docker luon chay Linux x64 nen hardcode duoc)
-RUN npm install --no-save @rollup/rollup-linux-x64-gnu @esbuild/linux-x64
+# Install Linux binaries voi VERSION khop chinh xac voi host esbuild da cai
+# (esbuild loader yeu cau host va binary cung version, mismatch -> "Host version 0.21.5 does not match binary 0.28.0")
+RUN ESBUILD_VERSION=$(node -p "require('./node_modules/esbuild/package.json').version") && \
+    echo "Installing @esbuild/linux-x64@$ESBUILD_VERSION" && \
+    npm install --no-save \
+      @rollup/rollup-linux-x64-gnu \
+      @esbuild/linux-x64@$ESBUILD_VERSION
 
 COPY . .
 
