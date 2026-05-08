@@ -11,17 +11,15 @@ COPY package.json yarn.lock ./
 # --network-timeout: tang timeout vi cac package nang (recharts, botpress)
 RUN yarn install --network-timeout 100000
 
-# Yarn 1 tren Docker doi khi khong set execute bit cho .bin scripts
-# -> chmod truoc khi chay vite build
-RUN chmod -R +x node_modules/.bin/
-
 COPY . .
 
 # VITE_API_URL được inject lúc build (từ GitHub Actions)
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-RUN yarn build
+# Goi vite truc tiep qua node (bypass .bin symlink + shebang permission issue)
+# Cac file .bin/vite la symlink -> chmod khong tac dong target -> /bin/sh permission denied
+RUN node ./node_modules/vite/bin/vite.js build
 
 # ═══ STAGE 2: Serve bằng Nginx ═══
 FROM nginx:1.25-alpine AS production
