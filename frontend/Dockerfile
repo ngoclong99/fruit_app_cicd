@@ -4,9 +4,10 @@ WORKDIR /app
 
 COPY package.json ./
 # KHONG copy package-lock.json (lock platform-specific binaries tu Windows local)
-# Tren Linux build, npm install se tu resolve dung optional deps cho Linux
-# Tranh bug: https://github.com/npm/cli/issues/4828 (rollup-linux-x64-gnu missing)
-RUN npm install --include=optional
+RUN npm install
+# Workaround npm/cli#4828: optional deps cua rollup khong duoc install dung
+# -> install thang Linux binary (Docker luon chay Linux nen hardcode duoc)
+RUN npm install --no-save @rollup/rollup-linux-x64-gnu
 
 COPY . .
 
