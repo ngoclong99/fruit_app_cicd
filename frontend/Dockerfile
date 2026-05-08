@@ -2,20 +2,15 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-# Enable yarn qua corepack (built-in trong node 20+)
-# Yarn xu ly optional/platform-specific deps tot hon npm
-# (npm/cli#4828: rollup va esbuild Linux binary khong install dung khi build tu Windows lock)
-RUN corepack enable
-
 COPY package.json ./
-# KHONG copy yarn.lock: lockfile sinh tu Windows -> ghim binaries sai platform
-# (vd: rollup-win32-x64-msvc thay vi rollup-linux-x64-gnu)
-# Bo lockfile -> yarn re-resolve fresh tren Linux, install dung binaries
-RUN yarn install --network-timeout 100000
-# yarn 1.22 cai sai platform-specific binaries (esbuild Windows tren Linux)
-# -> rebuild + install bo sung Linux binaries qua npm
-RUN npm install --no-save @rollup/rollup-linux-x64-gnu
-RUN npm rebuild esbuild
+
+# Skip ALL optional deps -> tranh install nham Windows binaries
+# (yarn.lock/package-lock.json sinh tu Windows ghim sai platform)
+RUN npm install --omit=optional
+
+# Install rieng Linux platform binaries cho rollup va esbuild
+# (Docker luon chay Linux x64 nen hardcode duoc)
+RUN npm install --no-save @rollup/rollup-linux-x64-gnu @esbuild/linux-x64
 
 COPY . .
 
@@ -23,8 +18,7 @@ COPY . .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-# Goi vite truc tiep qua node (bypass .bin symlink + shebang permission issue)
-# Cac file .bin/vite la symlink -> chmod khong tac dong target -> /bin/sh permission denied
+# Goi vite truc tiep qua node (bypass .bin symlink permission issue tren Linux)
 RUN node ./node_modules/vite/bin/vite.js build
 
 # ═══ STAGE 2: Serve bằng Nginx ═══
