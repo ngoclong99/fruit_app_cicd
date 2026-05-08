@@ -91,14 +91,28 @@ jobs:
                       $ECR_REGISTRY/myapp-backend:${{ github.ref_name }}-latest
           docker push $ECR_REGISTRY/myapp-backend:${{ github.ref_name }}-latest
 
+      - name: Setup Node.js
+        # Build frontend NGOAI Docker tren runner Linux (tranh bug npm/cli#4828
+        # voi platform-specific binaries cua rollup va esbuild khi lockfile
+        # sinh tu Windows). Sau do chi COPY dist vao nginx image.
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend on runner
+        env:
+          VITE_API_URL: ${{ env.VITE_API_URL }}
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
       - name: Build & push frontend
         env:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
         run: |
-          # Build Docker image cho frontend
-          # --build-arg: truyen VITE_API_URL vao luc build (React can bien nay khi compile)
+          # Frontend dist da build o buoc tren -> Dockerfile chi COPY dist vao nginx
           docker build \
-            --build-arg VITE_API_URL=$VITE_API_URL \
             -t $ECR_REGISTRY/myapp-frontend:${{ steps.tag.outputs.tag }} \
             ./frontend
 
