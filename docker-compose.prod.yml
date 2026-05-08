@@ -18,6 +18,9 @@ services:
     volumes:
       # Luu data PostgreSQL ra ngoai container, tranh mat data khi restart
       - postgres_data:/var/lib/postgresql/data
+      # init.sql duoc PG chay tu dong khi container init lan dau (volume rong)
+      # File nay duoc SCP tu GitHub Actions runner len EC2 boi deploy.yml
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     networks: [app-net]
     healthcheck:
       # Kiem tra PostgreSQL da san sang nhan ket noi chua

@@ -1,7 +1,12 @@
 # ============================================================
 # evening.ps1 - Xoa EC2 va don dep tai nguyen cuoi ngay
-# Chay: .\scripts\evening.ps1
+# Chay: .\scripts\evening.ps1            (hoi xac nhan truoc khi terminate EC2)
+#       .\scripts\evening.ps1 -Force     (auto confirm, dung cho automation)
 # ============================================================
+
+param(
+  [switch]$Force
+)
 
 $REGION = "ap-southeast-1"
 
@@ -18,7 +23,12 @@ if (-not $INSTANCE_IDS) {
   Write-Host "Khong co EC2 nao dang chay." -ForegroundColor Yellow
 } else {
   Write-Host "Tim thay EC2: $INSTANCE_IDS" -ForegroundColor Yellow
-  $confirm = Read-Host "Xac nhan xoa? (y/n)"
+  if ($Force) {
+    $confirm = "y"
+    Write-Host "  -Force flag: tu dong xac nhan terminate" -ForegroundColor Yellow
+  } else {
+    $confirm = Read-Host "Xac nhan xoa? (y/n)"
+  }
   if ($confirm -ne "y") {
     Write-Host "Bo qua xoa EC2." -ForegroundColor Yellow
   } else {
@@ -31,31 +41,20 @@ if (-not $INSTANCE_IDS) {
 
 Write-Host ""
 
-# ─── Buoc 2: Xoa toan bo ECR images ─────────────────────────
-# Muc dich: tiet kiem chi phi luu tru ECR (~$0.10/GB/thang)
-# Moi sang morning.ps1 se trigger GitHub Actions build va push image moi
-Write-Host ">>> Don dep ECR images cu..." -ForegroundColor Cyan
+# ─── Buoc 2: Xoa hoan toan ECR repos ─────────────────────────
+# Truoc day chi xoa images, nhung van con repo (mien phi neu rong)
+# Gio xoa luon ca repo de chac chan khong bi orphaned manifests/layers
+# Morning.ps1 se tu dong tao lai repo cung ten -> ECR_REGISTRY URI khong doi
+Write-Host ">>> Xoa ECR repos..." -ForegroundColor Cyan
 foreach ($repo in @("myapp-backend", "myapp-frontend")) {
-    # Lay danh sach tat ca image digest trong repo
-    $allImages = aws ecr describe-images --repository-name $repo --region $REGION `
-        --query "imageDetails[*].imageDigest" --output json | ConvertFrom-Json
-
-    if ($allImages.Count -gt 0) {
-        # Tao JSON cho --cli-input-json
-        # Dung temp file thay vi truyen truc tiep vi PowerShell 5.1 tu strip dau " khi truyen vao external command
-        # [System.IO.File]::WriteAllText dung UTF-8 khong co BOM (AWS CLI yeu cau UTF-8 khong BOM)
-        $items = $allImages | ForEach-Object { '{"imageDigest":"' + $_ + '"}' }
-        $inputJson = '{"repositoryName":"' + $repo + '","imageIds":[' + ($items -join ',') + ']}'
-        $tmpFile = [System.IO.Path]::GetTempFileName()
-        [System.IO.File]::WriteAllText($tmpFile, $inputJson)
-
-        # Xoa tat ca images trong repo bang batch delete
-        aws ecr batch-delete-image --region $REGION --cli-input-json "file://$tmpFile" | Out-Null
-        Remove-Item $tmpFile -Force   # Don dep file tam
-
-        Write-Host "  $repo : da xoa $($allImages.Count) images." -ForegroundColor Green
+    # Probe xem repo co ton tai khong
+    aws ecr describe-repositories --repository-names $repo --region $REGION 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        # --force: xoa repo ke ca khi van con images ben trong
+        aws ecr delete-repository --repository-name $repo --region $REGION --force | Out-Null
+        Write-Host "  $repo : deleted" -ForegroundColor Green
     } else {
-        Write-Host "  $repo : khong co image nao." -ForegroundColor Gray
+        Write-Host "  $repo : khong ton tai, bo qua" -ForegroundColor Gray
     }
 }
 

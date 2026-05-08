@@ -1,0 +1,53 @@
+import type { User, Product, Category, Order } from '../types';
+
+export const MOCK_USERS: User[] = [
+  { id: '1', name: 'Admin', email: 'admin@fruitshop.vn', role: 'admin', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin', status: 'active', phone: '0901000001', createdAt: '2024-01-01T00:00:00Z', orderCount: 0, totalSpent: 0 },
+  { id: '2', name: 'Nguyễn Văn A', email: 'user@fruitshop.vn', role: 'user', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=user', status: 'active', phone: '0901234567', createdAt: '2024-02-10T08:00:00Z', orderCount: 8, totalSpent: 2450000 },
+  { id: '3', name: 'Trần Thị B', email: 'tranthib@gmail.com', role: 'user', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=tranthib', status: 'active', phone: '0912345678', createdAt: '2024-03-05T09:30:00Z', orderCount: 5, totalSpent: 1890000 },
+  { id: '4', name: 'Lê Văn C', email: 'levanc@gmail.com', role: 'user', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=levanc', status: 'blocked', phone: '0923456789', createdAt: '2024-03-12T14:00:00Z', orderCount: 2, totalSpent: 640000 },
+  { id: '5', name: 'Phạm Thị D', email: 'phamthid@gmail.com', role: 'user', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=phamthid', status: 'active', phone: '0934567890', createdAt: '2024-04-01T10:00:00Z', orderCount: 12, totalSpent: 5670000 },
+  { id: '6', name: 'Hoàng Văn E', email: 'hoangvane@gmail.com', role: 'user', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=hoangvane', status: 'active', phone: '0945678901', createdAt: '2024-05-20T11:00:00Z', orderCount: 3, totalSpent: 980000 },
+  { id: '7', name: 'Vũ Thị F', email: 'vuthif@gmail.com', role: 'user', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=vuthif', status: 'blocked', phone: '0956789012', createdAt: '2024-06-08T13:30:00Z', orderCount: 1, totalSpent: 320000 },
+  { id: '8', name: 'Đặng Văn G', email: 'dangvang@gmail.com', role: 'user', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dangvang', status: 'active', phone: '0967890123', createdAt: '2025-01-15T08:00:00Z', orderCount: 7, totalSpent: 3210000 },
+];
+
+import bcrypt from 'bcryptjs';
+const hash = (p: string) => bcrypt.hashSync(p, 10);
+export const MOCK_PASSWORDS: Record<string, string> = {
+  'admin@fruitshop.vn': hash('admin123'),
+  'user@fruitshop.vn': hash('user123'),
+};
+
+export const CATEGORIES: Category[] = [
+  { id: '1', name: 'Trái cây nhập khẩu', icon: '🍇', slug: 'nhap-khau' },
+  { id: '2', name: 'Trái cây trong nước', icon: '🥭', slug: 'trong-nuoc' },
+  { id: '3', name: 'Ngũ quả', icon: '🍎', slug: 'ngu-qua' },
+  { id: '4', name: 'Giỏ quà trái cây', icon: '🧺', slug: 'gio-qua' },
+  { id: '5', name: 'Nước ép trái cây', icon: '🍊', slug: 'nuoc-ep' },
+];
+
+export const MOCK_PRODUCTS: Product[] = [
+  { id: '1', name: 'Nho Mỹ đen không hạt', price: 185000, originalPrice: 220000, image: 'https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=400&h=400&fit=crop', images: ['https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=800&h=800&fit=crop', 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?w=800&h=800&fit=crop'], category: 'nhap-khau', unit: '500g', stock: 50, description: 'Nho Mỹ đen không hạt nhập khẩu trực tiếp từ California. Quả to, ngọt, giòn, vỏ mỏng, không hạt. Giàu chất chống oxy hóa và vitamin C.', origin: 'Mỹ', rating: 4.8, reviewCount: 124, badge: 'sale', tags: ['nho', 'nhập khẩu', 'không hạt'] },
+  { id: '2', name: 'Cherry Mỹ tươi', price: 320000, image: 'https://images.unsplash.com/photo-1528821128474-27f963b062bf?w=400&h=400&fit=crop', category: 'nhap-khau', unit: '500g', stock: 30, description: 'Cherry Mỹ tươi ngon, quả đỏ bóng, vị ngọt chua hài hòa. Nhập khẩu từ Washington State, loại premium.', origin: 'Mỹ', rating: 4.9, reviewCount: 89, badge: 'hot', tags: ['cherry', 'nhập khẩu', 'tươi'] },
+  { id: '3', name: 'Xoài cát Hòa Lộc', price: 75000, originalPrice: 90000, image: 'https://images.unsplash.com/photo-1553279768-865429fa0078?w=400&h=400&fit=crop', category: 'trong-nuoc', unit: 'kg', stock: 100, description: 'Xoài cát Hòa Lộc - đặc sản Tiền Giang. Quả to, thịt vàng, ngọt thơm, ít xơ. Hái đúng độ chín.', origin: 'Tiền Giang', rating: 4.7, reviewCount: 256, badge: 'sale', tags: ['xoài', 'trong nước', 'đặc sản'] },
+  { id: '4', name: 'Dâu tây Đà Lạt hữu cơ', price: 95000, image: 'https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2?w=400&h=400&fit=crop', category: 'ngu-qua', unit: '250g', stock: 40, description: 'Dâu tây Đà Lạt trồng theo tiêu chuẩn hữu cơ, không thuốc trừ sâu. Quả đỏ đều, thơm ngọt tự nhiên.', origin: 'Đà Lạt', rating: 4.6, reviewCount: 178, badge: 'new', tags: ['dâu tây', 'hữu cơ', 'Đà Lạt'] },
+  { id: '5', name: 'Thanh long ruột đỏ', price: 45000, image: 'https://images.unsplash.com/photo-1526318896980-cf78c088247c?w=400&h=400&fit=crop', category: 'trong-nuoc', unit: 'kg', stock: 80, description: 'Thanh long ruột đỏ Long An, quả to đều, ruột đỏ đẹp, ngọt thanh mát. Giàu vitamin C và chất xơ.', origin: 'Long An', rating: 4.5, reviewCount: 312, tags: ['thanh long', 'trong nước'] },
+  { id: '6', name: 'Sầu riêng Musang King', price: 850000, originalPrice: 950000, image: 'https://images.unsplash.com/photo-1618897996318-5a901fa6ca71?w=400&h=400&fit=crop', category: 'nhap-khau', unit: 'kg', stock: 15, description: 'Sầu riêng Musang King Malaysia - giống sầu riêng ngon nhất thế giới. Cơm vàng, béo ngậy, vị đắng nhẹ đặc trưng.', origin: 'Malaysia', rating: 4.9, reviewCount: 67, badge: 'hot', tags: ['sầu riêng', 'nhập khẩu', 'musang king'] },
+  { id: '7', name: 'Táo Fuji Nhật', price: 280000, image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=400&h=400&fit=crop', category: 'nhap-khau', unit: 'hộp 6 quả', stock: 25, description: 'Táo Fuji Nhật Bản chính hãng, quả tròn đều, vỏ đỏ bóng đẹp. Giòn, ngọt, thơm đặc trưng của táo Nhật.', origin: 'Nhật Bản', rating: 4.8, reviewCount: 145, tags: ['táo', 'nhập khẩu', 'nhật bản'] },
+  { id: '8', name: 'Bơ booth 034', price: 55000, originalPrice: 65000, image: 'https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=400&h=400&fit=crop', category: 'trong-nuoc', unit: 'kg', stock: 60, description: 'Bơ booth 034 Đắk Lắk, loại 1. Quả to, thịt vàng đậm, béo ngậy, không đắng. Hái đúng ngày chín.', origin: 'Đắk Lắk', rating: 4.7, reviewCount: 423, badge: 'sale', tags: ['bơ', 'trong nước', 'đắk lắk'] },
+  { id: '9', name: 'Việt quất Mỹ tươi', price: 195000, image: 'https://images.unsplash.com/photo-1498557850523-fd3d118b962e?w=400&h=400&fit=crop', category: 'nhap-khau', unit: '250g', stock: 20, description: 'Việt quất Mỹ tươi nhập khẩu, giàu chất chống oxy hóa. Quả tươi, không dập, vị chua ngọt dịu.', origin: 'Mỹ', rating: 4.6, reviewCount: 98, badge: 'new', tags: ['việt quất', 'nhập khẩu', 'tươi'] },
+  { id: '10', name: 'Dứa mật Ninh Bình', price: 35000, image: 'https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=400&h=400&fit=crop', category: 'trong-nuoc', unit: 'quả', stock: 90, description: 'Dứa mật Ninh Bình đặc sản, quả to, lõi nhỏ, nhiều nước, ngọt thơm. Không chua, không xơ.', origin: 'Ninh Bình', rating: 4.5, reviewCount: 187, tags: ['dứa', 'trong nước', 'đặc sản'] },
+  { id: '11', name: 'Giỏ quà trái cây cao cấp', price: 650000, image: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=400&h=400&fit=crop', category: 'gio-qua', unit: 'giỏ', stock: 10, description: 'Giỏ quà trái cây cao cấp gồm: nho Mỹ, cherry Mỹ, táo Fuji, lê Hàn Quốc. Thích hợp làm quà biếu tặng.', origin: 'Tổng hợp', rating: 4.9, reviewCount: 45, badge: 'hot', tags: ['giỏ quà', 'quà tặng', 'cao cấp'] },
+  { id: '12', name: 'Xoài sấy dẻo', price: 85000, originalPrice: 100000, image: 'https://images.unsplash.com/photo-1621955964441-c173e01c135b?w=400&h=400&fit=crop', category: 'ngu-qua', unit: '200g', stock: 150, description: 'Xoài sấy dẻo không đường, giữ nguyên vị ngọt tự nhiên. Không chất bảo quản, an toàn cho sức khỏe.', origin: 'Việt Nam', rating: 4.6, reviewCount: 234, badge: 'sale', tags: ['xoài sấy', 'sấy khô', 'ăn vặt'] },
+];
+
+export const MOCK_ORDERS: Order[] = [
+  { id: 'ORD-001', userId: '2', items: [{ product: MOCK_PRODUCTS[0], quantity: 2 }, { product: MOCK_PRODUCTS[2], quantity: 1 }], total: 445000, status: 'delivered', createdAt: '2026-04-05T10:00:00Z', address: '123 Nguyễn Huệ, Q1, TP.HCM', phone: '0901234567' },
+  { id: 'ORD-002', userId: '2', items: [{ product: MOCK_PRODUCTS[1], quantity: 1 }], total: 320000, status: 'shipping', createdAt: '2026-04-05T14:30:00Z', address: '45 Lê Lợi, Q1, TP.HCM', phone: '0912345678' },
+  { id: 'ORD-003', userId: '2', items: [{ product: MOCK_PRODUCTS[5], quantity: 1 }], total: 850000, status: 'confirmed', createdAt: '2026-04-04T09:15:00Z', address: '78 Trần Hưng Đạo, Q5, TP.HCM', phone: '0923456789' },
+  { id: 'ORD-004', userId: '2', items: [{ product: MOCK_PRODUCTS[3], quantity: 2 }, { product: MOCK_PRODUCTS[4], quantity: 1 }], total: 235000, status: 'delivered', createdAt: '2026-04-04T16:00:00Z', address: '12 Nguyễn Trãi, Q5, TP.HCM', phone: '0934567890' },
+  { id: 'ORD-005', userId: '2', items: [{ product: MOCK_PRODUCTS[10], quantity: 1 }], total: 650000, status: 'pending', createdAt: '2026-04-03T11:30:00Z', address: '90 Điện Biên Phủ, Q3, TP.HCM', phone: '0945678901' },
+  { id: 'ORD-006', userId: '2', items: [{ product: MOCK_PRODUCTS[6], quantity: 2 }], total: 560000, status: 'cancelled', createdAt: '2026-04-03T08:00:00Z', address: '33 Hai Bà Trưng, Q1, TP.HCM', phone: '0956789012' },
+  { id: 'ORD-007', userId: '2', items: [{ product: MOCK_PRODUCTS[7], quantity: 3 }, { product: MOCK_PRODUCTS[9], quantity: 2 }], total: 235000, status: 'delivered', createdAt: '2026-04-02T13:45:00Z', address: '56 Lý Thường Kiệt, Q10, TP.HCM', phone: '0967890123' },
+  { id: 'ORD-008', userId: '2', items: [{ product: MOCK_PRODUCTS[11], quantity: 2 }], total: 170000, status: 'delivered', createdAt: '2026-04-02T10:20:00Z', address: '18 Cách Mạng Tháng 8, Q3, TP.HCM', phone: '0978901234' },
+];

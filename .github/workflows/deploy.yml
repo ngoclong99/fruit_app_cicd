@@ -160,7 +160,7 @@ jobs:
           host:     ${{ secrets.EC2_HOST }}
           username: ubuntu
           key:      ${{ secrets.EC2_SSH_KEY }}
-          source:   "docker-compose.prod.yml,nginx/default.conf,backend/.env"
+          source:   "docker-compose.prod.yml,nginx/default.conf,backend/.env,backend/init.sql"
           # 1 EC2 chay ca 2 moi truong: moi moi truong co thu muc rieng
           #   ~/app/production/ va ~/app/staging/
           # Neu doi sang EC2 rieng cho moi moi truong: doi thanh "target: ~/app"

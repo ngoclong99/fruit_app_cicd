@@ -16,9 +16,32 @@ $GITHUB_REPO    = "ngoclong99/start"
 $KEY_PATH       = "E:\AWS\deploy-ec2.pem"  # Duong dan den private key SSH tren may local
 $EMAIL          = "longvhn1999@gmail.com"
 
-# ─── Buoc 1: Tao EC2 ─────────────────────────────────────────
+# ─── Buoc 1: Tao ECR repos (idempotent) ─────────────────────
+# Evening script xoa toan bo ECR repos de tiet kiem chi phi
+# (~$0.10/GB/thang, du nho nhung tich luy va co the bi orphaned manifests)
+# Morning tao lai voi cung ten -> GitHub Secret ECR_REGISTRY khong can update
+# vi URI registry o cap account khong doi: <account>.dkr.ecr.<region>.amazonaws.com
 Write-Host ""
-Write-Host "[1/5] Tao EC2..." -ForegroundColor Cyan
+Write-Host "[1/6] Tao ECR repos..." -ForegroundColor Cyan
+
+foreach ($repo in @("myapp-backend", "myapp-frontend")) {
+    # Probe xem repo da ton tai chua (stderr -> null de khong gay nhieu output)
+    aws ecr describe-repositories --repository-names $repo --region $REGION 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        # Repo chua co -> tao moi
+        # scanOnPush=false: tat tu dong scan vulnerability (mien phi nhung khong can cho demo)
+        aws ecr create-repository `
+            --repository-name $repo `
+            --region $REGION `
+            --image-scanning-configuration scanOnPush=false | Out-Null
+        Write-Host "    Created: $repo" -ForegroundColor Green
+    } else {
+        Write-Host "    Exists:  $repo" -ForegroundColor Gray
+    }
+}
+
+# ─── Buoc 2: Tao EC2 ─────────────────────────────────────────
+Write-Host "[2/6] Tao EC2..." -ForegroundColor Cyan
 
 # Khoi tao EC2 instance moi voi cac tham so da dinh nghia
 $INSTANCE_ID = aws ec2 run-instances `
@@ -46,8 +69,8 @@ $PUBLIC_IP = aws ec2 describe-instances `
 
 Write-Host "    IP: $PUBLIC_IP" -ForegroundColor Green
 
-# ─── Buoc 2: Cap nhat DNS va GitHub Secret ───────────────────
-Write-Host "[2/5] Cap nhat Route53 DNS + GitHub Secret..." -ForegroundColor Cyan
+# ─── Buoc 3: Cap nhat DNS va GitHub Secret ───────────────────
+Write-Host "[3/6] Cap nhat Route53 DNS + GitHub Secret..." -ForegroundColor Cyan
 
 # Tao JSON body cho lenh cap nhat Route 53 DNS
 # UPSERT: tao moi neu chua co, cap nhat neu da co
@@ -65,13 +88,13 @@ gh secret set EC2_HOST --env staging   --body $PUBLIC_IP --repo $GITHUB_REPO
 
 Write-Host "    DNS: $DOMAIN -> $PUBLIC_IP" -ForegroundColor Green
 
-# ─── Buoc 3: Cho SSH san sang ────────────────────────────────
+# ─── Buoc 4: Cho SSH san sang ────────────────────────────────
 # EC2 can them ~60 giay sau khi "running" de SSH daemon khoi dong xong
-Write-Host "[3/5] Cho EC2 san sang SSH (60s)..." -ForegroundColor Cyan
+Write-Host "[4/6] Cho EC2 san sang SSH (60s)..." -ForegroundColor Cyan
 Start-Sleep -Seconds 60
 
-# ─── Buoc 4: Cai Docker, Certbot, lay SSL ───────────────────
-Write-Host "[4/5] Cai Docker + Certbot + SSL certificate..." -ForegroundColor Cyan
+# ─── Buoc 5: Cai Docker, Certbot, lay SSL ───────────────────
+Write-Host "[5/6] Cai Docker + Certbot + SSL certificate..." -ForegroundColor Cyan
 
 # Script nay se duoc chay TREN EC2 qua SSH
 $SETUP = @"
@@ -122,10 +145,23 @@ echo 'SETUP DONE'
 
 # Chay script tren EC2 qua SSH
 # -o StrictHostKeyChecking=no: tu dong chap nhan host key moi, khong hoi
-ssh -i $KEY_PATH -o StrictHostKeyChecking=no ubuntu@$PUBLIC_IP $SETUP
+# QUAN TRONG: pipe script qua STDIN den 'bash -s', KHONG truyen qua argv
+# Vi PowerShell 5.1 strip newlines khi pass multi-line string qua argv
+# -> bash thay script tren 1 dong -> comment '#' an het script -> docker khong cai duoc
+$SETUP | ssh -i $KEY_PATH -o StrictHostKeyChecking=no ubuntu@$PUBLIC_IP "bash -s"
 
-# ─── Buoc 5: Trigger GitHub Actions deploy ──────────────────
-Write-Host "[5/5] Trigger deploy..." -ForegroundColor Cyan
+# Fail-fast: neu setup tren EC2 loi thi dung luon, dung trigger deploy (deploy se loi vi khong co docker)
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "LOI: Setup EC2 that bai (exit code $LASTEXITCODE)" -ForegroundColor Red
+    Write-Host "Kiem tra log o tren de biet buoc nao loi (Docker / AWS CLI / Certbot)" -ForegroundColor Yellow
+    Write-Host "Goi y: SSH vao EC2 chay tay tung lenh de debug:" -ForegroundColor Yellow
+    Write-Host "  ssh -i $KEY_PATH ubuntu@$PUBLIC_IP" -ForegroundColor Yellow
+    exit 1
+}
+
+# ─── Buoc 6: Trigger GitHub Actions deploy ──────────────────
+Write-Host "[6/6] Trigger deploy..." -ForegroundColor Cyan
 
 # Chay workflow deploy.yml tren branch main (se deploy vao environment production)
 gh workflow run deploy.yml --ref main --field environment=production --repo $GITHUB_REPO

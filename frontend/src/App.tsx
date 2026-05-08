@@ -1,77 +1,108 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import Layout from './components/user/layout/Layout';
+import ProtectedRoute from './components/user/ui/ProtectedRoute';
 
-interface Todo {
-  id: number;
-  title: string;
-  done: boolean;
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
 }
 
-const API = '/api/todos';
+const Home = lazy(() => import('./pages/Home'));
+const Products = lazy(() => import('./pages/Products'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const CartPage = lazy(() => import('./pages/CartPage'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Orders = lazy(() => import('./pages/Orders'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Search = lazy(() => import('./pages/Search'));
+const Drinks = lazy(() => import('./pages/Drinks'));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const AdminProducts = lazy(() => import('./pages/admin/AdminProducts'));
+const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+
+function PageLoader() {
+  return (
+    <div className="page-loader">
+      <div className="page-loader__spinner" />
+    </div>
+  );
+}
 
 export default function App() {
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [input, setInput] = useState('');
-
-  useEffect(() => {
-    fetch(API).then(r => r.json()).then(setTodos);
-  }, []);
-
-  async function addTodo() {
-    if (!input.trim()) return;
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: input.trim() }),
-    });
-    const todo = await res.json();
-    setTodos(prev => [todo, ...prev]);
-    setInput('');
-  }
-
-  async function toggleTodo(id: number) {
-    const res = await fetch(`${API}/${id}`, { method: 'PATCH' });
-    const updated = await res.json();
-    setTodos(prev => prev.map(t => (t.id === id ? updated : t)));
-  }
-
-  async function deleteTodo(id: number) {
-    await fetch(`${API}/${id}`, { method: 'DELETE' });
-    setTodos(prev => prev.filter(t => t.id !== id));
-  }
-
   return (
-    <div style={{ maxWidth: 500, margin: '60px auto', fontFamily: 'sans-serif' }}>
-      <h1>Todo App</h1>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addTodo()}
-          placeholder="Add a todo..."
-          style={{ flex: 1, padding: '8px 12px', fontSize: 16 }}
-        />
-        <button onClick={addTodo} style={{ padding: '8px 16px', fontSize: 16 }}>
-          Add
-        </button>
-      </div>
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {todos.map(todo => (
-          <li
-            key={todo.id}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}
-          >
-            <input
-              type="checkbox"
-              checked={todo.done}
-              onChange={() => toggleTodo(todo.id)}
+    <BrowserRouter>
+      <ScrollToTop />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/products/:id" element={<ProductDetail />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/drinks" element={<Drinks />} />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <Checkout />
+                </ProtectedRoute>
+              }
             />
-            <span style={{ flex: 1, textDecoration: todo.done ? 'line-through' : 'none' }}>
-              {todo.title}
-            </span>
-            <button onClick={() => deleteTodo(todo.id)}>✕</button>
-          </li>
-        ))}
-      </ul>
-    </div>
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute>
+                  <Orders />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/products"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminProducts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/orders"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminOrders />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+          </Route>
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
   );
 }

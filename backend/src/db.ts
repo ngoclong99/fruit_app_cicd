@@ -1,23 +1,19 @@
+import 'dotenv/config';
 import { Pool } from 'pg';
-import dotenv from 'dotenv';
 
-dotenv.config();
+const dbHost = process.env.DB_HOST || 'localhost';
 
-export const pool = new Pool({
-  host:     process.env.DB_HOST,
-  port:     Number(process.env.DB_PORT),
-  database: process.env.DB_NAME,
-  user:     process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  // Tu dong bat SSL khi ket noi den RDS (endpoint chua "rds.amazonaws.com")
-  // RDS yeu cau SSL, Docker PostgreSQL thi khong can
-  ssl: process.env.DB_HOST?.includes('rds.amazonaws.com')
+const pool = new Pool({
+  host: dbHost,
+  port: Number(process.env.DB_PORT) || 5432,
+  user: process.env.DB_USER || 'myuser',
+  password: process.env.DB_PASSWORD || 'mypassword',
+  database: process.env.DB_NAME || 'mydb',
+  max: 10,
+  // Bat SSL khi connect den RDS
+  ssl: dbHost.includes('rds.amazonaws.com')
     ? { rejectUnauthorized: false }
-    : false,
+    : undefined,
 });
 
-export async function initDB() {
-  // Chi kiem tra ket noi den DB, khong tao table o day
-  // Table duoc tao thu cong tren DB de dam bao co kiem soat schema
-  await pool.query('SELECT 1');
-}
+export default pool;

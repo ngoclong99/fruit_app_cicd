@@ -1,0 +1,45 @@
+@use 'variables' as *;
+
+:root {
+  --color-primary: #{$color-primary};
+  --color-primary-dark: #{$color-primary-dark};
+  --color-primary-light: #{$color-primary-light};
+  --color-primary-bg: #{$color-primary-bg};
+  --color-accent: #{$color-accent};
+  --color-danger: #{$color-danger};
+  --color-text: #{$color-text};
+  --color-text-muted: #{$color-text-muted};
+  --color-bg: #{$color-bg};
+  --color-bg-card: #{$color-bg-card};
+  --color-border: #{$color-border};
+  --font-base: #{$font-base};
+  --header-height: #{$header-height};
+  --radius-sm: #{$radius-sm};
+  --radius-md: #{$radius-md};
+  --radius-lg: #{$radius-lg};
+  --radius-xl: #{$radius-xl};
+  --shadow-sm: #{$shadow-sm};
+  --shadow-md: #{$shadow-md};
+}
+
+.page-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background-color: $color-bg;
+
+  &__spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid $color-primary-light;
+    border-top-color: $color-primary;
+    border-radius: 50%;
+    will-change: transform;
+    animation: spin 0.7s linear infinite;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

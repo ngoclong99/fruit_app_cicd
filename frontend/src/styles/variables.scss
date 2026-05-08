@@ -1,0 +1,110 @@
+$color-primary: #16a34a;
+$color-primary-dark: #15803d;
+$color-primary-hover: #14532d;
+$color-primary-light: #dcfce7;
+$color-primary-bg: #f0fdf4;
+$color-primary-50: #f0fdf4;
+$color-primary-100: #dcfce7;
+$color-primary-200: #bbf7d0;
+$color-primary-600: #16a34a;
+$color-primary-700: #15803d;
+$color-primary-800: #166534;
+
+$color-accent: #facc15;
+$color-accent-dark: #eab308;
+$color-accent-light: #fef9c3;
+
+$color-danger: #ef4444;
+$color-danger-bg: #fef2f2;
+$color-danger-light: #fee2e2;
+
+$color-warning: #f97316;
+$color-warning-bg: #fff7ed;
+
+$color-info: #3b82f6;
+$color-info-bg: #eff6ff;
+
+$color-text: #1f2937;
+$color-text-muted: #6b7280;
+$color-text-light: #9ca3af;
+$color-text-white: #ffffff;
+
+$color-bg: #f8faf8;
+$color-bg-card: #ffffff;
+$color-bg-dark: #111827;
+
+$color-border: #e5e7eb;
+$color-border-light: #f3f4f6;
+
+$font-base: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+$font-mono: 'Fira Code', 'Consolas', monospace;
+
+$font-size-xs: 0.75rem;
+$font-size-sm: 0.875rem;
+$font-size-base: 1rem;
+$font-size-lg: 1.125rem;
+$font-size-xl: 1.25rem;
+$font-size-2xl: 1.5rem;
+$font-size-3xl: 1.875rem;
+
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+
+$spacing-1: 0.25rem;
+$spacing-2: 0.5rem;
+$spacing-3: 0.75rem;
+$spacing-4: 1rem;
+$spacing-6: 1.5rem;
+$spacing-8: 2rem;
+$spacing-12: 3rem;
+$spacing-16: 4rem;
+
+$radius-sm: 6px;
+$radius-md: 10px;
+$radius-lg: 14px;
+$radius-xl: 18px;
+$radius-2xl: 24px;
+$radius-full: 9999px;
+
+$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+$shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
+$shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
+$shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1), 0 10px 10px rgba(0, 0, 0, 0.04);
+
+$transition-fast: 100ms ease;
+$transition-base: 150ms ease;
+$transition-slow: 300ms ease;
+
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+
+$header-height: 64px;
+$max-width: 1280px;
+
+@mixin sm { @media (min-width: #{$breakpoint-sm}) { @content; } }
+@mixin md { @media (min-width: #{$breakpoint-md}) { @content; } }
+@mixin lg { @media (min-width: #{$breakpoint-lg}) { @content; } }
+@mixin xl { @media (min-width: #{$breakpoint-xl}) { @content; } }
+
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin card {
+  background: $color-bg-card;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-sm;
+  border: 1px solid $color-border-light;
+}

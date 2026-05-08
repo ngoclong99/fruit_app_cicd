@@ -5,13 +5,14 @@ services:
     image: postgres:15-alpine
     container_name: myapp-db
     restart: unless-stopped
-    env_file: ./backend/.env
     environment:
       POSTGRES_DB:       ${DB_NAME}
       POSTGRES_USER:     ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # init.sql duoc PG chay tu dong khi container init lan dau (volume rong)
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     ports:
       - "5433:5432"   # expose ra host để dùng pgAdmin / DBeaver (5433 tránh conflict với local PG)
     networks: [app-net]

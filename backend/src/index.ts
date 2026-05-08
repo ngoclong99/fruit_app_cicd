@@ -1,57 +1,37 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import { pool, initDB } from "./db";
-
-dotenv.config();
+import authRouter from "./routes/auth";
+import productsRouter from "./routes/products";
+import categoriesRouter from "./routes/categories";
+import ordersRouter from "./routes/orders";
+import usersRouter from "./routes/users";
+import statsRouter from "./routes/stats";
 
 const app = express();
-app.use(cors());
+const PORT = Number(process.env.PORT) || 3001;
+const HOST = "0.0.0.0"; // ← BẮT BUỘC 0.0.0.0, KHÔNG PHẢI localhost!
+
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    credentials: true,
+  }),
+);
 app.use(express.json());
+
+app.use("/api/auth", authRouter);
+app.use("/api/products", productsRouter);
+app.use("/api/categories", categoriesRouter);
+app.use("/api/orders", ordersRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/stats", statsRouter);
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
-// GET all todos
-app.get("/todos", async (_req, res) => {
-  const { rows } = await pool.query(
-    "SELECT * FROM todos ORDER BY created_at DESC",
-  );
-  res.json(rows);
-});
+app.listen(PORT, HOST, () =>
+  console.log(`Server running http://${HOST}:${PORT}`),
+);
 
-// POST create todo
-app.post("/todos", async (req, res) => {
-  const { title } = req.body;
-  if (!title) return res.status(400).json({ error: "title is required" });
-  const { rows } = await pool.query(
-    "INSERT INTO todos (title) VALUES ($1) RETURNING *",
-    [title],
-  );
-  res.status(201).json(rows[0]);
-});
-
-// PATCH toggle done
-app.patch("/todos/:id", async (req, res) => {
-  const { id } = req.params;
-  const { rows } = await pool.query(
-    "UPDATE todos SET done = NOT done WHERE id = $1 RETURNING *",
-    [id],
-  );
-  if (!rows.length) return res.status(404).json({ error: "not found" });
-  res.json(rows[0]);
-});
-
-// DELETE todo
-app.delete("/todos/:id", async (req, res) => {
-  const { id } = req.params;
-  await pool.query("DELETE FROM todos WHERE id = $1", [id]);
-  res.status(204).send();
-});
-
-const PORT = Number(process.env.PORT) || 5000;
-
-initDB().then(() => {
-  app.listen(PORT, "0.0.0.0", () =>
-    console.log(`Server running on http://localhost:${PORT}`),
-  );
-});
+// Graceful shutdown khi Docker stop
+process.on("SIGTERM", () => process.exit(0));
+export default app;

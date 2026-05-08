@@ -52,7 +52,14 @@ echo "EC2 san sang tai: https://$DOMAIN"
 "@
 
 # SSH vào EC2 và chạy script
-ssh -i $KEY_PATH -o StrictHostKeyChecking=no ubuntu@$IP $REMOTE_SCRIPT
+# Pipe qua STDIN den 'bash -s' (KHONG dung argv) vi PowerShell 5.1 strip newlines
+# khien bash thay script tren 1 dong -> comment '#' an het cac lenh phia sau
+$REMOTE_SCRIPT | ssh -i $KEY_PATH -o StrictHostKeyChecking=no ubuntu@$IP "bash -s"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "LOI: Setup that bai (exit code $LASTEXITCODE)" -ForegroundColor Red
+    exit 1
+}
 
 Write-Host ""
 Write-Host "=== EC2 DA SAN SANG ===" -ForegroundColor Green
