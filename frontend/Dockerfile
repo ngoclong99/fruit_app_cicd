@@ -7,8 +7,10 @@ WORKDIR /app
 # (npm/cli#4828: rollup va esbuild Linux binary khong install dung khi build tu Windows lock)
 RUN corepack enable
 
-COPY package.json yarn.lock ./
-# --network-timeout: tang timeout vi cac package nang (recharts, botpress)
+COPY package.json ./
+# KHONG copy yarn.lock: lockfile sinh tu Windows -> ghim binaries sai platform
+# (vd: rollup-win32-x64-msvc thay vi rollup-linux-x64-gnu)
+# Bo lockfile -> yarn re-resolve fresh tren Linux, install dung binaries
 RUN yarn install --network-timeout 100000
 
 COPY . .
