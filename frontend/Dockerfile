@@ -11,6 +11,10 @@ COPY package.json yarn.lock ./
 # --network-timeout: tang timeout vi cac package nang (recharts, botpress)
 RUN yarn install --network-timeout 100000
 
+# Yarn 1 tren Docker doi khi khong set execute bit cho .bin scripts
+# -> chmod truoc khi chay vite build
+RUN chmod -R +x node_modules/.bin/
+
 COPY . .
 
 # VITE_API_URL được inject lúc build (từ GitHub Actions)
