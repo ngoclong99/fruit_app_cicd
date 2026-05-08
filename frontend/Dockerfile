@@ -2,8 +2,11 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+COPY package.json ./
+# KHONG copy package-lock.json (lock platform-specific binaries tu Windows local)
+# Tren Linux build, npm install se tu resolve dung optional deps cho Linux
+# Tranh bug: https://github.com/npm/cli/issues/4828 (rollup-linux-x64-gnu missing)
+RUN npm install --include=optional
 
 COPY . .
 
