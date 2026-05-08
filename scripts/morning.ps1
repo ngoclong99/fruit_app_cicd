@@ -75,8 +75,21 @@ Write-Host "[3/6] Cap nhat Route53 DNS + GitHub Secret..." -ForegroundColor Cyan
 # Tao JSON body cho lenh cap nhat Route 53 DNS
 # UPSERT: tao moi neu chua co, cap nhat neu da co
 # TTL=60: DNS cache het han sau 60 giay (nhanh chong cap nhat khi IP doi)
+#
+# QUAN TRONG: phai ghi JSON ra TEMP FILE va dung file:// thay vi truyen inline
+# Vi PowerShell 5.1 strip dau " khi pass JSON qua argv cua native command (aws CLI)
+# -> AWS CLI nhan JSON khong co quotes -> ParamValidation error -> DNS khong update
 $CHANGE = '{"Changes":[{"Action":"UPSERT","ResourceRecordSet":{"Name":"' + $DOMAIN + '","Type":"A","TTL":60,"ResourceRecords":[{"Value":"' + $PUBLIC_IP + '"}]}},{"Action":"UPSERT","ResourceRecordSet":{"Name":"www.' + $DOMAIN + '","Type":"A","TTL":60,"ResourceRecords":[{"Value":"' + $PUBLIC_IP + '"}]}}]}'
-aws route53 change-resource-record-sets --hosted-zone-id $HOSTED_ZONE_ID --change-batch $CHANGE | Out-Null
+$tmpJson = [System.IO.Path]::GetTempFileName()
+# WriteAllText dung UTF-8 khong BOM (AWS CLI yeu cau)
+[System.IO.File]::WriteAllText($tmpJson, $CHANGE)
+aws route53 change-resource-record-sets --hosted-zone-id $HOSTED_ZONE_ID --change-batch "file://$tmpJson" | Out-Null
+$dnsExitCode = $LASTEXITCODE
+Remove-Item $tmpJson -Force
+if ($dnsExitCode -ne 0) {
+    Write-Host "    LOI: Route 53 update that bai (exit code $dnsExitCode)" -ForegroundColor Red
+    exit 1
+}
 
 # Lam moi PATH de dam bao lenh gh tim duoc trong phien hien tai
 $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
