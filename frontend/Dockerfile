@@ -12,8 +12,10 @@ COPY package.json ./
 # (vd: rollup-win32-x64-msvc thay vi rollup-linux-x64-gnu)
 # Bo lockfile -> yarn re-resolve fresh tren Linux, install dung binaries
 RUN yarn install --network-timeout 100000
-# yarn 1.22 van bi miss rollup linux binary -> install bo sung qua npm
+# yarn 1.22 cai sai platform-specific binaries (esbuild Windows tren Linux)
+# -> rebuild + install bo sung Linux binaries qua npm
 RUN npm install --no-save @rollup/rollup-linux-x64-gnu
+RUN npm rebuild esbuild
 
 COPY . .
 
