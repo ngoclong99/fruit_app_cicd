@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+// Endpoints (api/endpoints/*.ts) da co prefix /api/... san
+// -> baseURL phai KHONG bao gom /api (tranh /api/api/...)
+// VITE_API_URL co the la: '' | '/api' | 'https://host' | 'https://host/api'
+// -> Strip trailing /api de chuan hoa
+const rawApiUrl = (import.meta.env.VITE_API_URL ?? '') as string;
+const baseURL = rawApiUrl.replace(/\/api\/?$/, '');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });
