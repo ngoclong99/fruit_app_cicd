@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { env } from '../config/env';
 import type { JwtPayload } from '../types';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fruit-shop-secret-key';
+// Re-export from env config so existing imports `JWT_SECRET` keep working.
+export const JWT_SECRET = env.JWT_SECRET;
 
 export interface AuthRequest extends Request {
   user?: JwtPayload;
@@ -31,5 +33,3 @@ export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction
   }
   next();
 };
-
-export { JWT_SECRET };
