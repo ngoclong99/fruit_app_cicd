@@ -146,6 +146,37 @@ Project dùng chiến lược tạo/huỷ EC2 mỗi ngày qua PowerShell scripts
 
 ---
 
+## 🚧 Migration đang lên kế hoạch — S3 + CloudFront cho Frontend
+
+> **Status:** Docs hoàn tất, chờ thực thi. Chi tiết: **[S3_FRONTEND.md](S3_FRONTEND.md)**.
+
+### Tại sao
+Hiện tại FE serve qua nginx trên EC2 → bị down từ tối → sáng do EC2 huỷ bởi `evening.ps1`. Migrate sang S3 + CloudFront để:
+- FE accessible 24/7 (không phụ thuộc EC2 lifecycle)
+- Học CloudFront / S3 static hosting (Giai đoạn 6 advanced)
+- Giảm ~50% chi phí EC2 (downgrade `t3.small → t3.micro` vì BE không serve assets)
+
+### Kiến trúc đích (sau migration)
+
+| Domain | Trỏ vào | Vai trò |
+|---|---|---|
+| `vhnlong.store` | CloudFront alias → S3 bucket | React SPA (24/7) |
+| `api.vhnlong.store` | A record → EC2 IP (đổi mỗi sáng) | Backend REST API |
+
+### Roadmap thực thi
+- [ ] Phase 1: AWS Infrastructure setup (manual qua Console) — S3 bucket, ACM cert us-east-1, CloudFront distribution, Route 53 records
+- [ ] Phase 2: Backend changes — nginx config sang `api.vhnlong.store`, xoá frontend container khỏi docker-compose
+- [ ] Phase 3: CI/CD split — `deploy-backend.yml` + `deploy-frontend.yml` riêng biệt
+- [ ] Phase 4: Scripts update — morning.ps1, evening.ps1, setup-ec2.ps1; thêm cleanup-frontend.ps1
+- [ ] Phase 5: SSM updates — VITE_API_URL, CORS_ORIGIN
+- [ ] Phase 6: FE code cleanup — xoá frontend/Dockerfile
+- [ ] Phase 7: Cutover + smoke test (big-bang)
+- [ ] Phase 8: Update docs này khi hoàn tất
+
+Mở [docs/S3_FRONTEND.md](S3_FRONTEND.md) để xem hướng dẫn từng bước.
+
+---
+
 ## Giai đoạn 2 — Data & Bảo mật
 > Mục tiêu: Data không mất, app an toàn hơn
 
@@ -190,7 +221,7 @@ Project dùng chiến lược tạo/huỷ EC2 mỗi ngày qua PowerShell scripts
 ## Giai đoạn 6 — Advanced
 > Mục tiêu: Vận hành production như công ty thật
 
-- [ ] **CloudFront** — CDN, cache frontend toàn cầu, giảm latency
+- [ ] **CloudFront + S3** — CDN serve FE từ S3 — _Docs done, chờ thực thi:_ [S3_FRONTEND.md](S3_FRONTEND.md)
 - [ ] **WAF** — chặn tấn công DDoS, SQL injection
 - [ ] **Secrets Manager** — rotate secrets tự động, audit trail
 - [ ] **Cost optimization** — Spot instances, Reserved instances

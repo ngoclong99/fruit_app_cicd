@@ -1,6 +1,8 @@
 # PowerShell Scripts
 
-Tổng quan 4 PowerShell scripts trong [scripts/](../scripts/) phục vụ chiến lược **tạo EC2 mỗi sáng / huỷ mỗi tối** để tiết kiệm chi phí khi học AWS.
+Tổng quan PowerShell scripts trong [scripts/](../scripts/) phục vụ chiến lược **tạo EC2 mỗi sáng / huỷ mỗi tối** để tiết kiệm chi phí khi học AWS.
+
+> **Note về migration S3+CloudFront:** Docs phía dưới mô tả scripts **phiên bản hiện tại** (FE serve qua nginx trên EC2). Khi migration ở [S3_FRONTEND.md](S3_FRONTEND.md) được thực thi (Phase 4), một số script sẽ thay đổi và sẽ có thêm `cleanup-frontend.ps1` — xem section ["5. cleanup-frontend.ps1"](#5-cleanup-frontendps1--planned-tear-down-s3--cloudfront-infra) cuối file.
 
 ---
 
@@ -239,6 +241,64 @@ Không có tham số. Sau khi liệt kê, nhập số `[No]` để chọn resour
 
 ---
 
+## 5. cleanup-frontend.ps1 — _(Planned)_ Tear down S3 + CloudFront infra
+
+> **Status:** Script chưa tồn tại trong repo — sẽ được tạo khi thực thi Phase 4 của [S3_FRONTEND.md](S3_FRONTEND.md). Section này document trước để bạn có thể chuẩn bị.
+
+### Mục đích
+Xoá toàn bộ infra phục vụ S3 + CloudFront khi học xong: S3 bucket, CloudFront distribution, ACM certificate. Trải qua các bước phức tạp vì CloudFront cần disable trước khi delete (mất ~15 phút).
+
+### Khi nào dùng
+- Học xong CloudFront, muốn cleanup để chắc chắn không còn tốn tiền
+- Migration thất bại và muốn rollback hoàn toàn (kèm với `git revert`)
+
+### Prerequisites
+- AWS CLI cấu hình với quyền: `s3:DeleteBucket`, `s3:DeleteObject`, `cloudfront:UpdateDistribution`, `cloudfront:DeleteDistribution`, `acm:DeleteCertificate`
+- Phải biết **CloudFront Distribution ID** (lưu trong GitHub Secret `CLOUDFRONT_DISTRIBUTION_ID` hoặc xem trong CloudFront Console)
+
+### Hardcoded values
+
+| Biến | Giá trị | Sửa khi |
+|---|---|---|
+| `$REGION_FE` | `ap-southeast-1` | S3 bucket region |
+| `$REGION_CERT` | `us-east-1` | ACM cert region (bắt buộc cho CloudFront) |
+| `$BUCKET` | `vhnlong.store-fe` | Đổi tên bucket |
+
+### Cách chạy
+```powershell
+.\scripts\cleanup-frontend.ps1
+# Script prompt 2 lần:
+#   1. Confirm tiếp tục (yes/no)
+#   2. Nhập CloudFront Distribution ID
+```
+
+### Bên trong làm gì (4 bước)
+1. **Empty + delete S3 bucket** — phải empty trước, dùng `aws s3 rm --recursive` + `aws s3 rb`
+2. **Disable CloudFront distribution** — get current config + ETag → set `Enabled=false` → update → wait `distribution-deployed` (~15 phút)
+3. **Delete CloudFront distribution** — get new ETag → delete (vài giây)
+4. **Delete ACM certificate** ở us-east-1 (tự lookup ARN theo domain `vhnlong.store`)
+
+### Side effects — **DESTRUCTIVE**
+- Xoá vĩnh viễn S3 bucket + content
+- Xoá vĩnh viễn CloudFront distribution → `vhnlong.store` không phục vụ được qua CDN nữa
+- Xoá vĩnh viễn ACM cert → CloudFront mới không dùng được cert này
+
+### KHÔNG tự xoá
+- **Route 53** records `vhnlong.store`, `www.vhnlong.store` (alias) → cần xoá thủ công hoặc chạy lại morning.ps1 cũ để trỏ về EC2
+- **GitHub Secret** `CLOUDFRONT_DISTRIBUTION_ID` → user xoá thủ công qua `gh secret delete`
+- **IAM policy** `FrontendDeployPolicy` của user `github-actions-deploy` → user xoá thủ công
+
+### Troubleshooting
+
+| Lỗi | Nguyên nhân & Fix |
+|---|---|
+| `BucketNotEmpty` | S3 bucket vẫn có objects. Script đã chạy `s3 rm --recursive` — nếu vẫn fail: kiểm tra versioning có bật không, dùng `aws s3api delete-objects` với version IDs |
+| Distribution disable bị treo > 30 phút | Bình thường là ~15 phút. Nếu > 30 phút: kiểm tra status qua `aws cloudfront get-distribution --id ... --query "Distribution.Status"` — nếu vẫn `InProgress`, đợi tiếp |
+| `CannotDeleteEntity: The certificate is in use` | Cert vẫn associated với CloudFront. Confirm CloudFront đã delete xong (status không còn trong list) |
+| Route 53 alias records không thấy ai sửa | cleanup-frontend.ps1 không tự sửa Route 53. Cần manual: xoá alias records, tạo lại A records trỏ EC2 |
+
+---
+
 ## Bảng tóm tắt nhanh
 
 | Script | Khi nào dùng | Destructive? | Tham số |
@@ -247,6 +307,7 @@ Không có tham số. Sau khi liệt kê, nhập số `[No]` để chọn resour
 | [evening.ps1](../scripts/evening.ps1) | Mỗi tối kết thúc | **Có** — terminate EC2, xoá ECR, release EIP | `-Force` (skip confirm) |
 | [setup-ec2.ps1](../scripts/setup-ec2.ps1) | Retry khi `morning.ps1` fail SSH-setup | Không (chỉ cài lên EC2) | `-IP <ec2-ip>` _(bắt buộc)_ |
 | [cost-check.ps1](../scripts/cost-check.ps1) | Audit bất kỳ lúc nào | Có (qua menu, luôn confirm) | _(không)_ |
+| `cleanup-frontend.ps1` _(planned)_ | Cleanup S3/CloudFront khi học xong | **Có** — xoá vĩnh viễn S3 bucket, CloudFront, ACM cert | _(không)_ |
 
 ---
 
