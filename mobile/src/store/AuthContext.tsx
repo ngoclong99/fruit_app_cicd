@@ -7,8 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi } from '../api/endpoints/auth';
+import { tokenStorage } from '../shared/storage/tokenStorage';
 import type { User } from '../types';
 
 interface AuthContextValue {
@@ -39,15 +39,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Hydrate từ AsyncStorage khi app khởi động.
   useEffect(() => {
     (async () => {
       try {
         const [t, u] = await Promise.all([
-          AsyncStorage.getItem('token'),
-          AsyncStorage.getItem('user'),
+          tokenStorage.getToken(),
+          tokenStorage.getUser<User>(),
         ]);
         if (t) setToken(t);
-        if (u) setUser(JSON.parse(u) as User);
+        if (u) setUser(u);
       } catch {
         // ignore
       } finally {
@@ -57,10 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const persist = useCallback(async (u: User | null, t: string | null) => {
-    if (t) await AsyncStorage.setItem('token', t);
-    else await AsyncStorage.removeItem('token');
-    if (u) await AsyncStorage.setItem('user', JSON.stringify(u));
-    else await AsyncStorage.removeItem('user');
+    if (t) await tokenStorage.setToken(t);
+    if (u) await tokenStorage.setUser(u);
+    if (!u && !t) await tokenStorage.clear();
   }, []);
 
   const login = useCallback(
@@ -91,14 +91,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     setUser(null);
     setToken(null);
-    await persist(null, null);
-  }, [persist]);
+    await tokenStorage.clear();
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
       const me = await authApi.me();
       setUser(me);
-      await AsyncStorage.setItem('user', JSON.stringify(me));
+      await tokenStorage.setUser(me);
     } catch {
       // ignore – likely token expired
     }
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUser = useCallback(async (next: User) => {
     setUser(next);
-    await AsyncStorage.setItem('user', JSON.stringify(next));
+    await tokenStorage.setUser(next);
   }, []);
 
   const changePassword = useCallback(
