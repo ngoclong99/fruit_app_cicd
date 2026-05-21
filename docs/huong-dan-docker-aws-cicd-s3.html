@@ -1,0 +1,2370 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docker · S3 · CloudFront · CI/CD — Hướng dẫn A→Z</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 32px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-bottom: 3px solid #0891b2;
+      margin-bottom: 48px;
+    }
+    .cover h1 { font-size: 2.2rem; color: #0891b2; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge {
+      display: inline-block;
+      background: #cffafe;
+      color: #0e7490;
+      border-radius: 9999px;
+      padding: 2px 12px;
+      font-size: 0.8rem;
+      margin: 4px 2px;
+    }
+
+    /* ── TOC ── */
+    .toc {
+      background: #f0fdfa;
+      border-left: 4px solid #0891b2;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+      border-radius: 0 8px 8px 0;
+    }
+    .toc h2 { font-size: 1rem; color: #0891b2; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #0891b2; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── Headings ── */
+    h1 { font-size: 1.8rem; color: #155e75; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #0e7490; margin: 32px 0 10px; border-bottom: 1px solid #a5f3fc; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #155e75; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+
+    /* ── Code blocks ── */
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+    code {
+      background: #ecfeff;
+      color: #0e7490;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; }
+
+    /* ── Comment colour inside pre ── */
+    .cmt  { color: #94a3b8; }
+    .kw   { color: #67e8f9; }
+    .str  { color: #86efac; }
+    .num  { color: #fca5a5; }
+    .var  { color: #fcd34d; }
+
+    /* ── Callout boxes ── */
+    .info, .warn, .tip, .danger {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .info   { border-color: #0891b2; background: #ecfeff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong {
+      display: block; margin-bottom: 4px;
+    }
+    .info strong   { color: #0e7490; }
+    .warn strong   { color: #b45309; }
+    .tip strong    { color: #065f46; }
+    .danger strong { color: #b91c1c; }
+
+    /* ── Architecture diagram ── */
+    .arch {
+      border: 2px solid #a5f3fc;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      background: #f0fdfa;
+      font-family: monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    /* ── Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.88rem;
+    }
+    th {
+      background: #0e7490;
+      color: #fff;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    tr:hover td { background: #ecfeff; }
+
+    /* ── Section divider ── */
+    hr { border: none; border-top: 2px dashed #a5f3fc; margin: 40px 0; }
+
+    /* ── Flow steps ── */
+    .steps { counter-reset: step; }
+    .step {
+      counter-increment: step;
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: flex-start;
+    }
+    .step-num {
+      min-width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #0891b2;
+      color: #fff;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+    .step-body { flex: 1; }
+    .step-body h4 { margin-top: 4px; color: #155e75; }
+
+    /* ── Compare table for migration ── */
+    .compare th { background: #475569; }
+    .compare .old td:first-child { color: #b91c1c; }
+    .compare .new td:first-child { color: #047857; font-weight: 600; }
+
+    /* ── Print ── */
+    @media print {
+      body { padding: 16px; font-size: 12px; }
+      .cover { padding: 30px 0 20px; }
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.2rem; }
+      pre { font-size: 0.75rem; }
+      a { color: #0e7490; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     COVER
+═════════════════════════════════════════════════ -->
+<div class="cover">
+  <h1>Docker · S3 · CloudFront · CI/CD</h1>
+  <p>Hướng dẫn deploy fullstack lên AWS — Frontend tách rời trên S3+CloudFront, Backend trên EC2 (subdomain split)</p>
+  <br/>
+  <span class="badge">Docker</span>
+  <span class="badge">AWS S3</span>
+  <span class="badge">CloudFront</span>
+  <span class="badge">ACM</span>
+  <span class="badge">Route 53</span>
+  <span class="badge">EC2</span>
+  <span class="badge">ECR</span>
+  <span class="badge">SSM</span>
+  <span class="badge">GitHub Actions</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">Phiên bản nâng cấp của <a href="huong-dan-docker-aws-cicd.html">huong-dan-docker-aws-cicd</a> — dùng cho project mới muốn FE accessible 24/7 ngay từ đầu</p>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     TABLE OF CONTENTS
+═════════════════════════════════════════════════ -->
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#s1">Khác biệt với phiên bản EC2/nginx — khi nào nên dùng?</a></li>
+    <li><a href="#s2">Kiến trúc tổng thể (subdomain split)</a></li>
+    <li><a href="#s3">Prerequisites — Cần chuẩn bị gì trước?</a></li>
+    <li><a href="#s4">Code & config trong repo
+      <ol style="margin-top:4px;">
+        <li><a href="#s4">4.1 Cấu trúc thư mục</a></li>
+        <li><a href="#s4">4.2 Backend Dockerfile</a></li>
+        <li><a href="#s4">4.3 Backend CORS middleware</a></li>
+        <li><a href="#s4">4.4 Frontend — KHÔNG cần Dockerfile</a></li>
+        <li><a href="#s4">4.5 nginx/default.conf (chỉ proxy API)</a></li>
+        <li><a href="#s4">4.6 docker-compose.prod.yml (BE-only)</a></li>
+        <li><a href="#s4">4.7 Frontend Vite + axios config</a></li>
+      </ol>
+    </a></li>
+    <li><a href="#s5">AWS Setup từ A→Z
+      <ol style="margin-top:4px;">
+        <li><a href="#s5">5.1 IAM user deploy-bot</a></li>
+        <li><a href="#s5">5.2 IAM role cho EC2</a></li>
+        <li><a href="#s5">5.3 ECR repository</a></li>
+        <li><a href="#s5">5.4 Route 53 hosted zone</a></li>
+        <li><a href="#s5">5.5 S3 bucket cho FE</a></li>
+        <li><a href="#s5">5.6 ACM Certificate (us-east-1)</a></li>
+        <li><a href="#s5">5.7 CloudFront distribution + OAC + SPA fallback</a></li>
+        <li><a href="#s5">5.8 Route 53 records</a></li>
+        <li><a href="#s5">5.9 SSM Parameter Store</a></li>
+        <li><a href="#s5">5.10 EC2 setup lần đầu</a></li>
+      </ol>
+    </a></li>
+    <li><a href="#s6">GitHub Actions — 2 workflows tách biệt
+      <ol style="margin-top:4px;">
+        <li><a href="#s6">6.1 deploy-backend.yml</a></li>
+        <li><a href="#s6">6.2 deploy-frontend.yml</a></li>
+        <li><a href="#s6">6.3 GitHub Secrets</a></li>
+      </ol>
+    </a></li>
+    <li><a href="#s7">Daily lifecycle scripts (PowerShell)
+      <ol style="margin-top:4px;">
+        <li><a href="#s7">7.1 morning.ps1</a></li>
+        <li><a href="#s7">7.2 evening.ps1</a></li>
+        <li><a href="#s7">7.3 setup-ec2.ps1</a></li>
+        <li><a href="#s7">7.4 cleanup-frontend.ps1</a></li>
+      </ol>
+    </a></li>
+    <li><a href="#s8">Sơ đồ luồng deploy toàn hệ thống</a></li>
+    <li><a href="#s9">CORS — Tại sao và cấu hình</a></li>
+    <li><a href="#s10">Bảng AWS CLI commands hay dùng</a></li>
+    <li><a href="#s11">FAQ &amp; Troubleshooting</a></li>
+    <li><a href="#s12">Checklist deploy lần đầu (làm theo thứ tự)</a></li>
+    <li><a href="#s13">Cleanup toàn bộ infra khi học xong</a></li>
+    <li><a href="#s14">Chi phí thực tế</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     1. KHÁC BIỆT VỚI EC2/NGINX VERSION
+═════════════════════════════════════════════════ -->
+<h1 id="s1">1. Khác biệt với phiên bản EC2/nginx — khi nào nên dùng?</h1>
+
+<p>Phiên bản gốc (<a href="huong-dan-docker-aws-cicd.html">huong-dan-docker-aws-cicd</a>) đặt cả frontend và backend trên cùng 1 EC2, dùng nginx làm reverse proxy phục vụ cả 2. Phiên bản này tách frontend ra <strong>S3 + CloudFront</strong> để có 3 lợi ích quan trọng:</p>
+
+<table class="compare">
+  <tr><th>Tiêu chí</th><th>EC2/nginx (cũ)</th><th>S3+CloudFront (mới)</th></tr>
+  <tr class="old"><td>FE accessible khi EC2 down</td><td>❌ Không — FE cùng số phận với BE</td><td>✅ 24/7 — S3+CF luôn live</td></tr>
+  <tr class="old"><td>CDN cache global</td><td>❌ Mỗi request về VN-Singapore</td><td>✅ CloudFront edge cache toàn cầu</td></tr>
+  <tr class="old"><td>Chi phí FE storage/serving</td><td>~$0.02/hr EBS + bandwidth EC2</td><td>~$0/tháng (free tier 1TB)</td></tr>
+  <tr class="old"><td>Build time CI/CD</td><td>~5 phút (npm build + docker build + ECR push)</td><td>~2 phút (npm build + s3 sync)</td></tr>
+  <tr class="old"><td>Độ phức tạp setup AWS</td><td>Đơn giản (1 EC2)</td><td>Phức tạp hơn — thêm S3, ACM, CloudFront, OAC</td></tr>
+  <tr class="old"><td>Khi nào dùng</td><td>Demo/internal đơn giản</td><td>Production thật / cần FE uptime cao / học CloudFront</td></tr>
+</table>
+
+<div class="tip">
+  <strong>✅ Khi nào nên chọn phiên bản này?</strong>
+  Bạn muốn FE luôn live (kể cả khi BE bị tạm tắt để tiết kiệm chi phí học), muốn học CloudFront/S3/ACM, hoặc deploy production thật cho người dùng.
+</div>
+
+<div class="warn">
+  <strong>⚠️ Khi nào nên tránh?</strong>
+  Project demo cực kỳ đơn giản, deploy 1 lần để show, không cần uptime cao → version cũ đơn giản hơn, ít moving parts hơn.
+</div>
+
+<h2>Yêu cầu kỹ thuật bổ sung so với version cũ</h2>
+
+<ul>
+  <li><strong>Domain riêng</strong> (vd: <code>example.com</code>) — bắt buộc, không thể chỉ dùng IP EC2 vì CloudFront cần ACM cert</li>
+  <li><strong>Hosted zone Route 53</strong> cho domain đó</li>
+  <li><strong>JWT Bearer token auth</strong> (không phải cookie-based) — đơn giản CORS hơn nhiều</li>
+  <li><strong>Vite/React</strong> hoặc build tool nào hash filenames (immutable assets) — giúp CloudFront cache hiệu quả</li>
+</ul>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     2. KIẾN TRÚC TỔNG THỂ
+═════════════════════════════════════════════════ -->
+<h1 id="s2">2. Kiến trúc tổng thể (subdomain split)</h1>
+
+<p>Sơ đồ kiến trúc đầy đủ — đây là <strong>"bức tranh" cần hiểu</strong> trước khi đụng bất kỳ component nào:</p>
+
+<div class="arch">
+                            User browser
+                                  │
+                                  │ HTTPS
+                                  ▼
+                         ┌─────────────────┐
+                         │   Route 53      │
+                         │  example.com    │
+                         │  hosted zone    │
+                         └────────┬────────┘
+                                  │
+                  ┌───────────────┴──────────────────┐
+                  │                                  │
+              example.com                    api.example.com
+              (Alias A record)              (A record, IP động)
+                  │                                  │
+                  ▼                                  ▼
+        ┌──────────────────────┐          ┌──────────────────────┐
+        │  CloudFront          │          │  EC2 (t3.micro)      │
+        │  distribution        │          │  ap-southeast-1      │
+        │                      │          │                      │
+        │  ┌────────────────┐  │          │  ┌────────────────┐  │
+        │  │ ACM cert       │  │          │  │ Let's Encrypt  │  │
+        │  │ us-east-1      │  │          │  │ cert via       │  │
+        │  │ HTTPS termi.   │  │          │  │ Certbot        │  │
+        │  └────────────────┘  │          │  └────────────────┘  │
+        └──────────┬───────────┘          └──────────┬───────────┘
+                   │                                  │
+                   │ OAC                              │ port 443
+                   │                                  │ TLS terminate
+                   ▼                                  ▼
+        ┌──────────────────────┐          ┌──────────────────────┐
+        │  S3 bucket           │          │  nginx               │
+        │  example.com-fe      │          │  (Docker container)  │
+        │  PRIVATE             │          │  ─ /api/* → :5000    │
+        │  ─ index.html        │          └──────────┬───────────┘
+        │  ─ assets/*.js       │                     │
+        │  ─ assets/*.css      │          ┌──────────▼───────────┐
+        └──────────────────────┘          │  Node.js backend     │
+                                          │  (Docker container)  │
+                                          │  port 5000           │
+                                          └──────────┬───────────┘
+                                                     │
+                                          ┌──────────▼───────────┐
+                                          │  PostgreSQL          │
+                                          │  (Docker container)  │
+                                          │  port 5432 (internal)│
+                                          │  volume: postgres_data│
+                                          └──────────────────────┘
+</div>
+
+<h2>2.1 Data flow chi tiết</h2>
+
+<div class="arch">
+1. User mở https://example.com
+   │
+   ▼
+2. DNS resolve example.com → CloudFront IPs (alias)
+   │
+   ▼
+3. CloudFront edge gần user nhất:
+   │  ├─ Nếu cache hit → trả ngay từ edge (rất nhanh)
+   │  └─ Nếu cache miss:
+   │       ├─ OAC fetch S3 bucket → trả về object
+   │       └─ Cache lại ở edge
+   │
+   ▼
+4. Browser nhận index.html → parse → load JS/CSS từ CloudFront
+   (assets được hash filename → cache 1 năm hiệu quả)
+   │
+   ▼
+5. React app bootstrap → axios call:
+   POST https://api.example.com/api/auth/login
+   │
+   ▼
+6. DNS resolve api.example.com → EC2 IP
+   │
+   ▼
+7. EC2 nginx (TLS terminate) → proxy /api/* → backend container :5000
+   │
+   ▼
+8. Node.js xử lý request:
+   ├─ cors() middleware kiểm tra Origin header:
+   │   Origin: https://example.com
+   │   CORS_ORIGIN env: https://example.com   ✅ match
+   │   → Set header Access-Control-Allow-Origin: https://example.com
+   ├─ Xử lý logic, query Postgres, trả JSON + JWT
+   │
+   ▼
+9. Browser nhận response → save JWT vào localStorage
+   │
+   ▼
+10. Subsequent requests: axios attach Authorization: Bearer &lt;JWT&gt;
+    → CORS không cần preflight với GET/POST simple → fast
+</div>
+
+<h2>2.2 Tại sao chia ra 2 subdomain?</h2>
+
+<table>
+  <tr><th>Lý do</th><th>Giải thích</th></tr>
+  <tr><td>BE không bị CloudFront cache</td><td>Nếu BE dùng same domain với CloudFront, mỗi API request đi qua CloudFront → tốn 50-100ms + có thể bị cache nhầm</td></tr>
+  <tr><td>Debug dễ hơn</td><td><code>curl https://api.example.com</code> đi thẳng EC2 — nếu lỗi biết ngay BE hay CloudFront</td></tr>
+  <tr><td>FE độc lập lifecycle</td><td>BE EC2 tắt → FE vẫn truy cập được. User thấy trang chủ + có thông báo "API maintenance"</td></tr>
+  <tr><td>Có thể scale BE riêng</td><td>Sau này muốn add ALB cho BE (multi-AZ) không ảnh hưởng FE</td></tr>
+</table>
+
+<div class="info">
+  <strong>🔑 Same-origin vs CORS</strong>
+  Vì FE ở <code>example.com</code> và BE ở <code>api.example.com</code> là <strong>khác origin</strong> → browser sẽ enforce CORS. BE phải explicitly set <code>Access-Control-Allow-Origin: https://example.com</code>. Xem chi tiết ở <a href="#s9">Section 9</a>.
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     3. PREREQUISITES
+═════════════════════════════════════════════════ -->
+<h1 id="s3">3. Prerequisites — Cần chuẩn bị gì trước?</h1>
+
+<h2>3.1 Trên máy local</h2>
+
+<table>
+  <tr><th>Tool</th><th>Version</th><th>Cài như nào</th></tr>
+  <tr><td>Docker Desktop</td><td>>= 20.10</td><td><a href="https://www.docker.com/products/docker-desktop">docker.com</a></td></tr>
+  <tr><td>Node.js</td><td>20.x LTS</td><td><a href="https://nodejs.org/">nodejs.org</a></td></tr>
+  <tr><td>Git</td><td>>= 2.30</td><td><a href="https://git-scm.com/">git-scm.com</a></td></tr>
+  <tr><td>AWS CLI</td><td>v2</td><td><code>winget install Amazon.AWSCLI</code> hoặc tải <a href="https://awscli.amazonaws.com/AWSCLIV2.msi">.msi</a></td></tr>
+  <tr><td>GitHub CLI</td><td>>= 2.0</td><td><code>winget install GitHub.cli</code></td></tr>
+  <tr><td>PowerShell</td><td>5.1+</td><td>Có sẵn trên Windows 10/11</td></tr>
+</table>
+
+<h2>3.2 AWS Account</h2>
+
+<ul>
+  <li>AWS account đã activate (có credit card)</li>
+  <li>Root user MFA đã bật (security best practice)</li>
+  <li>Đã chọn <strong>1 region chính</strong> (vd <code>ap-southeast-1</code> Singapore — gần VN nhất)</li>
+  <li>Hiểu rằng <strong>ACM cert cho CloudFront BẮT BUỘC ở us-east-1</strong> (N. Virginia) — sẽ làm việc với 2 regions</li>
+</ul>
+
+<h2>3.3 Domain</h2>
+
+<ul>
+  <li>1 domain đã sở hữu (vd <code>example.com</code> mua qua Namecheap, GoDaddy, Cloudflare, v.v.)</li>
+  <li>NS records của domain trỏ về Route 53 (hoặc transfer hẳn vào Route 53)</li>
+  <li>Quyết định subdomain: dùng <code>api.example.com</code> cho BE (mặc định trong guide này)</li>
+</ul>
+
+<h2>3.4 GitHub repository</h2>
+
+<ul>
+  <li>Repo đã tạo trên GitHub (có thể private)</li>
+  <li>Branch <code>main</code> là default branch</li>
+  <li>Bạn có quyền add Secrets vào repo</li>
+</ul>
+
+<div class="warn">
+  <strong>⚠️ Nếu chưa có domain</strong>
+  Không thể follow guide này — CloudFront cần ACM cert cho domain thật. Có thể tạm dùng <code>*.cloudfront.net</code> default domain nhưng không có HTTPS custom + không trông production.
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     4. CODE & CONFIG TRONG REPO
+═════════════════════════════════════════════════ -->
+<h1 id="s4">4. Code & config trong repo</h1>
+
+<h2>4.1 Cấu trúc thư mục</h2>
+
+<pre><code>my-project/
+├── backend/
+│   ├── src/
+│   │   ├── index.ts            <span class="cmt"># Express app entry — có CORS middleware</span>
+│   │   └── routes/
+│   ├── Dockerfile               <span class="cmt"># Build BE image cho ECR</span>
+│   ├── package.json
+│   └── init.sql                 <span class="cmt"># PostgreSQL init</span>
+│
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx
+│   │   └── api/
+│   │       └── axios.ts         <span class="cmt"># Reads VITE_API_URL</span>
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   └── index.html               <span class="cmt"># KHÔNG có Dockerfile</span>
+│
+├── nginx/
+│   └── default.conf             <span class="cmt"># Chỉ proxy /api/* — không serve FE</span>
+│
+├── scripts/
+│   ├── morning.ps1              <span class="cmt"># Tạo EC2, deploy BE</span>
+│   ├── evening.ps1              <span class="cmt"># Huỷ EC2, ECR</span>
+│   ├── setup-ec2.ps1            <span class="cmt"># Cài Docker/Certbot/SSL trên EC2</span>
+│   └── cleanup-frontend.ps1     <span class="cmt"># Tear down S3/CloudFront/ACM khi học xong</span>
+│
+├── .github/workflows/
+│   ├── deploy-backend.yml       <span class="cmt"># Trigger: backend/** changes</span>
+│   └── deploy-frontend.yml      <span class="cmt"># Trigger: frontend/** changes</span>
+│
+├── docker-compose.yml           <span class="cmt"># Local dev (có frontend service)</span>
+├── docker-compose.prod.yml      <span class="cmt"># Production trên EC2 (chỉ BE)</span>
+└── .gitignore
+</code></pre>
+
+<h2>4.2 Backend Dockerfile</h2>
+
+<p>Multi-stage build: stage 1 compile TypeScript, stage 2 chỉ chứa runtime. Tương tự version EC2/nginx nhưng <strong>không cần đổi gì</strong> khi migrate sang S3+CloudFront.</p>
+
+<pre><code><span class="cmt"># ═══ STAGE 1: Build ═══</span>
+<span class="kw">FROM</span> <span class="str">node:20-alpine</span> AS builder
+<span class="kw">WORKDIR</span> /app
+<span class="kw">COPY</span> package*.json ./
+<span class="kw">RUN</span> npm ci
+<span class="kw">COPY</span> . .
+<span class="kw">RUN</span> npm run build
+
+<span class="cmt"># ═══ STAGE 2: Production ═══</span>
+<span class="kw">FROM</span> <span class="str">node:20-alpine</span>
+<span class="kw">RUN</span> apk add --no-cache curl dumb-init
+<span class="kw">RUN</span> addgroup -g 1001 nodejs &amp;&amp; adduser -S -u 1001 -G nodejs nodejs
+<span class="kw">WORKDIR</span> /app
+<span class="kw">COPY</span> package*.json ./
+<span class="kw">RUN</span> npm ci --omit=dev &amp;&amp; npm cache clean --force
+<span class="kw">COPY</span> --from=builder --chown=nodejs:nodejs /app/dist ./dist
+<span class="kw">USER</span> nodejs
+<span class="kw">EXPOSE</span> 5000
+<span class="kw">HEALTHCHECK</span> --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
+<span class="kw">ENTRYPOINT</span> ["dumb-init", "--"]
+<span class="kw">CMD</span> ["node", "dist/index.js"]
+</code></pre>
+
+<h2>4.3 Backend CORS middleware (CRITICAL!)</h2>
+
+<p>Vì FE và BE khác origin (<code>example.com</code> vs <code>api.example.com</code>), backend BẮT BUỘC phải có CORS middleware. Đây là phần quan trọng nhất khác biệt với version cũ.</p>
+
+<pre><code><span class="cmt">// backend/src/index.ts</span>
+<span class="kw">import</span> express <span class="kw">from</span> <span class="str">'express'</span>;
+<span class="kw">import</span> cors <span class="kw">from</span> <span class="str">'cors'</span>;
+
+<span class="kw">const</span> app = express();
+
+<span class="cmt">// CORS — phải đặt TRƯỚC mọi routes</span>
+app.use(cors({
+  <span class="cmt">// CORS_ORIGIN sẽ đọc từ SSM Parameter Store qua backend/.env</span>
+  <span class="cmt">// Production: "https://example.com"</span>
+  <span class="cmt">// Local dev:  "http://localhost:5173"</span>
+  origin: process.env.CORS_ORIGIN || <span class="str">"http://localhost:5173"</span>,
+  credentials: <span class="kw">true</span>,
+  <span class="cmt">// Allow methods cho REST API</span>
+  methods: [<span class="str">'GET'</span>, <span class="str">'POST'</span>, <span class="str">'PUT'</span>, <span class="str">'PATCH'</span>, <span class="str">'DELETE'</span>, <span class="str">'OPTIONS'</span>],
+  <span class="cmt">// JWT token được gửi qua header này</span>
+  allowedHeaders: [<span class="str">'Content-Type'</span>, <span class="str">'Authorization'</span>],
+}));
+
+app.use(express.json({ limit: <span class="str">'5mb'</span> }));
+<span class="cmt">// ... routes</span>
+
+app.listen(<span class="num">5000</span>);
+</code></pre>
+
+<div class="warn">
+  <strong>⚠️ KHÔNG dùng <code>origin: '*'</code></strong>
+  Khi <code>credentials: true</code>, browser refuse wildcard. Phải là exact string trùng với protocol + domain (không trailing slash).
+</div>
+
+<div class="tip">
+  <strong>✅ Multiple origins (vd staging + production)</strong>
+  <pre><code>origin: [<span class="str">'https://example.com'</span>, <span class="str">'https://staging.example.com'</span>],</code></pre>
+  Hoặc function:
+  <pre><code>origin: (origin, callback) =&gt; {
+  <span class="kw">const</span> allowed = [<span class="str">'https://example.com'</span>, <span class="str">'http://localhost:5173'</span>];
+  callback(<span class="kw">null</span>, !origin || allowed.includes(origin));
+}</code></pre>
+</div>
+
+<h4>Install cors package nếu chưa có:</h4>
+<pre><code>cd backend
+npm install cors
+npm install --save-dev @types/cors</code></pre>
+
+<h2>4.4 Frontend — KHÔNG cần Dockerfile</h2>
+
+<p>Đây là điểm khác biệt lớn nhất! Frontend giờ build trực tiếp trên GitHub Actions runner, output <code>dist/</code> được sync thẳng lên S3.</p>
+
+<table>
+  <tr><th>Step</th><th>Local dev (docker-compose.yml)</th><th>Production (workflow)</th></tr>
+  <tr><td>Build</td><td><code>docker build -t myapp-frontend ./frontend</code></td><td><code>npm run build</code> trên runner</td></tr>
+  <tr><td>Serve</td><td>nginx container trong Docker</td><td>S3 + CloudFront — không có container</td></tr>
+  <tr><td>VITE_API_URL inject</td><td>Build-time qua docker build-arg</td><td>Build-time qua env var trên runner</td></tr>
+</table>
+
+<div class="info">
+  <strong>ℹ️ Tại sao bỏ Dockerfile cho FE?</strong>
+  Static assets không cần container — Docker overhead không có lợi ích gì khi đã có S3 native. Build dist trên runner nhanh hơn, simpler hơn.
+</div>
+
+<h2>4.5 nginx/default.conf (chỉ proxy API)</h2>
+
+<p>Trên EC2, nginx chỉ làm 2 việc: terminate HTTPS cho <code>api.example.com</code> và proxy <code>/api/*</code> đến backend container. KHÔNG còn serve frontend.</p>
+
+<pre><code><span class="cmt"># nginx/default.conf</span>
+<span class="cmt"># HTTP redirect lên HTTPS</span>
+<span class="kw">server</span> {
+    <span class="kw">listen</span> 80;
+    <span class="kw">server_name</span> api.example.com;
+    <span class="kw">return</span> 301 https://$host$request_uri;
+}
+
+<span class="cmt"># HTTPS server cho API</span>
+<span class="kw">server</span> {
+    <span class="kw">listen</span> 443 ssl http2;
+    <span class="kw">server_name</span> api.example.com;
+
+    <span class="cmt"># SSL certificate từ Let's Encrypt (Certbot)</span>
+    <span class="kw">ssl_certificate</span>     /etc/letsencrypt/live/api.example.com/fullchain.pem;
+    <span class="kw">ssl_certificate_key</span> /etc/letsencrypt/live/api.example.com/privkey.pem;
+    <span class="kw">ssl_protocols</span>       TLSv1.2 TLSv1.3;
+    <span class="kw">ssl_ciphers</span>         HIGH:!aNULL:!MD5;
+
+    <span class="cmt"># Cho phép upload file lớn (vd ảnh)</span>
+    <span class="kw">client_max_body_size</span> 50M;
+
+    <span class="cmt"># Proxy /api/* đến backend container</span>
+    <span class="kw">location</span> /api/ {
+        <span class="kw">proxy_pass</span>         http://backend_srv;   <span class="cmt"># Giữ nguyên prefix /api/</span>
+        <span class="kw">proxy_http_version</span> 1.1;
+        <span class="kw">proxy_set_header</span>   Host              $host;
+        <span class="kw">proxy_set_header</span>   X-Real-IP         $remote_addr;
+        <span class="kw">proxy_set_header</span>   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        <span class="kw">proxy_set_header</span>   X-Forwarded-Proto $scheme;
+        <span class="kw">proxy_read_timeout</span> 90s;
+    }
+
+    <span class="cmt"># Health check cho monitoring</span>
+    <span class="kw">location</span> /health {
+        <span class="kw">proxy_pass</span> http://backend_srv;
+    }
+
+    <span class="cmt"># Mọi path khác → 404 (nginx không serve FE nữa)</span>
+    <span class="kw">location</span> / {
+        <span class="kw">return</span> 404 <span class="str">"Not Found"</span>;
+    }
+}
+
+<span class="kw">upstream</span> backend_srv {
+    <span class="kw">server</span> backend:5000;
+}
+</code></pre>
+
+<h2>4.6 docker-compose.prod.yml (BE-only)</h2>
+
+<pre><code><span class="cmt"># docker-compose.prod.yml — chạy trên EC2</span>
+services:
+
+  <span class="cmt"># ─── PostgreSQL ──────────────────────────────────</span>
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB:       <span class="var">${DB_NAME}</span>
+      POSTGRES_USER:     <span class="var">${DB_USER}</span>
+      POSTGRES_PASSWORD: <span class="var">${DB_PASSWORD}</span>
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks: [app-net]
+    healthcheck:
+      test: [<span class="str">"CMD-SHELL"</span>, <span class="str">"pg_isready -U ${DB_USER} -d ${DB_NAME}"</span>]
+      interval: 10s
+      retries: 5
+
+  <span class="cmt"># ─── Node.js Backend ─────────────────────────────</span>
+  backend:
+    image: <span class="var">${ECR_REGISTRY}</span>/myapp-backend:<span class="var">${IMAGE_TAG:-latest}</span>
+    restart: always
+    env_file: ./backend/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      NODE_ENV: production
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [app-net]
+
+  <span class="cmt"># ─── Nginx (TLS terminate + proxy /api) ──────────</span>
+  nginx:
+    image: nginx:1.25-alpine
+    restart: always
+    ports:
+      - <span class="str">"80:80"</span>
+      - <span class="str">"443:443"</span>
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro    <span class="cmt"># Mount cert từ host</span>
+    depends_on: [backend]
+    networks: [app-net]
+
+volumes:
+  postgres_data:
+
+networks:
+  app-net:
+    driver: bridge
+</code></pre>
+
+<div class="tip">
+  <strong>✅ So với version EC2/nginx cũ:</strong>
+  <ul>
+    <li>Bỏ service <code>frontend</code> (không build/run nginx container cho FE nữa)</li>
+    <li>Nginx chỉ có 1 server block cho <code>api.example.com</code>, không proxy <code>/</code> nữa</li>
+    <li>Cert path đổi từ <code>example.com</code> sang <code>api.example.com</code></li>
+  </ul>
+</div>
+
+<h2>4.7 Frontend Vite + axios config</h2>
+
+<h4>frontend/vite.config.ts</h4>
+<pre><code><span class="kw">import</span> { defineConfig } <span class="kw">from</span> <span class="str">'vite'</span>;
+<span class="kw">import</span> react <span class="kw">from</span> <span class="str">'@vitejs/plugin-react'</span>;
+
+<span class="kw">export default</span> defineConfig({
+  plugins: [react()],
+  build: {
+    outDir: <span class="str">'dist'</span>,
+    sourcemap: <span class="kw">false</span>,
+    <span class="cmt">// Hash filenames để CloudFront cache hiệu quả (Vite default)</span>
+  },
+  <span class="cmt">// base: '/' là mặc định — không cần đổi vì S3 ở root domain</span>
+});
+</code></pre>
+
+<h4>frontend/src/api/axios.ts</h4>
+<pre><code><span class="kw">import</span> axios <span class="kw">from</span> <span class="str">'axios'</span>;
+
+<span class="cmt">// VITE_API_URL được inject ở build time bởi GitHub Actions</span>
+<span class="cmt">// Production: "https://api.example.com"</span>
+<span class="cmt">// Local dev:  "http://localhost:5000" (set trong .env.local)</span>
+<span class="kw">const</span> rawApiUrl = (<span class="kw">import.meta</span>.env.VITE_API_URL ?? <span class="str">''</span>) <span class="kw">as</span> string;
+<span class="cmt">// Strip trailing /api nếu có để tránh double prefix</span>
+<span class="kw">const</span> baseURL = rawApiUrl.replace(/\/api\/?$/, <span class="str">''</span>);
+
+<span class="kw">const</span> api = axios.create({
+  baseURL,
+  timeout: <span class="num">30000</span>,
+});
+
+<span class="cmt">// Attach JWT token vào mọi request</span>
+api.interceptors.request.use((config) =&gt; {
+  <span class="kw">const</span> token = localStorage.getItem(<span class="str">'token'</span>);
+  <span class="kw">if</span> (token) {
+    config.headers.Authorization = <span class="str">`Bearer ${token}`</span>;
+  }
+  <span class="kw">return</span> config;
+});
+
+<span class="kw">export default</span> api;
+
+<span class="cmt">// Cách dùng:</span>
+<span class="cmt">// api.post('/api/auth/login', { email, password })</span>
+<span class="cmt">// → POST https://api.example.com/api/auth/login</span>
+</code></pre>
+
+<h4>frontend/.env.local (local dev only — KHÔNG commit)</h4>
+<pre><code>VITE_API_URL=http://localhost:5000</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     5. AWS SETUP
+═════════════════════════════════════════════════ -->
+<h1 id="s5">5. AWS Setup từ A→Z</h1>
+
+<p>Phần này dài nhất — làm theo đúng thứ tự 10 bước. Mỗi bước phụ thuộc kết quả bước trước.</p>
+
+<div class="info">
+  <strong>📐 Quy ước trong guide</strong>
+  Thay tất cả <code>example.com</code> → domain của bạn, <code>myapp</code> → tên project của bạn, region <code>ap-southeast-1</code> → region bạn chọn (chỉ ACM cert phải ở us-east-1).
+</div>
+
+<h2>5.1 Tạo IAM User cho GitHub Actions (deploy-bot)</h2>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>Console: IAM → Users → Create user</h4>
+    <ul>
+      <li>Tên: <code>deploy-bot</code></li>
+      <li>KHÔNG tick "Provide user access to AWS Management Console"</li>
+      <li>Skip "Set permissions" → Next → Create user</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h4>Tạo Access Key cho user</h4>
+    <ul>
+      <li>Vào user vừa tạo → tab Security credentials → Create access key</li>
+      <li>Use case: <strong>Application running outside AWS</strong></li>
+      <li>Download CSV hoặc lưu Access Key ID + Secret Access Key — chỉ hiển thị 1 lần</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-body">
+    <h4>Attach inline policy</h4>
+    <p>User → Add permissions → Create inline policy → JSON tab:</p>
+    <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECRPushPull",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:PutImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:DescribeRepositories",
+        "ecr:CreateRepository"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3FrontendBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:PutObjectAcl",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::example.com-fe",
+        "arn:aws:s3:::example.com-fe/*"
+      ]
+    },
+    {
+      "Sid": "CloudFrontInvalidation",
+      "Effect": "Allow",
+      "Action": ["cloudfront:CreateInvalidation"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SSMReadParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": "arn:aws:ssm:*:*:parameter/myapp/*"
+    },
+    {
+      "Sid": "EC2DescribeForMorningScript",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances",
+        "ec2:TerminateInstances",
+        "ec2:DescribeInstances",
+        "ec2:DescribeAddresses",
+        "ec2:ReleaseAddress",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Route53UpdateRecords",
+      "Effect": "Allow",
+      "Action": [
+        "route53:ChangeResourceRecordSets",
+        "route53:ListHostedZones",
+        "route53:GetHostedZone"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMPassRoleForEC2",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::*:role/myapp-ec2-role"
+    }
+  ]
+}</code></pre>
+    <p>Tên policy: <code>DeployBotFullAccess</code> → Create</p>
+    <div class="warn">
+      <strong>⚠️ Thay <code>example.com-fe</code> bằng tên S3 bucket thật</strong>
+      Cập nhật policy sau khi đã quyết định tên bucket ở step 5.5.
+    </div>
+  </div>
+</div>
+
+</div>
+
+<h2>5.2 Tạo IAM Role cho EC2 (để EC2 pull ECR + đọc SSM)</h2>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>IAM → Roles → Create role</h4>
+    <ul>
+      <li>Trusted entity: <strong>AWS service → EC2</strong></li>
+      <li>Permissions:
+        <ul>
+          <li>Attach managed policy: <code>AmazonEC2ContainerRegistryReadOnly</code></li>
+          <li>Attach managed policy: <code>AmazonSSMReadOnlyAccess</code> (để EC2 đọc SSM nếu cần)</li>
+        </ul>
+      </li>
+      <li>Role name: <code>myapp-ec2-role</code></li>
+    </ul>
+    <div class="tip">
+      <strong>✅ Tại sao cần role?</strong>
+      EC2 dùng role để xác thực với ECR/SSM mà không cần lưu Access Key trên server. Khi GitHub Actions SSH lên EC2 chạy <code>aws ecr get-login-password</code> hoặc <code>aws ssm get-parameter</code>, các lệnh này dùng credentials từ instance metadata.
+    </div>
+  </div>
+</div>
+
+</div>
+
+<h2>5.3 Tạo ECR Repository</h2>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>ECR → Repositories → Create repository</h4>
+    <p>Chỉ tạo 1 repo (không cần repo frontend nữa vì FE dùng S3):</p>
+    <table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>Visibility</td><td>Private</td></tr>
+      <tr><td>Repository name</td><td><code>myapp-backend</code></td></tr>
+      <tr><td>Tag immutability</td><td>Enabled (recommended — tránh accidental overwrite)</td></tr>
+      <tr><td>Image scan on push</td><td>Disabled (demo không cần)</td></tr>
+      <tr><td>Encryption</td><td>AES-256 (mặc định, free)</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h4>Ghi lại ECR Registry URI</h4>
+    <p>Sau khi tạo, copy URI dạng:</p>
+    <pre><code>&lt;account-id&gt;.dkr.ecr.ap-southeast-1.amazonaws.com</code></pre>
+    <p>Đây là giá trị của GitHub Secret <code>ECR_REGISTRY</code>.</p>
+  </div>
+</div>
+
+</div>
+
+<h2>5.4 Route 53 Hosted Zone</h2>
+
+<p>Nếu chưa có hosted zone:</p>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>Route 53 → Hosted zones → Create hosted zone</h4>
+    <ul>
+      <li>Domain name: <code>example.com</code></li>
+      <li>Type: Public hosted zone</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h4>Update NS records ở registrar</h4>
+    <p>Route 53 tạo zone với 4 NS records (dạng <code>ns-xxx.awsdns-xx.com</code>). Vào registrar (Namecheap/GoDaddy/…) update NS records của domain → trỏ về 4 NS records này.</p>
+    <div class="warn">
+      <strong>⚠️ DNS propagation</strong>
+      Sau khi đổi NS, phải đợi 1-24 giờ để DNS propagate toàn cầu. Verify: <code>nslookup -type=NS example.com</code> → phải trả về NS của AWS.
+    </div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-body">
+    <h4>Ghi lại Hosted Zone ID</h4>
+    <p>Vào zone → mục Hosted zone details → copy <strong>Hosted zone ID</strong> (dạng <code>Z0123456789ABCDEFGHIJ</code>). Sẽ dùng trong morning.ps1.</p>
+  </div>
+</div>
+
+</div>
+
+<h2>5.5 Tạo S3 bucket cho Frontend</h2>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>S3 → Create bucket (region ap-southeast-1)</h4>
+    <ul>
+      <li>Bucket name: <code>example.com-fe</code> (phải globally unique)</li>
+      <li>AWS Region: <code>ap-southeast-1</code></li>
+      <li>Object Ownership: ACLs disabled</li>
+      <li>Block all public access: <strong>GIỮ TICK</strong> (CloudFront sẽ truy cập qua OAC, không public)</li>
+      <li>Versioning: Disabled (demo)</li>
+      <li>Encryption: SSE-S3 mặc định</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h4>Update IAM policy với tên bucket thật</h4>
+    <p>Quay lại Section 5.1 step 3 — sửa <code>example.com-fe</code> trong policy <code>DeployBotFullAccess</code> thành tên bucket bạn vừa tạo.</p>
+  </div>
+</div>
+
+</div>
+
+<h2>5.6 Tạo ACM Certificate (BẮT BUỘC us-east-1)</h2>
+
+<div class="danger">
+  <strong>🚨 GOTCHA QUAN TRỌNG NHẤT</strong>
+  CloudFront CHỈ ĐỌC cert từ region <code>us-east-1</code> (N. Virginia). Nếu tạo cert nhầm region → CloudFront sẽ không thấy. Phải switch region về us-east-1 trước khi tạo cert.
+</div>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>Switch region về us-east-1</h4>
+    <p>Góc trên bên phải Console → dropdown region → chọn <strong>US East (N. Virginia)</strong>.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h4>Certificate Manager → Request certificate</h4>
+    <ul>
+      <li>Certificate type: <strong>Request a public certificate</strong></li>
+      <li>Fully qualified domain name: <code>example.com</code></li>
+      <li>Add another name: <code>www.example.com</code></li>
+      <li>Validation method: <strong>DNS validation - recommended</strong></li>
+      <li>Key algorithm: RSA 2048</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-body">
+    <h4>DNS validation</h4>
+    <p>Sau khi request, cert ở status <strong>Pending validation</strong>. Click vào cert → mỗi domain hiển thị 1 CNAME validation record.</p>
+    <p>Cách nhanh nhất: click <strong>Create records in Route 53</strong> → ACM tự thêm CNAME vào hosted zone.</p>
+    <p>Đợi 5-30 phút. Refresh trang → status chuyển <strong>Issued</strong> (xanh).</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">4</div>
+  <div class="step-body">
+    <h4>Ghi lại Certificate ARN</h4>
+    <pre><code>arn:aws:acm:us-east-1:&lt;account&gt;:certificate/&lt;cert-id&gt;</code></pre>
+  </div>
+</div>
+
+</div>
+
+<h2>5.7 Tạo CloudFront Distribution</h2>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>CloudFront → Create distribution (global service, UI ở us-east-1)</h4>
+    <p><strong>Origin section:</strong></p>
+    <ul>
+      <li>Origin domain: chọn bucket dạng <code>example.com-fe.s3.ap-southeast-1.amazonaws.com</code>
+        <div class="danger" style="margin-top:8px;">
+          <strong>🚨 Phải chọn REST endpoint, KHÔNG phải Website endpoint</strong>
+          REST endpoint dạng <code>*.s3.&lt;region&gt;.amazonaws.com</code> hỗ trợ OAC. Website endpoint <code>*.s3-website-*.amazonaws.com</code> KHÔNG hỗ trợ.
+        </div>
+      </li>
+      <li>Origin access: <strong>Origin access control (recommended)</strong></li>
+      <li>Click <strong>Create new OAC</strong> → name mặc định → Sign requests = Yes → Create</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h4>Default cache behavior</h4>
+    <ul>
+      <li>Viewer protocol policy: <strong>Redirect HTTP to HTTPS</strong></li>
+      <li>Allowed HTTP methods: GET, HEAD</li>
+      <li>Cache policy: <strong>CachingOptimized</strong> (managed)</li>
+      <li>Origin request policy: để trống</li>
+      <li>Compress objects automatically: Yes</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-body">
+    <h4>Settings</h4>
+    <ul>
+      <li>Price class: <strong>Use only North America and Europe</strong> (tiết kiệm — demo)
+        <p style="font-size:0.85em; color:#666; margin-top:4px;">Hoặc "Use Asia, Middle East, Africa" nếu user chính ở VN — đắt hơn ~50% nhưng latency thấp hơn 50-100ms</p>
+      </li>
+      <li>Alternate domain names (CNAMEs):
+        <ul>
+          <li><code>example.com</code></li>
+          <li><code>www.example.com</code></li>
+        </ul>
+      </li>
+      <li>Custom SSL certificate: chọn cert vừa tạo ở 5.6
+        <p style="font-size:0.85em; color:#666; margin-top:4px;">Nếu không thấy cert → confirm bạn đang ở us-east-1 và cert đã Issued</p>
+      </li>
+      <li>Security policy: TLSv1.2_2021</li>
+      <li>HTTP versions: HTTP/2</li>
+      <li>Default root object: <strong><code>index.html</code></strong> ← QUAN TRỌNG</li>
+      <li>Standard logging: Off</li>
+      <li>IPv6: Off (đơn giản hơn)</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">4</div>
+  <div class="step-body">
+    <h4>Click Create distribution → CloudFront sẽ hiển thị banner vàng</h4>
+    <p>"The S3 bucket policy needs to be updated" — click <strong>Copy policy</strong>.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">5</div>
+  <div class="step-body">
+    <h4>Cập nhật S3 bucket policy</h4>
+    <p>Vào S3 → bucket <code>example.com-fe</code> → Permissions → Bucket policy → Edit → paste policy đã copy → Save.</p>
+    <p>Policy ví dụ:</p>
+    <pre><code>{
+  "Version": "2008-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowCloudFrontServicePrincipal",
+      "Effect": "Allow",
+      "Principal": { "Service": "cloudfront.amazonaws.com" },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::example.com-fe/*",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudfront::&lt;account&gt;:distribution/&lt;dist-id&gt;"
+        }
+      }
+    }
+  ]
+}</code></pre>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">6</div>
+  <div class="step-body">
+    <h4>Tạo Custom Error Responses (SPA routing fallback)</h4>
+    <p>Tab <strong>Error pages</strong> → Create custom error response:</p>
+    <table>
+      <tr><th>HTTP error code</th><th>Min TTL</th><th>Customize</th><th>Response page path</th><th>HTTP response code</th></tr>
+      <tr><td>404</td><td>10</td><td>Yes</td><td><code>/index.html</code></td><td>200: OK</td></tr>
+      <tr><td>403</td><td>10</td><td>Yes</td><td><code>/index.html</code></td><td>200: OK</td></tr>
+    </table>
+    <div class="info">
+      <strong>🔑 Tại sao cần?</strong>
+      React SPA dùng client-side routing. Khi user refresh ở <code>/products</code> → CloudFront hỏi S3 cho <code>/products</code> → S3 trả 404 (hoặc 403 với OAC). Phải config CloudFront 404/403 → trả về <code>/index.html</code> với status 200 để React Router xử lý.
+    </div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">7</div>
+  <div class="step-body">
+    <h4>Đợi deploy hoàn tất (5-15 phút)</h4>
+    <p>Status chuyển từ <code>Deploying</code> → <code>Deployed</code>.</p>
+    <p>Ghi lại 2 giá trị quan trọng:</p>
+    <ul>
+      <li><strong>Distribution ID</strong> (dạng <code>E2YYYYYYYYYY</code>) — dùng cho GitHub Secret + invalidation</li>
+      <li><strong>Distribution domain name</strong> (dạng <code>dxxxx.cloudfront.net</code>) — dùng để test trước khi gắn custom domain</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+
+<h2>5.8 Route 53 records</h2>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>Tạo alias record cho root domain</h4>
+    <p>Route 53 → Hosted zones → <code>example.com</code> → Create record:</p>
+    <ul>
+      <li>Record name: để trống (= root domain)</li>
+      <li>Record type: A</li>
+      <li>Alias: <strong>Bật</strong></li>
+      <li>Route traffic to: <strong>Alias to CloudFront distribution</strong> → chọn distribution vừa tạo</li>
+      <li>Routing policy: Simple</li>
+    </ul>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h4>Tạo alias record cho www</h4>
+    <p>Giống step 1 nhưng record name = <code>www</code>.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-body">
+    <h4>Tạo A record cho api subdomain</h4>
+    <p>Record name: <code>api</code></p>
+    <p>Record type: A</p>
+    <p>Alias: <strong>Off</strong></p>
+    <p>Value: IP EC2 (sẽ cập nhật khi tạo EC2 ở step 5.10, hoặc để placeholder <code>1.1.1.1</code> rồi morning.ps1 sẽ override mỗi sáng)</p>
+    <p>TTL: <code>60</code> seconds (low để morning.ps1 update DNS nhanh)</p>
+  </div>
+</div>
+
+</div>
+
+<h2>5.9 SSM Parameter Store</h2>
+
+<p>Lưu các secret và config của app vào SSM thay vì hardcode. GitHub Actions sẽ fetch khi deploy.</p>
+
+<pre><code><span class="cmt"># Region chính (không phải us-east-1)</span>
+$REGION = <span class="str">"ap-southeast-1"</span>
+
+<span class="cmt"># ── Backend secrets ─────────────────────────────────</span>
+aws ssm put-parameter --name <span class="str">"/myapp/production/DB_NAME"</span>      --value <span class="str">"myapp_db"</span> --type String --region $REGION
+aws ssm put-parameter --name <span class="str">"/myapp/production/DB_USER"</span>      --value <span class="str">"appuser"</span>  --type String --region $REGION
+aws ssm put-parameter --name <span class="str">"/myapp/production/DB_PASSWORD"</span>  --value <span class="str">"&lt;strong-password&gt;"</span> --type SecureString --region $REGION
+aws ssm put-parameter --name <span class="str">"/myapp/production/JWT_SECRET"</span>   --value <span class="str">"&lt;random-32-char&gt;"</span>  --type SecureString --region $REGION
+
+<span class="cmt"># ── CORS — backend đọc khi runtime ──────────────────</span>
+aws ssm put-parameter --name <span class="str">"/myapp/production/CORS_ORIGIN"</span>  --value <span class="str">"https://example.com"</span> --type String --region $REGION
+
+<span class="cmt"># ── Frontend — workflow inject khi build ────────────</span>
+aws ssm put-parameter --name <span class="str">"/myapp/production/VITE_API_URL"</span> --value <span class="str">"https://api.example.com"</span> --type String --region $REGION
+
+<span class="cmt"># ── Verify ──────────────────────────────────────────</span>
+aws ssm get-parameters-by-path --path <span class="str">"/myapp/production/"</span> --recursive --with-decryption --query <span class="str">"Parameters[].[Name,Value]"</span> --output table --region $REGION
+</code></pre>
+
+<table>
+  <tr><th>Parameter</th><th>Type</th><th>Mô tả</th></tr>
+  <tr><td><code>/myapp/production/DB_NAME</code></td><td>String</td><td>Tên database PostgreSQL</td></tr>
+  <tr><td><code>/myapp/production/DB_USER</code></td><td>String</td><td>Username DB</td></tr>
+  <tr><td><code>/myapp/production/DB_PASSWORD</code></td><td>SecureString</td><td>Password DB (mã hoá tự động bởi KMS)</td></tr>
+  <tr><td><code>/myapp/production/JWT_SECRET</code></td><td>SecureString</td><td>Secret để sign JWT</td></tr>
+  <tr><td><code>/myapp/production/CORS_ORIGIN</code></td><td>String</td><td>= URL frontend = <code>https://example.com</code></td></tr>
+  <tr><td><code>/myapp/production/VITE_API_URL</code></td><td>String</td><td>= URL backend = <code>https://api.example.com</code></td></tr>
+</table>
+
+<h2>5.10 EC2 setup lần đầu</h2>
+
+<div class="steps">
+
+<div class="step">
+  <div class="step-num">1</div>
+  <div class="step-body">
+    <h4>Tạo Key Pair (nếu chưa có)</h4>
+    <p>EC2 → Network &amp; Security → Key Pairs → Create key pair:</p>
+    <ul>
+      <li>Name: <code>deploy-ec2</code></li>
+      <li>Key pair type: RSA</li>
+      <li>Format: <code>.pem</code> (Linux/Mac) hoặc <code>.ppk</code> (Windows PuTTY)</li>
+    </ul>
+    <p>Download và lưu file vào vị trí an toàn (vd <code>E:\AWS\deploy-ec2.pem</code>) — không commit vào git!</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">2</div>
+  <div class="step-body">
+    <h4>Tạo Security Group</h4>
+    <p>EC2 → Security Groups → Create:</p>
+    <table>
+      <tr><th>Type</th><th>Port</th><th>Source</th><th>Mục đích</th></tr>
+      <tr><td>SSH</td><td>22</td><td>My IP</td><td>Bạn SSH vào EC2</td></tr>
+      <tr><td>HTTP</td><td>80</td><td>0.0.0.0/0</td><td>Cert renewal + redirect HTTPS</td></tr>
+      <tr><td>HTTPS</td><td>443</td><td>0.0.0.0/0</td><td>API qua HTTPS</td></tr>
+    </table>
+    <p>Ghi lại Security Group ID (dạng <code>sg-xxxxxxxxxxxxxxxx</code>) → dùng trong morning.ps1.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">3</div>
+  <div class="step-body">
+    <h4>Launch EC2 instance lần đầu (manual hoặc script)</h4>
+    <p><strong>Cách 1: Manual qua Console</strong></p>
+    <ul>
+      <li>AMI: Ubuntu Server 22.04 LTS</li>
+      <li>Instance type: <code>t3.micro</code> (Free tier) hoặc <code>t3.small</code></li>
+      <li>Key pair: <code>deploy-ec2</code></li>
+      <li>Security group: vừa tạo</li>
+      <li>IAM instance profile: <code>myapp-ec2-role</code></li>
+      <li>Storage: 8GB gp3 (Free tier)</li>
+      <li>Tag: Key=<code>Name</code>, Value=<code>myapp-ec2</code></li>
+    </ul>
+    <p><strong>Cách 2: AWS CLI</strong></p>
+    <pre><code>aws ec2 run-instances `
+  --image-id ami-02dd44faa40720bb8 `
+  --instance-type t3.small `
+  --key-name deploy-ec2 `
+  --security-group-ids &lt;sg-id&gt; `
+  --subnet-id &lt;subnet-id&gt; `
+  --iam-instance-profile Name=myapp-ec2-role `
+  --tag-specifications <span class="str">'ResourceType=instance,Tags=[{Key=Name,Value=myapp-ec2}]'</span> `
+  --region ap-southeast-1</code></pre>
+    <p>Đợi 1-2 phút EC2 chạy → copy <strong>Public IPv4 address</strong>.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">4</div>
+  <div class="step-body">
+    <h4>Update Route 53 A record api.example.com → IP EC2</h4>
+    <p>Route 53 → hosted zone → record <code>api.example.com</code> → Edit → đổi value sang IP EC2 vừa tạo.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-num">5</div>
+  <div class="step-body">
+    <h4>Đợi DNS propagate (1-5 phút) rồi cài đặt EC2</h4>
+    <p>Chạy <code>scripts/setup-ec2.ps1</code> (xem chi tiết ở Section 7.3) để cài Docker + Certbot + xin cert Let's Encrypt cho <code>api.example.com</code>:</p>
+    <pre><code>.\scripts\setup-ec2.ps1 -IP &lt;EC2-IP&gt;</code></pre>
+  </div>
+</div>
+
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     6. GITHUB ACTIONS
+═════════════════════════════════════════════════ -->
+<h1 id="s6">6. GitHub Actions — 2 workflows tách biệt</h1>
+
+<p>Khác với version EC2/nginx (1 workflow build cả FE+BE), version S3+CloudFront có <strong>2 workflows độc lập</strong>:</p>
+
+<table>
+  <tr><th>Workflow</th><th>Trigger paths</th><th>Output</th></tr>
+  <tr><td><code>deploy-backend.yml</code></td><td><code>backend/**</code>, <code>nginx/**</code>, <code>docker-compose.prod.yml</code></td><td>Image lên ECR + deploy SSH</td></tr>
+  <tr><td><code>deploy-frontend.yml</code></td><td><code>frontend/**</code></td><td>dist/ lên S3 + CloudFront invalidate</td></tr>
+</table>
+
+<div class="tip">
+  <strong>✅ Lợi ích tách biệt</strong>
+  Sửa FE nhỏ → không trigger build BE (tiết kiệm 3-5 phút). Sửa BE → không phải rebuild FE. Mỗi pipeline có thể fail/retry độc lập.
+</div>
+
+<h2>6.1 deploy-backend.yml</h2>
+
+<pre><code>name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - <span class="str">'backend/**'</span>
+      - <span class="str">'nginx/**'</span>
+      - <span class="str">'docker-compose.prod.yml'</span>
+      - <span class="str">'.github/workflows/deploy-backend.yml'</span>
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-southeast-1
+
+jobs:
+  build:
+    name: Build &amp; Push to ECR
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: <span class="var">${{ steps.tag.outputs.tag }}</span>
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     <span class="var">${{ secrets.AWS_ACCESS_KEY_ID }}</span>
+          aws-secret-access-key: <span class="var">${{ secrets.AWS_SECRET_ACCESS_KEY }}</span>
+          aws-region:            <span class="var">${{ env.AWS_REGION }}</span>
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: tag
+        run: echo <span class="str">"tag=${GITHUB_SHA::7}"</span> &gt;&gt; $GITHUB_OUTPUT
+
+      - name: Build &amp; push backend image
+        env:
+          ECR_REGISTRY: <span class="var">${{ secrets.ECR_REGISTRY }}</span>
+        run: |
+          docker build -t $ECR_REGISTRY/myapp-backend:<span class="var">${{ steps.tag.outputs.tag }}</span> ./backend
+          docker push    $ECR_REGISTRY/myapp-backend:<span class="var">${{ steps.tag.outputs.tag }}</span>
+          docker tag     $ECR_REGISTRY/myapp-backend:<span class="var">${{ steps.tag.outputs.tag }}</span> $ECR_REGISTRY/myapp-backend:latest
+          docker push    $ECR_REGISTRY/myapp-backend:latest
+
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     <span class="var">${{ secrets.AWS_ACCESS_KEY_ID }}</span>
+          aws-secret-access-key: <span class="var">${{ secrets.AWS_SECRET_ACCESS_KEY }}</span>
+          aws-region:            <span class="var">${{ env.AWS_REGION }}</span>
+
+      <span class="cmt"># Fetch tất cả /myapp/production/* vào backend/.env</span>
+      - name: Fetch secrets from Parameter Store
+        run: |
+          mkdir -p backend
+          aws ssm get-parameters-by-path \
+            --path <span class="str">"/myapp/production/"</span> \
+            --with-decryption \
+            --query <span class="str">"Parameters[*].[Name,Value]"</span> \
+            --output text | \
+          awk -F<span class="str">'\t'</span> <span class="str">'{n=split($1,a,"/"); print a[n]"="$2}'</span> &gt; backend/.env
+          echo <span class="str">"PORT=5000"</span> &gt;&gt; backend/.env
+          echo <span class="str">"NODE_ENV=production"</span> &gt;&gt; backend/.env
+
+      - name: Copy config to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     <span class="var">${{ secrets.EC2_HOST }}</span>
+          username: ubuntu
+          key:      <span class="var">${{ secrets.EC2_SSH_KEY }}</span>
+          source:   <span class="str">"docker-compose.prod.yml,nginx/default.conf,backend/.env,backend/init.sql"</span>
+          target:   ~/app
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          ECR_REGISTRY: <span class="var">${{ secrets.ECR_REGISTRY }}</span>
+          IMAGE_TAG:    <span class="var">${{ needs.build.outputs.image_tag }}</span>
+        with:
+          host:     <span class="var">${{ secrets.EC2_HOST }}</span>
+          username: ubuntu
+          key:      <span class="var">${{ secrets.EC2_SSH_KEY }}</span>
+          envs:     ECR_REGISTRY,IMAGE_TAG
+          script: |
+            set -e
+            cd ~/app
+            aws ecr get-login-password --region ap-southeast-1 | \
+              docker login --username AWS --password-stdin <span class="var">${ECR_REGISTRY}</span>
+            set -a &amp;&amp; source backend/.env &amp;&amp; set +a
+            ECR_REGISTRY=<span class="var">${ECR_REGISTRY}</span> IMAGE_TAG=<span class="var">${IMAGE_TAG}</span> \
+              docker compose -f docker-compose.prod.yml pull
+            ECR_REGISTRY=<span class="var">${ECR_REGISTRY}</span> IMAGE_TAG=<span class="var">${IMAGE_TAG}</span> \
+              docker compose -f docker-compose.prod.yml down --remove-orphans || true
+            ECR_REGISTRY=<span class="var">${ECR_REGISTRY}</span> IMAGE_TAG=<span class="var">${IMAGE_TAG}</span> \
+              docker compose -f docker-compose.prod.yml up -d
+            docker image prune -f
+</code></pre>
+
+<h2>6.2 deploy-frontend.yml</h2>
+
+<pre><code>name: Deploy Frontend to S3 + CloudFront
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - <span class="str">'frontend/**'</span>
+      - <span class="str">'.github/workflows/deploy-frontend.yml'</span>
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-southeast-1
+  S3_BUCKET: example.com-fe   <span class="cmt"># Đổi sang bucket của bạn</span>
+
+jobs:
+  deploy:
+    name: Build &amp; Deploy FE
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: <span class="str">'20'</span>
+          cache: <span class="str">'npm'</span>
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     <span class="var">${{ secrets.AWS_ACCESS_KEY_ID }}</span>
+          aws-secret-access-key: <span class="var">${{ secrets.AWS_SECRET_ACCESS_KEY }}</span>
+          aws-region:            <span class="var">${{ env.AWS_REGION }}</span>
+
+      - name: Fetch VITE_API_URL from SSM
+        run: |
+          VITE_API_URL=$(aws ssm get-parameter \
+            --name <span class="str">"/myapp/production/VITE_API_URL"</span> \
+            --query <span class="str">"Parameter.Value"</span> --output text)
+          echo <span class="str">"VITE_API_URL=$VITE_API_URL"</span> &gt;&gt; $GITHUB_ENV
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_URL: <span class="var">${{ env.VITE_API_URL }}</span>
+        run: |
+          npm ci
+          npm run build
+
+      - name: Sync dist to S3
+        run: |
+          <span class="cmt"># Static assets (hash filename) → cache 1 năm</span>
+          aws s3 sync frontend/dist/ s3://<span class="var">${{ env.S3_BUCKET }}</span> \
+            --delete \
+            --cache-control <span class="str">"public,max-age=31536000,immutable"</span> \
+            --exclude <span class="str">"index.html"</span>
+          <span class="cmt"># index.html cache ngắn (60s) để user thấy update nhanh</span>
+          aws s3 cp frontend/dist/index.html s3://<span class="var">${{ env.S3_BUCKET }}</span>/index.html \
+            --cache-control <span class="str">"public,max-age=60"</span>
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id <span class="var">${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}</span> \
+            --paths <span class="str">"/*"</span>
+</code></pre>
+
+<div class="tip">
+  <strong>✅ Cache strategy</strong>
+  Vite hash filenames của JS/CSS (vd <code>index-abc123.js</code>) → set cache 1 năm immutable. Chỉ <code>index.html</code> cache 60s vì là file reference đến các hashed asset. Khi deploy mới, <code>index.html</code> trỏ đến file hash mới → user load luôn version mới nhất ngay khi cache index hết hạn.
+</div>
+
+<h2>6.3 GitHub Secrets cần tạo</h2>
+
+<p>Settings → Secrets and variables → Actions → New repository secret:</p>
+
+<table>
+  <tr><th>Secret name</th><th>Value</th><th>Lấy từ đâu</th></tr>
+  <tr><td><code>AWS_ACCESS_KEY_ID</code></td><td>Access key ID của deploy-bot</td><td>Section 5.1 step 2</td></tr>
+  <tr><td><code>AWS_SECRET_ACCESS_KEY</code></td><td>Secret key của deploy-bot</td><td>Section 5.1 step 2</td></tr>
+  <tr><td><code>ECR_REGISTRY</code></td><td><code>&lt;account&gt;.dkr.ecr.ap-southeast-1.amazonaws.com</code></td><td>Section 5.3 step 2</td></tr>
+  <tr><td><code>CLOUDFRONT_DISTRIBUTION_ID</code></td><td><code>E2YYYYYYYYYY</code></td><td>Section 5.7 step 7</td></tr>
+  <tr><td><code>EC2_HOST</code></td><td>IP EC2 hiện tại</td><td>Section 5.10 (được morning.ps1 update mỗi sáng)</td></tr>
+  <tr><td><code>EC2_SSH_KEY</code></td><td>Nội dung file .pem (cả file, paste hết)</td><td>Section 5.10 step 1</td></tr>
+</table>
+
+<div class="warn">
+  <strong>⚠️ EC2_HOST sẽ thay đổi mỗi sáng</strong>
+  morning.ps1 (Section 7.1) tự động <code>gh secret set EC2_HOST</code> mỗi khi tạo EC2 mới. Lần đầu phải set manual.
+</div>
+
+<h4>Set secret bằng CLI nhanh hơn UI:</h4>
+<pre><code>gh secret set AWS_ACCESS_KEY_ID         --body <span class="str">"AKIA..."</span>
+gh secret set AWS_SECRET_ACCESS_KEY     --body <span class="str">"xxxx..."</span>
+gh secret set ECR_REGISTRY              --body <span class="str">"123456789012.dkr.ecr.ap-southeast-1.amazonaws.com"</span>
+gh secret set CLOUDFRONT_DISTRIBUTION_ID --body <span class="str">"E2YYYYYYYYYY"</span>
+gh secret set EC2_HOST                  --body <span class="str">"1.2.3.4"</span>
+gh secret set EC2_SSH_KEY               &lt; E:\AWS\deploy-ec2.pem</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     7. DAILY LIFECYCLE SCRIPTS
+═════════════════════════════════════════════════ -->
+<h1 id="s7">7. Daily lifecycle scripts (PowerShell)</h1>
+
+<p>4 scripts giúp tạo/huỷ EC2 mỗi ngày (tiết kiệm chi phí cho project học). S3+CloudFront chạy 24/7 (gần như free).</p>
+
+<div class="arch">
+┌─────────────────────┐
+│  setup-ec2.ps1      │ ← 1 lần / khi morning fail SSH-setup
+│  (one-time)         │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│  morning.ps1        │───▶│  Work day           │───▶│  evening.ps1        │
+│  Tạo EC2, deploy BE │    │  Push code → CI/CD  │    │  Huỷ EC2, ECR       │
+└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+
+         ┌──────────────────────┐
+         │  cleanup-frontend.ps1│ ← Học xong, tear down S3/CloudFront
+         │  (one-time at end)   │
+         └──────────────────────┘
+</div>
+
+<h2>7.1 scripts/morning.ps1</h2>
+
+<pre><code><span class="cmt"># ============================================================</span>
+<span class="cmt"># morning.ps1 — Tạo EC2 mới, update DNS, deploy BE</span>
+<span class="cmt"># ============================================================</span>
+
+$REGION         = <span class="str">"ap-southeast-1"</span>
+$AMI            = <span class="str">"ami-02dd44faa40720bb8"</span>   <span class="cmt"># Ubuntu 22.04 LTS ap-southeast-1</span>
+$INSTANCE_TYPE  = <span class="str">"t3.micro"</span>
+$KEY_NAME       = <span class="str">"deploy-ec2"</span>
+$SECURITY_GROUP = <span class="str">"sg-xxxxxxxxxxxxxxxx"</span>     <span class="cmt"># Sửa: SG ID của bạn</span>
+$SUBNET_ID      = <span class="str">"subnet-xxxxxxxxxxxx"</span>     <span class="cmt"># Sửa: Subnet ID</span>
+$IAM_PROFILE    = <span class="str">"myapp-ec2-role"</span>
+$HOSTED_ZONE_ID = <span class="str">"Z0XXXXXXXXXXXXXX"</span>        <span class="cmt"># Sửa: Hosted zone ID</span>
+$DOMAIN_ROOT    = <span class="str">"example.com"</span>             <span class="cmt"># Sửa: domain của bạn</span>
+$API_DOMAIN     = <span class="str">"api.$DOMAIN_ROOT"</span>
+$GITHUB_REPO    = <span class="str">"&lt;org&gt;/&lt;repo&gt;"</span>            <span class="cmt"># Sửa: tên repo</span>
+$KEY_PATH       = <span class="str">"E:\AWS\deploy-ec2.pem"</span>    <span class="cmt"># Sửa: đường dẫn key</span>
+$EMAIL          = <span class="str">"you@example.com"</span>         <span class="cmt"># Sửa: email cho Let's Encrypt</span>
+
+<span class="cmt"># ─── 1. Tạo ECR repo (idempotent) ────────────────────</span>
+Write-Host <span class="str">"[1/5] Tạo ECR repo myapp-backend..."</span> -ForegroundColor Cyan
+aws ecr describe-repositories --repository-names myapp-backend --region $REGION 2&gt;$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    aws ecr create-repository --repository-name myapp-backend --region $REGION | Out-Null
+}
+
+<span class="cmt"># ─── 2. Launch EC2 ───────────────────────────────────</span>
+Write-Host <span class="str">"[2/5] Tạo EC2..."</span> -ForegroundColor Cyan
+$INSTANCE_ID = aws ec2 run-instances `
+    --image-id $AMI `
+    --instance-type $INSTANCE_TYPE `
+    --key-name $KEY_NAME `
+    --security-group-ids $SECURITY_GROUP `
+    --subnet-id $SUBNET_ID `
+    --iam-instance-profile <span class="str">"Name=$IAM_PROFILE"</span> `
+    --tag-specifications <span class="str">'ResourceType=instance,Tags=[{Key=Name,Value=myapp-ec2}]'</span> `
+    --query <span class="str">"Instances[0].InstanceId"</span> --output text --region $REGION
+
+aws ec2 wait instance-running --instance-ids $INSTANCE_ID --region $REGION
+$PUBLIC_IP = aws ec2 describe-instances --instance-ids $INSTANCE_ID `
+    --query <span class="str">"Reservations[0].Instances[0].PublicIpAddress"</span> --output text --region $REGION
+Write-Host <span class="str">"    IP: $PUBLIC_IP"</span> -ForegroundColor Green
+
+<span class="cmt"># ─── 3. Update Route 53 api.example.com → IP mới ─────</span>
+Write-Host <span class="str">"[3/5] Update Route 53 + GitHub Secret..."</span> -ForegroundColor Cyan
+$CHANGE = <span class="str">'{"Changes":[{"Action":"UPSERT","ResourceRecordSet":{"Name":"'</span> + $API_DOMAIN + <span class="str">'","Type":"A","TTL":60,"ResourceRecords":[{"Value":"'</span> + $PUBLIC_IP + <span class="str">'"}]}}]}'</span>
+$tmpJson = [System.IO.Path]::GetTempFileName()
+[System.IO.File]::WriteAllText($tmpJson, $CHANGE)
+aws route53 change-resource-record-sets --hosted-zone-id $HOSTED_ZONE_ID --change-batch <span class="str">"file://$tmpJson"</span> | Out-Null
+Remove-Item $tmpJson -Force
+
+<span class="cmt"># Refresh PATH để tìm gh</span>
+$env:PATH = [System.Environment]::GetEnvironmentVariable(<span class="str">"PATH"</span>,<span class="str">"Machine"</span>) + <span class="str">";"</span> + [System.Environment]::GetEnvironmentVariable(<span class="str">"PATH"</span>,<span class="str">"User"</span>)
+gh secret set EC2_HOST --body $PUBLIC_IP --repo $GITHUB_REPO
+
+<span class="cmt"># ─── 4. Wait + Setup EC2 (Docker, Certbot, SSL) ──────</span>
+Write-Host <span class="str">"[4/5] Đợi SSH ready (60s) + cài đặt..."</span> -ForegroundColor Cyan
+Start-Sleep -Seconds 60
+
+$SETUP = @<span class="str">"</span>
+<span class="str">set -e</span>
+<span class="str">curl -fsSL https://get.docker.com | sh &gt; /dev/null 2&gt;&amp;1</span>
+<span class="str">sudo usermod -aG docker ubuntu</span>
+<span class="str">sudo systemctl enable docker --now &gt; /dev/null 2&gt;&amp;1</span>
+
+<span class="str">curl -s https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip</span>
+<span class="str">sudo apt-get install -y unzip &gt; /dev/null 2&gt;&amp;1</span>
+<span class="str">unzip -q awscliv2.zip &amp;&amp; sudo ./aws/install &gt; /dev/null 2&gt;&amp;1</span>
+<span class="str">rm -rf aws awscliv2.zip</span>
+
+<span class="str">sudo apt-get install -y certbot &gt; /dev/null 2&gt;&amp;1</span>
+<span class="str">sleep 60   # đợi DNS propagate</span>
+<span class="str">sudo certbot certonly --standalone -d $API_DOMAIN --non-interactive --agree-tos --email $EMAIL</span>
+
+<span class="str">mkdir -p ~/app</span>
+<span class="str">echo SETUP DONE</span>
+<span class="str">"</span>@
+
+$SETUP | ssh -i $KEY_PATH -o StrictHostKeyChecking=no ubuntu@$PUBLIC_IP <span class="str">"bash -s"</span>
+
+<span class="cmt"># ─── 5. Trigger deploy-backend workflow ──────────────</span>
+Write-Host <span class="str">"[5/5] Trigger deploy..."</span> -ForegroundColor Cyan
+gh workflow run deploy-backend.yml --ref main --repo $GITHUB_REPO
+
+Write-Host <span class="str">"`n=== HOÀN THÀNH ==="</span> -ForegroundColor Green
+Write-Host <span class="str">"  FE:  https://$DOMAIN_ROOT"</span> -ForegroundColor Green
+Write-Host <span class="str">"  API: https://$API_DOMAIN"</span> -ForegroundColor Green
+</code></pre>
+
+<h2>7.2 scripts/evening.ps1</h2>
+
+<pre><code><span class="cmt"># ============================================================</span>
+<span class="cmt"># evening.ps1 — Terminate EC2, xoá ECR, release Elastic IP</span>
+<span class="cmt"># KHÔNG đụng S3/CloudFront (chạy 24/7)</span>
+<span class="cmt"># ============================================================</span>
+
+param([switch]$Force)
+
+$REGION = <span class="str">"ap-southeast-1"</span>
+
+<span class="cmt"># 1. Terminate EC2</span>
+$INSTANCE_IDS = aws ec2 describe-instances `
+  --filters <span class="str">"Name=tag:Name,Values=myapp-ec2"</span> <span class="str">"Name=instance-state-name,Values=running,stopped"</span> `
+  --query <span class="str">"Reservations[].Instances[].InstanceId"</span> --output text --region $REGION
+
+if ($INSTANCE_IDS) {
+    if (-not $Force) {
+        $confirm = Read-Host <span class="str">"Xoá EC2 $INSTANCE_IDS? (y/n)"</span>
+        if ($confirm -ne <span class="str">"y"</span>) { exit 0 }
+    }
+    aws ec2 terminate-instances --instance-ids $INSTANCE_IDS --region $REGION | Out-Null
+    Write-Host <span class="str">"EC2 terminated: $INSTANCE_IDS"</span> -ForegroundColor Red
+}
+
+<span class="cmt"># 2. Xoá ECR repo</span>
+aws ecr describe-repositories --repository-names myapp-backend --region $REGION 2&gt;$null | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    aws ecr delete-repository --repository-name myapp-backend --region $REGION --force | Out-Null
+    Write-Host <span class="str">"ECR repo deleted"</span> -ForegroundColor Red
+}
+
+<span class="cmt"># 3. Release unassociated Elastic IPs</span>
+$eips = aws ec2 describe-addresses --query <span class="str">"Addresses[?AssociationId==null].AllocationId"</span> --output json --region $REGION | ConvertFrom-Json
+foreach ($eip in $eips) {
+    aws ec2 release-address --allocation-id $eip --region $REGION | Out-Null
+    Write-Host <span class="str">"Released EIP $eip"</span>
+}
+
+Write-Host <span class="str">"`n=== Done ==="</span> -ForegroundColor Green
+Write-Host <span class="str">"S3 + CloudFront vẫn live 24/7"</span> -ForegroundColor Yellow
+</code></pre>
+
+<h2>7.3 scripts/setup-ec2.ps1</h2>
+
+<pre><code><span class="cmt"># ============================================================</span>
+<span class="cmt"># setup-ec2.ps1 — Cài Docker/Certbot/SSL trên EC2 đã có sẵn</span>
+<span class="cmt"># Chạy: .\scripts\setup-ec2.ps1 -IP &lt;EC2-IP&gt;</span>
+<span class="cmt"># ============================================================</span>
+
+param([Parameter(Mandatory=$true)][string]$IP)
+
+$KEY_PATH = <span class="str">"$env:USERPROFILE\.ssh\deploy-ec2.pem"</span>   <span class="cmt"># Sửa nếu key ở chỗ khác</span>
+$DOMAIN   = <span class="str">"api.example.com"</span>                       <span class="cmt"># Sửa: subdomain của bạn</span>
+$EMAIL    = <span class="str">"you@example.com"</span>
+
+Write-Host <span class="str">"SSH vào $IP, đợi 30s cho instance ready..."</span>
+Start-Sleep -Seconds 30
+
+$REMOTE_SCRIPT = @<span class="str">"</span>
+<span class="str">set -e</span>
+<span class="str">curl -fsSL https://get.docker.com | sh</span>
+<span class="str">sudo usermod -aG docker ubuntu</span>
+<span class="str">sudo systemctl enable docker</span>
+<span class="str">sudo systemctl start docker</span>
+
+<span class="str">curl -s https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip</span>
+<span class="str">sudo apt-get install -y unzip</span>
+<span class="str">unzip -q awscliv2.zip</span>
+<span class="str">sudo ./aws/install</span>
+<span class="str">rm -rf aws awscliv2.zip</span>
+
+<span class="str">sudo apt-get update -q</span>
+<span class="str">sudo apt-get install -y certbot</span>
+
+<span class="str">sudo certbot certonly --standalone -d $DOMAIN --non-interactive --agree-tos --email $EMAIL</span>
+
+<span class="str">mkdir -p ~/app</span>
+<span class="str">echo DONE</span>
+<span class="str">"</span>@
+
+$REMOTE_SCRIPT | ssh -i $KEY_PATH -o StrictHostKeyChecking=no ubuntu@$IP <span class="str">"bash -s"</span>
+</code></pre>
+
+<div class="warn">
+  <strong>⚠️ PowerShell 5.1 newline bug</strong>
+  Phải pipe script qua STDIN (<code>$SCRIPT | ssh ... "bash -s"</code>), KHÔNG truyền qua argv. Vì PowerShell 5.1 strip newlines khi truyền multi-line string qua argv → bash thấy script trên 1 dòng → comment <code>#</code> ăn hết các lệnh phía sau.
+</div>
+
+<h2>7.4 scripts/cleanup-frontend.ps1</h2>
+
+<p>Tear down S3 + CloudFront + ACM khi học xong. CloudFront cần disable trước khi delete (mất ~15 phút).</p>
+
+<pre><code><span class="cmt"># ============================================================</span>
+<span class="cmt"># cleanup-frontend.ps1 — Xoá S3 + CloudFront + ACM cert</span>
+<span class="cmt"># ============================================================</span>
+
+$REGION_FE   = <span class="str">"ap-southeast-1"</span>
+$REGION_CERT = <span class="str">"us-east-1"</span>
+$BUCKET      = <span class="str">"example.com-fe"</span>      <span class="cmt"># Sửa bucket name</span>
+$DOMAIN      = <span class="str">"example.com"</span>          <span class="cmt"># Để lookup ACM cert</span>
+
+Write-Host <span class="str">"=== Cleanup S3 + CloudFront ==="</span> -ForegroundColor Cyan
+$confirm = Read-Host <span class="str">"CẢNH BÁO: XOÁ VĨNH VIỄN. Tiếp tục? (yes/no)"</span>
+if ($confirm -ne <span class="str">"yes"</span>) { exit 0 }
+
+<span class="cmt"># 1. Empty + delete S3</span>
+Write-Host <span class="str">"`n[1/3] Xoá S3 bucket..."</span> -ForegroundColor Cyan
+aws s3 rm s3://$BUCKET --recursive --region $REGION_FE 2&gt;&amp;1 | Out-Null
+aws s3 rb s3://$BUCKET --region $REGION_FE
+
+<span class="cmt"># 2. Disable + delete CloudFront</span>
+Write-Host <span class="str">"`n[2/3] Disable + delete CloudFront..."</span> -ForegroundColor Cyan
+$DIST_ID = Read-Host <span class="str">"Nhập CloudFront Distribution ID"</span>
+if ($DIST_ID) {
+    $etag = aws cloudfront get-distribution-config --id $DIST_ID --query <span class="str">"ETag"</span> --output text
+    aws cloudfront get-distribution-config --id $DIST_ID --output json &gt; tmp-cf.json
+    $json = Get-Content tmp-cf.json | ConvertFrom-Json
+    $json.DistributionConfig.Enabled = $false
+    $json.DistributionConfig | ConvertTo-Json -Depth 100 | Out-File tmp-cf-d.json -Encoding ASCII
+    aws cloudfront update-distribution --id $DIST_ID --if-match $etag --distribution-config file://tmp-cf-d.json | Out-Null
+    Write-Host <span class="str">"   Disabled, đợi 15 phút..."</span>
+    aws cloudfront wait distribution-deployed --id $DIST_ID
+    $etag2 = aws cloudfront get-distribution --id $DIST_ID --query <span class="str">"ETag"</span> --output text
+    aws cloudfront delete-distribution --id $DIST_ID --if-match $etag2
+    Remove-Item tmp-cf.json, tmp-cf-d.json -ErrorAction SilentlyContinue
+}
+
+<span class="cmt"># 3. Delete ACM cert</span>
+Write-Host <span class="str">"`n[3/3] Delete ACM cert..."</span> -ForegroundColor Cyan
+$CERT_ARN = aws acm list-certificates --region $REGION_CERT --query <span class="str">"CertificateSummaryList[?DomainName=='$DOMAIN'].CertificateArn | [0]"</span> --output text
+if ($CERT_ARN -and $CERT_ARN -ne <span class="str">"None"</span>) {
+    aws acm delete-certificate --certificate-arn $CERT_ARN --region $REGION_CERT
+}
+
+Write-Host <span class="str">"`n=== Done ==="</span> -ForegroundColor Green
+Write-Host <span class="str">"Đừng quên: xoá Route 53 records + GitHub Secret CLOUDFRONT_DISTRIBUTION_ID"</span> -ForegroundColor Yellow
+</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     8. SƠ ĐỒ LUỒNG
+═════════════════════════════════════════════════ -->
+<h1 id="s8">8. Sơ đồ luồng deploy toàn hệ thống</h1>
+
+<h2>8.1 Khi push code FE (frontend/**)</h2>
+
+<div class="arch">
+Developer                  GitHub                     AWS
+    │                         │                         │
+    │  git push main          │                         │
+    │────────────────────────▶│                         │
+    │                         │  Trigger:               │
+    │                         │  deploy-frontend.yml    │
+    │                         │                         │
+    │                         │  npm ci + npm run build │
+    │                         │  (trên runner)          │
+    │                         │                         │
+    │                         │  aws ssm get-parameter  │
+    │                         │  VITE_API_URL ─────────▶│ SSM
+    │                         │◀────────────────────────│
+    │                         │                         │
+    │                         │  aws s3 sync ──────────▶│ S3
+    │                         │                         │
+    │                         │  aws cloudfront ───────▶│ CloudFront
+    │                         │  create-invalidation    │ → invalidate /*
+    │                         │                         │
+    │                         │   ✅ FE deployed         │
+    │                         │   ~2 phút tổng          │
+</div>
+
+<h2>8.2 Khi push code BE (backend/**)</h2>
+
+<div class="arch">
+Developer                  GitHub                     AWS                          EC2
+    │                         │                         │                            │
+    │  git push main          │                         │                            │
+    │────────────────────────▶│                         │                            │
+    │                         │  Trigger:               │                            │
+    │                         │  deploy-backend.yml     │                            │
+    │                         │                         │                            │
+    │                         │  docker build           │                            │
+    │                         │  docker push ──────────▶│ ECR                         │
+    │                         │                         │                            │
+    │                         │  aws ssm ──────────────▶│ SSM → backend/.env         │
+    │                         │                         │                            │
+    │                         │  scp config ────────────────────────────────────────▶│
+    │                         │  ssh deploy ─────────────────────────────────────────▶│
+    │                         │                         │                            │  docker pull
+    │                         │                         │                            │  docker compose up
+    │                         │                         │                            │
+    │                         │   ✅ BE deployed         │                            │
+    │                         │   ~3-5 phút tổng        │                            │
+</div>
+
+<h2>8.3 User truy cập app</h2>
+
+<div class="arch">
+Browser                  Route 53           CloudFront            S3              EC2
+    │                       │                    │                  │               │
+    │ GET example.com       │                    │                  │               │
+    │──────────────────────▶│                    │                  │               │
+    │   Alias → CF IPs      │                    │                  │               │
+    │◀──────────────────────│                    │                  │               │
+    │                       │                    │                  │               │
+    │ HTTPS GET / ────────────────────────────▶  │                  │               │
+    │                       │              [Cache MISS]             │               │
+    │                       │                    │ OAC fetch ──────▶│               │
+    │                       │                    │◀─── index.html ──│               │
+    │                       │              [Cache + return]         │               │
+    │◀──────── 200 OK index.html ─────────────── │                  │               │
+    │                       │                    │                  │               │
+    │  Browser parse HTML                                                            │
+    │  → load /assets/index-abc.js                                                   │
+    │ HTTPS GET /assets/... ────────────────────▶│                  │               │
+    │                       │              [Cache HIT — fast]       │               │
+    │◀──────── 200 OK JS ───────────────────────│                  │               │
+    │                       │                                                        │
+    │  React app mount                                                               │
+    │  → axios POST api.example.com/api/auth/login                                   │
+    │                       │                                                        │
+    │ GET api.example.com   │                                                        │
+    │──────────────────────▶│                                                        │
+    │  A record → EC2 IP    │                                                        │
+    │◀──────────────────────│                                                        │
+    │                                                                                │
+    │ HTTPS POST /api/auth/login ──────────────────────────────────────────────────▶│
+    │                                                                                │ nginx
+    │                                                                                │ TLS terminate
+    │                                                                                │ proxy → :5000
+    │                                                                                │
+    │                                                                                │ Node.js:
+    │                                                                                │ CORS check
+    │                                                                                │ → OK
+    │                                                                                │ DB query
+    │                                                                                │ → JWT
+    │                                                                                │
+    │◀── 200 OK {token: "..."} + CORS headers ──────────────────────────────────────│
+    │                                                                                │
+    │  Save JWT to localStorage                                                      │
+    │  → axios attach Authorization: Bearer ... cho subsequent calls                 │
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     9. CORS DETAILS
+═════════════════════════════════════════════════ -->
+<h1 id="s9">9. CORS — Tại sao và cấu hình</h1>
+
+<h2>9.1 Tại sao đột nhiên cần CORS?</h2>
+
+<p>Phiên bản EC2/nginx cũ: FE và BE ở cùng <code>example.com</code> → <strong>same-origin</strong> → browser không kiểm tra CORS.</p>
+
+<p>Phiên bản này: FE ở <code>example.com</code>, BE ở <code>api.example.com</code> → <strong>khác origin</strong> → browser enforce CORS policy của W3C để chống tấn công CSRF.</p>
+
+<h2>9.2 Cách CORS hoạt động</h2>
+
+<div class="arch">
+1. Simple request (GET, HEAD, POST với Content-Type cơ bản):
+   Browser gửi thẳng request kèm header "Origin: https://example.com"
+   Server phải trả về header:
+     Access-Control-Allow-Origin: https://example.com
+   Nếu không có header → browser block response (XHR error)
+
+2. Preflight request (PUT, DELETE, hoặc custom headers như Authorization):
+   Browser gửi TRƯỚC 1 request OPTIONS:
+     OPTIONS /api/users/1
+     Origin: https://example.com
+     Access-Control-Request-Method: DELETE
+     Access-Control-Request-Headers: authorization,content-type
+   Server phải trả về:
+     Access-Control-Allow-Origin:  https://example.com
+     Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+     Access-Control-Allow-Headers: authorization,content-type
+     Access-Control-Max-Age: 86400   (cache preflight 24h)
+   Nếu OK → browser gửi request thật (DELETE)
+   Nếu không OK → block, không gửi DELETE
+</div>
+
+<h2>9.3 Vì sao JWT đỡ phức tạp hơn cookie?</h2>
+
+<table>
+  <tr><th></th><th>Cookie-based auth</th><th>JWT Bearer (project này)</th></tr>
+  <tr><td>Cách gửi</td><td>Browser tự attach cookie</td><td>FE phải attach <code>Authorization: Bearer</code></td></tr>
+  <tr><td>CORS credentials</td><td>BẮT BUỘC <code>credentials: true</code> + <code>withCredentials: true</code> ở FE</td><td>Không bắt buộc — chỉ cần allow header <code>Authorization</code></td></tr>
+  <tr><td>Origin wildcard</td><td>KHÔNG được dùng <code>*</code> với credentials</td><td>Có thể dùng <code>*</code> (nhưng nên specific cho security)</td></tr>
+  <tr><td>SameSite cookie</td><td>Phải config <code>SameSite=None; Secure</code></td><td>N/A</td></tr>
+</table>
+
+<div class="tip">
+  <strong>✅ Project này dùng JWT → setup đơn giản</strong>
+  Chỉ cần <code>cors({ origin: 'https://example.com' })</code> ở backend. Không phải cấu hình cookie SameSite, không cần proxy phức tạp.
+</div>
+
+<h2>9.4 Debug CORS</h2>
+
+<pre><code><span class="cmt"># Test preflight bằng curl</span>
+curl -i -X OPTIONS https://api.example.com/api/products `
+  -H <span class="str">"Origin: https://example.com"</span> `
+  -H <span class="str">"Access-Control-Request-Method: GET"</span> `
+  -H <span class="str">"Access-Control-Request-Headers: authorization,content-type"</span>
+
+<span class="cmt"># Expect headers trong response:</span>
+<span class="cmt">#   HTTP/1.1 204 No Content</span>
+<span class="cmt">#   access-control-allow-origin: https://example.com</span>
+<span class="cmt">#   access-control-allow-methods: GET,HEAD,PUT,PATCH,POST,DELETE</span>
+<span class="cmt">#   access-control-allow-headers: authorization,content-type</span>
+</code></pre>
+
+<div class="danger">
+  <strong>🚨 Lỗi thường gặp: "No 'Access-Control-Allow-Origin' header"</strong>
+  Trong DevTools Console khi mở https://example.com:
+  <pre><code>Access to XMLHttpRequest at 'https://api.example.com/api/products'
+from origin 'https://example.com' has been blocked by CORS policy</code></pre>
+  Nguyên nhân: backend không set CORS header. Check:
+  <ol>
+    <li><code>aws ssm get-parameter --name "/myapp/production/CORS_ORIGIN"</code> → đúng <code>https://example.com</code>?</li>
+    <li>SSH EC2 → <code>docker exec myapp-app-backend-1 printenv | grep CORS</code> → có giá trị đúng?</li>
+    <li>Backend container restart sau khi update SSM? Trigger lại workflow deploy-backend.</li>
+  </ol>
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     10. AWS CLI CHEATSHEET
+═════════════════════════════════════════════════ -->
+<h1 id="s10">10. Bảng AWS CLI commands hay dùng</h1>
+
+<h3>S3</h3>
+<pre><code><span class="cmt"># List objects</span>
+aws s3 ls s3://example.com-fe --region ap-southeast-1
+
+<span class="cmt"># Upload (sync) dist</span>
+aws s3 sync frontend/dist/ s3://example.com-fe --delete --region ap-southeast-1
+
+<span class="cmt"># Tổng dung lượng</span>
+aws s3 ls s3://example.com-fe --recursive --summarize --region ap-southeast-1 | findstr <span class="str">"Total"</span>
+
+<span class="cmt"># Xoá 1 file</span>
+aws s3 rm s3://example.com-fe/old-asset.js --region ap-southeast-1
+</code></pre>
+
+<h3>CloudFront</h3>
+<pre><code><span class="cmt"># List distributions</span>
+aws cloudfront list-distributions --query <span class="str">"DistributionList.Items[].[Id,DomainName,Aliases.Items,Status]"</span> --output table
+
+<span class="cmt"># Invalidate cache</span>
+aws cloudfront create-invalidation --distribution-id E2YYYYYYYYYY --paths <span class="str">"/*"</span>
+
+<span class="cmt"># Specific paths only (tiết kiệm — 1000 path/tháng free)</span>
+aws cloudfront create-invalidation --distribution-id E2YYYYYYYYYY --paths <span class="str">"/index.html"</span> <span class="str">"/assets/*"</span>
+
+<span class="cmt"># Get config</span>
+aws cloudfront get-distribution --id E2YYYYYYYYYY --query <span class="str">"Distribution.Status"</span> --output text
+</code></pre>
+
+<h3>ACM</h3>
+<pre><code><span class="cmt"># List certs (us-east-1 cho CloudFront)</span>
+aws acm list-certificates --region us-east-1 --query <span class="str">"CertificateSummaryList[].[DomainName,Status]"</span> --output table
+
+<span class="cmt"># Describe cert</span>
+aws acm describe-certificate --certificate-arn &lt;arn&gt; --region us-east-1
+</code></pre>
+
+<h3>Route 53</h3>
+<pre><code><span class="cmt"># List hosted zones</span>
+aws route53 list-hosted-zones --query <span class="str">"HostedZones[].[Name,Id]"</span> --output table
+
+<span class="cmt"># List records</span>
+aws route53 list-resource-record-sets --hosted-zone-id Z0123456789ABC `
+  --query <span class="str">"ResourceRecordSets[].[Name,Type,ResourceRecords[0].Value]"</span> --output table
+</code></pre>
+
+<h3>EC2</h3>
+<pre><code><span class="cmt"># Lấy IP EC2 đang chạy</span>
+aws ec2 describe-instances --region ap-southeast-1 `
+  --filters <span class="str">"Name=tag:Name,Values=myapp-ec2"</span> <span class="str">"Name=instance-state-name,Values=running"</span> `
+  --query <span class="str">"Reservations[].Instances[].PublicIpAddress"</span> --output text
+</code></pre>
+
+<h3>SSM</h3>
+<pre><code><span class="cmt"># Get all under path</span>
+aws ssm get-parameters-by-path --path <span class="str">"/myapp/production/"</span> --recursive --with-decryption `
+  --query <span class="str">"Parameters[].[Name,Value]"</span> --output table --region ap-southeast-1
+
+<span class="cmt"># Update param</span>
+aws ssm put-parameter --name <span class="str">"/myapp/production/CORS_ORIGIN"</span> --value <span class="str">"https://example.com"</span> --type String --overwrite --region ap-southeast-1
+</code></pre>
+
+<h3>ECR</h3>
+<pre><code><span class="cmt"># Login Docker với ECR</span>
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin &lt;account&gt;.dkr.ecr.ap-southeast-1.amazonaws.com
+
+<span class="cmt"># List images</span>
+aws ecr list-images --repository-name myapp-backend --region ap-southeast-1
+</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     11. FAQ / TROUBLESHOOTING
+═════════════════════════════════════════════════ -->
+<h1 id="s11">11. FAQ &amp; Troubleshooting</h1>
+
+<h2>11.1 CloudFront trả 504 Gateway Timeout</h2>
+
+<div class="warn">
+  <strong>Nguyên nhân</strong>
+  <ol>
+    <li>CloudFront chưa Deploy xong (status còn Deploying) → đợi</li>
+    <li>S3 bucket policy chưa cho CloudFront đọc → check policy đã paste chưa</li>
+    <li>OAC chưa associated → check distribution → tab Origins</li>
+  </ol>
+</div>
+
+<h2>11.2 React refresh ở /products trả 404</h2>
+
+<p>Custom Error Responses chưa tạo. Quay lại Section 5.7 step 6 tạo 404→index.html và 403→index.html (đều với status 200).</p>
+
+<h2>11.3 User vẫn thấy version FE cũ sau deploy</h2>
+
+<ol>
+  <li>Browser cache: <kbd>Ctrl+Shift+R</kbd> hard refresh</li>
+  <li>CloudFront cache: chưa invalidate xong (mất 1-5 phút). Check workflow log có chạy invalidation chưa.</li>
+  <li>Manual: <code>aws cloudfront create-invalidation --distribution-id E2... --paths "/*"</code></li>
+</ol>
+
+<h2>11.4 ACM cert stuck ở "Pending validation" sau 30 phút</h2>
+
+<ol>
+  <li>Vào ACM → cert → tab Domains → xem CNAME validation records</li>
+  <li>Route 53 → confirm các CNAME đã được tạo và đúng value</li>
+  <li><code>nslookup -type=CNAME &lt;validation-name&gt;.example.com</code> → DNS propagate?</li>
+  <li>Nếu Route 53 chưa có CNAME: vào ACM → click "Create records in Route 53"</li>
+  <li>Cuối cùng: delete cert và tạo lại</li>
+</ol>
+
+<h2>11.5 CORS error trong browser</h2>
+
+<p>Xem Section 9.4 — debug CORS.</p>
+
+<h2>11.6 GitHub Actions workflow fail ở step "Configure AWS credentials"</h2>
+
+<p>Lỗi <code>The security token included in the request is invalid</code>:</p>
+<ol>
+  <li>GitHub Secret <code>AWS_ACCESS_KEY_ID</code> hoặc <code>AWS_SECRET_ACCESS_KEY</code> đã được thay/xoá trong AWS</li>
+  <li>Vào IAM → deploy-bot → tạo Access key mới → cập nhật vào GitHub Secret</li>
+  <li>Deactivate access key cũ trong IAM</li>
+</ol>
+
+<h2>11.7 deploy-frontend.yml fail ở step "npm ci"</h2>
+
+<p>Lỗi <code>package-lock.json not in sync with package.json</code>:</p>
+<ol>
+  <li>Local: <code>cd frontend; npm install; git add package-lock.json; git commit; git push</code></li>
+  <li>Hoặc fallback: đổi <code>npm ci</code> thành <code>npm install</code> (chậm hơn, kém deterministic)</li>
+</ol>
+
+<h2>11.8 CloudFront delete bị block</h2>
+
+<p>Distribution phải <code>Enabled = false</code> + status = <code>Deployed</code> trước khi delete:</p>
+<pre><code>aws cloudfront wait distribution-deployed --id E2YYYYYYYYYY
+$etag = aws cloudfront get-distribution --id E2YYYYYYYYYY --query <span class="str">"ETag"</span> --output text
+aws cloudfront delete-distribution --id E2YYYYYYYYYY --if-match $etag</code></pre>
+
+<h2>11.9 SSH timeout khi morning.ps1 chạy step 4</h2>
+
+<p>EC2 chưa boot xong. Mặc định đợi 60s — nếu vẫn fail thử tăng lên 90-120s. Hoặc chạy <code>setup-ec2.ps1 -IP &lt;IP&gt;</code> sau đó retry.</p>
+
+<h2>11.10 Tại sao có 2 region (ap-southeast-1 và us-east-1)?</h2>
+
+<p>ACM cert cho CloudFront BẮT BUỘC ở us-east-1 (AWS-imposed). Tất cả thứ khác (S3, EC2, ECR, SSM) ở region chính (ap-southeast-1). Cross-region calls bị tính phí cực thấp ~$0.0001 nên không vấn đề gì.</p>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     12. CHECKLIST DEPLOY LẦN ĐẦU
+═════════════════════════════════════════════════ -->
+<h1 id="s12">12. Checklist deploy lần đầu (làm theo thứ tự)</h1>
+
+<p>Follow checklist này lần đầu khi setup cho project mới — đảm bảo không sót bước:</p>
+
+<h3>Phase A — Local code (~30 phút)</h3>
+<ul>
+  <li>☐ Backend có CORS middleware đọc <code>process.env.CORS_ORIGIN</code></li>
+  <li>☐ Backend package.json có <code>cors</code> + <code>@types/cors</code></li>
+  <li>☐ Frontend axios.ts đọc <code>import.meta.env.VITE_API_URL</code></li>
+  <li>☐ Có <code>frontend/.env.local</code> với <code>VITE_API_URL=http://localhost:5000</code> (KHÔNG commit)</li>
+  <li>☐ <code>backend/Dockerfile</code> multi-stage build</li>
+  <li>☐ <code>nginx/default.conf</code> chỉ phục vụ <code>api.example.com</code></li>
+  <li>☐ <code>docker-compose.prod.yml</code> KHÔNG có service frontend</li>
+  <li>☐ <code>.gitignore</code> ignore <code>node_modules/</code>, <code>.env*</code>, <code>*.pem</code></li>
+</ul>
+
+<h3>Phase B — AWS Setup (~2 giờ)</h3>
+<ul>
+  <li>☐ <strong>5.1</strong> — IAM user <code>deploy-bot</code> + Access Key + inline policy <code>DeployBotFullAccess</code></li>
+  <li>☐ <strong>5.2</strong> — IAM role <code>myapp-ec2-role</code> với ECR ReadOnly + SSM ReadOnly</li>
+  <li>☐ <strong>5.3</strong> — ECR repo <code>myapp-backend</code> private</li>
+  <li>☐ <strong>5.4</strong> — Route 53 hosted zone + NS records cập nhật ở registrar</li>
+  <li>☐ <strong>5.5</strong> — S3 bucket <code>example.com-fe</code> private (block all public access)</li>
+  <li>☐ <strong>5.6</strong> — ACM cert ở <strong>us-east-1</strong> cho <code>example.com</code> + <code>www.example.com</code>, status Issued</li>
+  <li>☐ <strong>5.7</strong> — CloudFront distribution: origin S3, OAC, ACM cert, CNAMEs, error pages 404/403→index.html</li>
+  <li>☐ <strong>5.7</strong> — S3 bucket policy cho CloudFront OAC đã paste</li>
+  <li>☐ <strong>5.8</strong> — Route 53: A alias <code>example.com</code>, <code>www</code> → CloudFront; A record <code>api</code> → EC2 IP</li>
+  <li>☐ <strong>5.9</strong> — SSM Parameters: DB_NAME, DB_USER, DB_PASSWORD, JWT_SECRET, CORS_ORIGIN, VITE_API_URL</li>
+  <li>☐ <strong>5.10</strong> — Key pair + Security Group (22/80/443) + IAM role attached</li>
+</ul>
+
+<h3>Phase C — GitHub setup (~15 phút)</h3>
+<ul>
+  <li>☐ GitHub Secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, ECR_REGISTRY, CLOUDFRONT_DISTRIBUTION_ID, EC2_HOST, EC2_SSH_KEY</li>
+  <li>☐ <code>.github/workflows/deploy-backend.yml</code> đã commit</li>
+  <li>☐ <code>.github/workflows/deploy-frontend.yml</code> đã commit</li>
+  <li>☐ Scripts PowerShell (morning, evening, setup-ec2, cleanup-frontend) đã commit, hardcoded values đã sửa cho project bạn</li>
+</ul>
+
+<h3>Phase D — First deploy (~30 phút)</h3>
+<ul>
+  <li>☐ Chạy <code>.\scripts\morning.ps1</code> — tạo EC2, cài Docker/Certbot, xin cert, trigger BE deploy</li>
+  <li>☐ Đợi workflow <code>deploy-backend.yml</code> xanh (~5 phút)</li>
+  <li>☐ Test: <code>curl https://api.example.com/health</code> → 200 OK</li>
+  <li>☐ Push commit nhỏ vào <code>frontend/</code> để trigger <code>deploy-frontend.yml</code></li>
+  <li>☐ Đợi workflow xanh (~2 phút)</li>
+  <li>☐ Test browser: mở <code>https://example.com</code> → app load, login work, refresh route nested OK</li>
+</ul>
+
+<h3>Smoke test cuối</h3>
+<pre><code><span class="cmt"># 1. FE từ CloudFront</span>
+curl -I https://example.com
+<span class="cmt"># Expect: HTTP/2 200, server: CloudFront, x-cache header</span>
+
+<span class="cmt"># 2. SPA fallback</span>
+curl -I https://example.com/some-random-route
+<span class="cmt"># Expect: HTTP/2 200 (KHÔNG phải 404)</span>
+
+<span class="cmt"># 3. BE healthy</span>
+curl https://api.example.com/health
+<span class="cmt"># Expect: 200 JSON</span>
+
+<span class="cmt"># 4. CORS preflight</span>
+curl -i -X OPTIONS https://api.example.com/api/products `
+  -H <span class="str">"Origin: https://example.com"</span> `
+  -H <span class="str">"Access-Control-Request-Method: GET"</span>
+<span class="cmt"># Expect: 204, access-control-allow-origin: https://example.com</span>
+</code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     13. CLEANUP
+═════════════════════════════════════════════════ -->
+<h1 id="s13">13. Cleanup toàn bộ infra khi học xong</h1>
+
+<h3>Bước 1: Backup data (nếu cần)</h3>
+<pre><code><span class="cmt"># Dump DB</span>
+$EC2_IP = aws ec2 describe-instances --region ap-southeast-1 `
+  --filters <span class="str">"Name=tag:Name,Values=myapp-ec2"</span> <span class="str">"Name=instance-state-name,Values=running"</span> `
+  --query <span class="str">"Reservations[].Instances[].PublicIpAddress"</span> --output text
+ssh -i E:\AWS\deploy-ec2.pem ubuntu@$EC2_IP <span class="str">"docker exec myapp-app-db-1 pg_dump -U appuser myapp_db"</span> &gt; backup.sql
+</code></pre>
+
+<h3>Bước 2: Terminate EC2 + ECR</h3>
+<pre><code>.\scripts\evening.ps1 -Force</code></pre>
+
+<h3>Bước 3: Cleanup S3 + CloudFront + ACM</h3>
+<pre><code>.\scripts\cleanup-frontend.ps1
+<span class="cmt"># Nhập CloudFront Distribution ID khi prompt</span>
+<span class="cmt"># Đợi ~15 phút (CloudFront disable trước khi delete)</span></code></pre>
+
+<h3>Bước 4: Manual cleanup</h3>
+<ul>
+  <li>Route 53 records: vào hosted zone xoá tất cả A records (vẫn giữ NS + SOA)</li>
+  <li>Route 53 hosted zone: xoá nếu không dùng domain nữa (~$0.50/tháng)</li>
+  <li>SSM Parameters:
+    <pre style="margin:8px 0;"><code>aws ssm get-parameters-by-path --path <span class="str">"/myapp/"</span> --recursive --query <span class="str">"Parameters[].Name"</span> --output text --region ap-southeast-1 | ForEach-Object {
+  aws ssm delete-parameter --name $_ --region ap-southeast-1
+}</code></pre>
+  </li>
+  <li>IAM: deactivate Access Key, xoá inline policy, xoá user nếu không dùng nữa</li>
+  <li>GitHub Secrets: xoá tất cả AWS-related secrets</li>
+  <li>EBS snapshot/AMI: nếu có thì xoá qua Console</li>
+</ul>
+
+<h3>Verify $0 chi phí</h3>
+<pre><code>.\scripts\cost-check.ps1
+<span class="cmt"># Bảng phải trống — không còn resource nào</span></code></pre>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     14. COST
+═════════════════════════════════════════════════ -->
+<h1 id="s14">14. Chi phí thực tế</h1>
+
+<h2>14.1 Chi phí monthly khi project học (~8h/ngày EC2)</h2>
+
+<table>
+  <tr><th>Service</th><th>Usage</th><th>Free tier</th><th>Cost ước tính</th></tr>
+  <tr><td>S3 storage</td><td>~50 MB</td><td>5 GB</td><td>$0</td></tr>
+  <tr><td>S3 requests</td><td>~5k GET</td><td>20k GET, 2k PUT</td><td>$0</td></tr>
+  <tr><td>CloudFront data transfer</td><td>&lt; 1 GB</td><td>1 TB/tháng (12 tháng đầu)</td><td>$0</td></tr>
+  <tr><td>CloudFront requests</td><td>&lt; 50k HTTPS</td><td>10 triệu HTTPS</td><td>$0</td></tr>
+  <tr><td>ACM Certificate</td><td>1 cert</td><td>Free với CloudFront</td><td>$0</td></tr>
+  <tr><td>Route 53 hosted zone</td><td>1 zone</td><td>Không có free</td><td>$0.50</td></tr>
+  <tr><td>Route 53 queries</td><td>&lt; 10k</td><td>1 tỷ first/month</td><td>$0</td></tr>
+  <tr><td>EC2 t3.micro</td><td>240 hr/tháng</td><td>750 hr (12 tháng đầu)</td><td>$0 nếu còn free tier, else ~$2.50</td></tr>
+  <tr><td>EBS gp3 8GB</td><td>8 GB</td><td>30 GB</td><td>$0</td></tr>
+  <tr><td>ECR storage</td><td>~200 MB</td><td>500 MB (12 tháng đầu)</td><td>$0</td></tr>
+  <tr><td>Data transfer EC2→Internet</td><td>~500 MB</td><td>1 GB/tháng</td><td>$0</td></tr>
+  <tr style="background:#fef9c3; font-weight:600;"><td>TỔNG</td><td></td><td></td><td><strong>$0.50 - $3 / tháng</strong></td></tr>
+</table>
+
+<h2>14.2 Khi không có free tier nữa (sau 12 tháng)</h2>
+
+<table>
+  <tr><th>Service</th><th>Cost</th></tr>
+  <tr><td>EC2 t3.micro (240 hr)</td><td>~$2.50</td></tr>
+  <tr><td>EBS 8GB</td><td>~$0.80</td></tr>
+  <tr><td>Route 53 zone</td><td>$0.50</td></tr>
+  <tr><td>S3 + CloudFront</td><td>~$0.10</td></tr>
+  <tr><td>ECR (200MB)</td><td>~$0.02</td></tr>
+  <tr style="background:#fef9c3; font-weight:600;"><td>TỔNG</td><td><strong>~$4 / tháng</strong></td></tr>
+</table>
+
+<div class="tip">
+  <strong>✅ So với version EC2/nginx</strong>
+  Version cũ với t3.small (cần RAM phục vụ cả nginx FE + nginx BE + 2 docker containers + postgres) tốn ~$5/tháng. Phiên bản này downgrade xuống t3.micro được — tiết kiệm ~50%.
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     FOOTER
+═════════════════════════════════════════════════ -->
+<div style="text-align:center; padding:40px 0; color:#888; font-size:0.85rem; border-top: 1px solid #e5e7eb;">
+  <p>Hướng dẫn này là phiên bản nâng cấp cho project mới muốn FE serve 24/7 qua S3+CloudFront.</p>
+  <p>Để xem version đơn giản hơn (1 EC2 cho cả FE+BE), tham khảo <a href="huong-dan-docker-aws-cicd.html" style="color:#0e7490;">huong-dan-docker-aws-cicd.html</a>.</p>
+  <p style="margin-top:8px;">Để hiểu chi tiết hơn về phase migration từ version cũ sang version này, xem <a href="S3_FRONTEND.md" style="color:#0e7490;">S3_FRONTEND.md</a>.</p>
+</div>
+
+</body>
+</html>
