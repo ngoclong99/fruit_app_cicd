@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '../store';
-import { loginAsync, registerAsync, logout as logoutAction } from '../store/slices/authSlice';
+import { loginAsync, registerAsync, logout as logoutAction, setUser } from '../store/slices/authSlice';
+import type { User } from '../types';
 
 export const useAuth = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -31,12 +32,20 @@ export const useAuth = () => {
     dispatch(logoutAction());
   }, [dispatch]);
 
+  const updateUser = useCallback(
+    (next: User) => {
+      dispatch(setUser(next));
+    },
+    [dispatch]
+  );
+
   return {
     user,
     loading,
     login,
     register,
     logout,
+    updateUser,
     isAdmin: user?.role === 'admin',
   };
 };

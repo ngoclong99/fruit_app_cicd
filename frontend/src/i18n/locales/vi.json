@@ -208,6 +208,7 @@
     "momo": "Ví MoMo",
     "vnpay": "VNPay",
     "processing": "⏳ Đang xử lý...",
+    "emptyCart": "Giỏ hàng đang trống",
     "orderBtn": "Đặt hàng · {{total}}đ",
     "orderTitle": "Đơn hàng ({{count}})",
     "shipping": "Giao hàng",
@@ -376,7 +377,18 @@
     "fieldPhone": "Số điện thoại",
     "deleteUserConfirm": "Xoá \"{{name}}\"?",
     "deleteUserConfirmBody": "Hành động này không thể hoàn tác.",
-    "deleteConfirmBody": "Sản phẩm sẽ bị xoá vĩnh viễn."
+    "deleteConfirmBody": "Sản phẩm sẽ bị xoá vĩnh viễn.",
+    "saveFailed": "Lưu thất bại",
+    "deleteFailed": "Xoá thất bại",
+    "importFailed": "Nhập file thất bại",
+    "createFailed": "Tạo thất bại",
+    "topProducts": "Sản phẩm bán chạy",
+    "topProductsNone": "Chưa có đơn đã giao",
+    "soldCount": "{{count}} đã bán",
+    "addUser": "Thêm người dùng",
+    "addUserTitle": "Tạo tài khoản mới",
+    "fieldEmail": "Email",
+    "fieldPassword": "Mật khẩu (tối thiểu 6 ký tự)"
   },
   "productDetail": {
     "breadHome": "Trang chủ",

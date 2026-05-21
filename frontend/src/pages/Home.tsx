@@ -24,16 +24,8 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
-  const hot = useMemo(
-    () => products.filter((p) => p.badge === "hot").slice(0, 4),
-    [products],
-  );
   const sale = useMemo(
     () => products.filter((p) => p.badge === "sale").slice(0, 4),
-    [products],
-  );
-  const newItems = useMemo(
-    () => products.filter((p) => p.badge === "new"),
     [products],
   );
 
@@ -255,7 +247,7 @@ export default function Home() {
             {t("common.all")}
           </button>
           {categories
-            .filter((c) => !c.parentId && c.slug !== "nuoc")
+            .filter((c) => !c.parentId && c.slug !== "nuoc-ep")
             .map((cat) => (
               <button
                 key={cat.id}

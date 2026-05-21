@@ -18,12 +18,18 @@ export default function Checkout() {
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
 
   const shipping = total >= 300000 ? 0 : 30000;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (items.length === 0) {
+      setError(t('checkout.emptyCart'));
+      return;
+    }
     setLoading(true);
+    setError('');
     try {
       await ordersApi.create({
         items,
@@ -34,6 +40,8 @@ export default function Checkout() {
       });
       clearCart();
       setSuccess(true);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -117,6 +125,11 @@ export default function Checkout() {
               </div>
             </div>
 
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
+                {error}
+              </div>
+            )}
             <button type="submit" disabled={loading}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl transition text-lg disabled:opacity-60 shadow-md">
               {loading

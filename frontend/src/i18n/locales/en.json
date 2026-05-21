@@ -208,6 +208,7 @@
     "momo": "MoMo Wallet",
     "vnpay": "VNPay",
     "processing": "⏳ Processing...",
+    "emptyCart": "Your cart is empty",
     "orderBtn": "Place order · {{total}}đ",
     "orderTitle": "Order ({{count}} items)",
     "shipping": "Shipping",
@@ -376,7 +377,18 @@
     "fieldPhone": "Phone",
     "deleteUserConfirm": "Delete \"{{name}}\"?",
     "deleteUserConfirmBody": "This action cannot be undone.",
-    "deleteConfirmBody": "This product will be permanently removed."
+    "deleteConfirmBody": "This product will be permanently removed.",
+    "saveFailed": "Save failed",
+    "deleteFailed": "Delete failed",
+    "importFailed": "Import failed",
+    "createFailed": "Create failed",
+    "topProducts": "Top selling products",
+    "topProductsNone": "No delivered orders yet",
+    "soldCount": "{{count}} sold",
+    "addUser": "Add user",
+    "addUserTitle": "Create new account",
+    "fieldEmail": "Email",
+    "fieldPassword": "Password (min 6 chars)"
   },
   "productDetail": {
     "breadHome": "Home",

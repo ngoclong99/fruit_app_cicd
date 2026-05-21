@@ -53,7 +53,7 @@ export default function Drinks() {
 
   useEffect(() => {
     categoriesApi.tree().then((tree) => {
-      const nuoc = tree.find((c) => c.slug === "nuoc");
+      const nuoc = tree.find((c) => c.slug === "nuoc-ep");
       setSubCategories(nuoc?.children ?? []);
     }).catch(() => {});
   }, []);
@@ -61,7 +61,7 @@ export default function Drinks() {
   useEffect(() => {
     setLoading(true);
     productsApi
-      .list({ category: "nuoc", limit: 200 })
+      .list({ category: "nuoc-ep", limit: 200 })
       .then((r) => setAllProducts(r.data))
       .catch(() => setAllProducts([]))
       .finally(() => setLoading(false));

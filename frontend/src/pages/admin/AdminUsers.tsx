@@ -4,16 +4,20 @@ import { useTranslation } from 'react-i18next';
 import { usersApi } from '../../api/endpoints/users';
 import type { User } from '../../types';
 import { useDialog } from '../../context/DialogContext';
+import { useAuth } from '../../hooks/useAuth';
 
 type StatusFilter = 'all' | 'active' | 'blocked';
 type RoleFilter = 'all' | 'admin' | 'user';
 type SortKey = 'name' | 'createdAt' | 'orderCount' | 'totalSpent';
 
 interface EditForm { name: string; email: string; phone: string; role: User['role'] }
+interface CreateForm { name: string; email: string; phone: string; password: string; role: User['role'] }
+const EMPTY_CREATE: CreateForm = { name: '', email: '', phone: '', password: '', role: 'user' };
 
 export default function AdminUsers() {
   const { t } = useTranslation();
-  const { confirm } = useDialog();
+  const { confirm, alert } = useDialog();
+  const { user: currentUser, updateUser: syncCurrentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -27,6 +31,29 @@ export default function AdminUsers() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [form, setForm] = useState<EditForm>({ name: '', email: '', phone: '', role: 'user' });
   const [detailUser, setDetailUser] = useState<User | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = useCallback(async () => {
+    setCreating(true);
+    try {
+      const created = await usersApi.create({
+        name: createForm.name,
+        email: createForm.email,
+        password: createForm.password,
+        phone: createForm.phone || undefined,
+        role: createForm.role,
+      });
+      setUsers((prev) => [created, ...prev]);
+      setShowCreate(false);
+      setCreateForm(EMPTY_CREATE);
+    } catch (err) {
+      alert({ title: t('admin.createFailed'), body: (err as Error).message, type: 'danger' });
+    } finally {
+      setCreating(false);
+    }
+  }, [createForm, alert, t]);
 
   useEffect(() => {
     usersApi.list()
@@ -100,10 +127,11 @@ export default function AdminUsers() {
     usersApi.update(editUser.id, { name: form.name, phone: form.phone, role: form.role })
       .then((updated) => {
         setUsers((prev) => prev.map((u) => u.id === editUser.id ? { ...u, ...updated } : u));
+        if (currentUser?.id === editUser.id) syncCurrentUser(updated);
         setEditUser(null);
       })
-      .catch(() => setEditUser(null));
-  }, [editUser, form]);
+      .catch((err) => alert({ title: t('admin.saveFailed'), body: (err as Error).message, type: 'danger' }));
+  }, [editUser, form, currentUser, syncCurrentUser, alert, t]);
 
   const SortBtn = ({ k, label }: { k: SortKey; label: string }) => (
     <button type="button" onClick={() => toggleSort(k)}
@@ -123,9 +151,15 @@ export default function AdminUsers() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/admin" className="text-gray-400 hover:text-gray-600">{t('admin.back')}</Link>
-        <h1 className="text-2xl font-bold text-gray-800">{t('admin.titleUsers')}</h1>
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <Link to="/admin" className="text-gray-400 hover:text-gray-600">{t('admin.back')}</Link>
+          <h1 className="text-2xl font-bold text-gray-800">{t('admin.titleUsers')}</h1>
+        </div>
+        <button type="button" onClick={() => { setCreateForm(EMPTY_CREATE); setShowCreate(true); }}
+          className="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition text-sm">
+          + {t('admin.addUser')}
+        </button>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -295,6 +329,57 @@ export default function AdminUsers() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-bold text-gray-800">{t('admin.addUserTitle')}</h2>
+              <button type="button" onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600" aria-label={t('common.close')}>✕</button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }} className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">{t('admin.fieldName')}</label>
+                <input required value={createForm.name} onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder={t('admin.fieldName')} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">{t('admin.fieldEmail')}</label>
+                <input required type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="email@example.com" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">{t('admin.fieldPassword')}</label>
+                <input required type="password" minLength={6} value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="••••••" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">{t('admin.fieldPhone')}</label>
+                <input type="tel" value={createForm.phone} onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="0901234567" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">{t('admin.roleCol')}</label>
+                <select title={t('admin.roleCol')} value={createForm.role} onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value as User['role'] }))}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+                  <option value="user">{t('admin.userRole')}</option>
+                  <option value="admin">{t('admin.adminRole')}</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="submit" disabled={creating}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-lg transition text-sm disabled:opacity-60">
+                  {creating ? '...' : t('common.add')}
+                </button>
+                <button type="button" onClick={() => setShowCreate(false)}
+                  className="flex-1 border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-lg hover:bg-gray-50 transition text-sm">
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

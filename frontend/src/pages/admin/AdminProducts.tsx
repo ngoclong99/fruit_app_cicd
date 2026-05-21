@@ -64,7 +64,7 @@ const EMPTY_FORM: FormState = {
 
 export default function AdminProducts() {
   const { t } = useTranslation();
-  const { confirm } = useDialog();
+  const { confirm, alert } = useDialog();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -118,6 +118,8 @@ export default function AdminProducts() {
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     const imageVal = form.image.startsWith('data:') ? '' : form.image;
+    const onError = (err: unknown) =>
+      alert({ title: t('admin.saveFailed'), body: (err as Error).message, type: 'danger' });
     if (editProduct) {
       const data: Partial<Product> = {
         nameVi: form.nameVi, nameEn: form.nameEn, nameKey: form.nameKey,
@@ -126,8 +128,13 @@ export default function AdminProducts() {
         ...(imageVal ? { image: imageVal } : {}),
       };
       productsApi.update(editProduct.id, data)
-        .then((updated) => setProducts((prev) => prev.map((p) => p.id === editProduct.id ? updated : p)))
-        .catch(() => {});
+        .then((updated) => {
+          setProducts((prev) => prev.map((p) => p.id === editProduct.id ? updated : p));
+          setShowForm(false);
+          setEditProduct(null);
+          setForm(EMPTY_FORM);
+        })
+        .catch(onError);
     } else {
       const data: Omit<Product, 'id'> = {
         name: form.nameVi, nameVi: form.nameVi, nameEn: form.nameEn, nameKey: form.nameKey,
@@ -137,13 +144,15 @@ export default function AdminProducts() {
         rating: 5, reviewCount: 0,
       };
       productsApi.create(data)
-        .then((created) => setProducts((prev) => [created, ...prev]))
-        .catch(() => {});
+        .then((created) => {
+          setProducts((prev) => [created, ...prev]);
+          setShowForm(false);
+          setEditProduct(null);
+          setForm(EMPTY_FORM);
+        })
+        .catch(onError);
     }
-    setShowForm(false);
-    setEditProduct(null);
-    setForm(EMPTY_FORM);
-  }, [editProduct, form]);
+  }, [editProduct, form, alert, t]);
 
   const handleEdit = useCallback((p: Product) => {
     setEditProduct(p);
@@ -159,8 +168,8 @@ export default function AdminProducts() {
         setProducts((prev) => prev.filter((p) => p.id !== id));
         setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
       })
-      .catch(() => {});
-  }, [t, confirm]);
+      .catch((err) => alert({ title: t('admin.deleteFailed'), body: (err as Error).message, type: 'danger' }));
+  }, [t, confirm, alert]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -182,13 +191,13 @@ export default function AdminProducts() {
     const ok = await confirm({ title: t('admin.bulkDelete', { count: selected.size }), body: t('admin.bulkDeleteConfirm', { count: selected.size }), type: 'danger', confirmText: t('common.delete'), cancelText: t('common.cancel') });
     if (!ok) return;
     const ids = [...selected];
-    Promise.all(ids.map((id) => productsApi.remove(id)))
+    productsApi.bulkDelete(ids)
       .then(() => {
         setProducts((prev) => prev.filter((p) => !selected.has(p.id)));
         setSelected(new Set());
       })
-      .catch(() => {});
-  }, [selected, t, confirm]);
+      .catch((err) => alert({ title: t('admin.deleteFailed'), body: (err as Error).message, type: 'danger' }));
+  }, [selected, t, confirm, alert]);
 
   const f = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [k]: e.target.value }));
@@ -207,17 +216,22 @@ export default function AdminProducts() {
         if (existingNames.has(item.name.toLowerCase())) { skipped++; return false; }
         return true;
       });
-      Promise.all(toCreate.map((item) => productsApi.create(item)))
-        .then((created) => {
-          setProducts((prev) => [...created, ...prev]);
-          setImportResult({ added: created.length, skipped });
+      if (toCreate.length === 0) {
+        setImportResult({ added: 0, skipped });
+        setTimeout(() => setImportResult(null), 4000);
+        return;
+      }
+      productsApi.bulkCreate(toCreate)
+        .then((res) => {
+          setProducts((prev) => [...res.data, ...prev]);
+          setImportResult({ added: res.created, skipped });
           setTimeout(() => setImportResult(null), 4000);
         })
-        .catch(() => {});
+        .catch((err) => alert({ title: t('admin.importFailed'), body: (err as Error).message, type: 'danger' }));
     };
     reader.readAsArrayBuffer(file);
     e.target.value = '';
-  }, [products]);
+  }, [products, alert, t]);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

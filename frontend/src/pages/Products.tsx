@@ -153,7 +153,7 @@ export default function Products() {
   const [pendingCat, setPendingCat] = useState(cat);
   const [pendingPrice, setPendingPrice] = useState<[number, number]>(priceRange);
 
-  const filteredTree = useMemo(() => categoryTree.filter((c) => c.slug !== "nuoc"), [categoryTree]);
+  const filteredTree = useMemo(() => categoryTree.filter((c) => c.slug !== "nuoc-ep"), [categoryTree]);
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {

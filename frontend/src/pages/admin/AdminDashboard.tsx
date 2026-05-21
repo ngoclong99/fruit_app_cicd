@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { statsApi, type StatsResponse } from '../../api/endpoints/stats';
+import { statsApi, type StatsResponse, type TopProductItem } from '../../api/endpoints/stats';
 import { ordersApi } from '../../api/endpoints/orders';
 import type { Order } from '../../types';
 import SalesChart from '../../components/admin/ui/SalesChart';
@@ -26,11 +26,13 @@ export default function AdminDashboard() {
   };
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [statsData, setStatsData] = useState<StatsResponse | null>(null);
+  const [topProducts, setTopProducts] = useState<TopProductItem[]>([]);
   const [dayOrders, setDayOrders] = useState<Order[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
 
   useEffect(() => {
     statsApi.get().then(setStatsData).catch(() => {});
+    statsApi.getTopProducts(5).then(setTopProducts).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -85,6 +87,31 @@ export default function AdminDashboard() {
             <div className="text-sm text-gray-500 mt-1">{item.desc}</div>
           </Link>
         ))}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-bold text-gray-800">🏆 {t('admin.topProducts')}</h2>
+        </div>
+        {topProducts.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 text-sm">{t('admin.topProductsNone')}</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {topProducts.map((p, i) => (
+              <div key={p.productId} className="border border-gray-100 rounded-xl p-3 flex items-center gap-3">
+                <span className="text-lg font-bold text-gray-300 w-6 shrink-0">#{i + 1}</span>
+                {p.image && (
+                  <img src={p.image} alt={p.name} loading="lazy" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
+                  <p className="text-xs text-gray-400">{t('admin.soldCount', { count: p.quantity })}</p>
+                  <p className="text-xs font-bold text-green-700">{p.revenue.toLocaleString('vi-VN')}đ</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
