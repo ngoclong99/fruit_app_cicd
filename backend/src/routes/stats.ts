@@ -1,11 +1,13 @@
 import { Router, Response } from 'express';
 import pool from '../db';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
+import { asyncHandler } from '../middleware/errorHandler';
+import { parseIntDefault, requireDate } from '../utils/validate';
 import type { CartItem, Order } from '../types';
 
 const router = Router();
 
-router.get('/', authenticate, requireAdmin, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get('/', authenticate, requireAdmin, asyncHandler(async (_req: AuthRequest, res: Response) => {
   const revenue = await pool.query<{ total: string }>(
     "SELECT COALESCE(SUM(total), 0)::text as total FROM orders WHERE status = 'delivered'"
   );
@@ -71,12 +73,13 @@ router.get('/', authenticate, requireAdmin, async (_req: AuthRequest, res: Respo
     monthlyRevenue,
     recentOrders,
   });
-});
+}));
 
-router.get('/daily', authenticate, requireAdmin, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { from, to } = req.query as Record<string, string>;
-  if (!from || !to) {
-    res.status(400).json({ message: 'from and to are required' });
+router.get('/daily', authenticate, requireAdmin, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const from = requireDate(req.query.from, 'from');
+  const to = requireDate(req.query.to, 'to');
+  if (from > to) {
+    res.status(400).json({ message: 'from must be <= to' });
     return;
   }
 
@@ -94,6 +97,89 @@ router.get('/daily', authenticate, requireAdmin, async (req: AuthRequest, res: R
     orders: Number(r.orders),
     revenue: Number(r.revenue),
   })));
-});
+}));
+
+router.get('/top-products', authenticate, requireAdmin, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const limit = parseIntDefault(req.query.limit, 10, 1, 100);
+  const result = await pool.query<{
+    product_id: string;
+    product_name: string;
+    image: string | null;
+    total_qty: string;
+    total_revenue: string;
+  }>(
+    `SELECT
+       item->'product'->>'id'    AS product_id,
+       item->'product'->>'name'  AS product_name,
+       item->'product'->>'image' AS image,
+       SUM((item->>'quantity')::int)::text AS total_qty,
+       SUM(((item->'product'->>'price')::numeric) * (item->>'quantity')::int)::text AS total_revenue
+     FROM orders o, jsonb_array_elements(o.items) AS item
+     WHERE o.status = 'delivered'
+     GROUP BY product_id, product_name, image
+     ORDER BY SUM((item->>'quantity')::int) DESC
+     LIMIT $1`,
+    [limit]
+  );
+  res.json(result.rows.map((r) => ({
+    productId: r.product_id,
+    name: r.product_name,
+    image: r.image ?? undefined,
+    quantity: Number(r.total_qty),
+    revenue: Number(r.total_revenue),
+  })));
+}));
+
+router.get('/top-customers', authenticate, requireAdmin, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const limit = parseIntDefault(req.query.limit, 10, 1, 100);
+  const result = await pool.query<{
+    id: string;
+    name: string;
+    email: string;
+    order_count: string;
+    total_spent: string;
+  }>(
+    `SELECT u.id, u.name, u.email,
+       COUNT(o.id)::text AS order_count,
+       COALESCE(SUM(o.total), 0)::text AS total_spent
+     FROM users u
+     LEFT JOIN orders o ON o.user_id = u.id AND o.status = 'delivered'
+     WHERE u.role = 'user'
+     GROUP BY u.id, u.name, u.email
+     HAVING COUNT(o.id) > 0
+     ORDER BY SUM(o.total) DESC NULLS LAST
+     LIMIT $1`,
+    [limit]
+  );
+  res.json(result.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    orderCount: Number(r.order_count),
+    totalSpent: Number(r.total_spent),
+  })));
+}));
+
+router.get('/by-category', authenticate, requireAdmin, asyncHandler(async (_req: AuthRequest, res: Response) => {
+  const result = await pool.query<{
+    category: string;
+    total_qty: string;
+    revenue: string;
+  }>(
+    `SELECT
+       item->'product'->>'category' AS category,
+       SUM((item->>'quantity')::int)::text AS total_qty,
+       SUM(((item->'product'->>'price')::numeric) * (item->>'quantity')::int)::text AS revenue
+     FROM orders o, jsonb_array_elements(o.items) AS item
+     WHERE o.status = 'delivered'
+     GROUP BY category
+     ORDER BY SUM(((item->'product'->>'price')::numeric) * (item->>'quantity')::int) DESC`
+  );
+  res.json(result.rows.map((r) => ({
+    category: r.category,
+    quantity: Number(r.total_qty),
+    revenue: Number(r.revenue),
+  })));
+}));
 
 export default router;

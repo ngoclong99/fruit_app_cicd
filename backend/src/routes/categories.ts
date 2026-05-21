@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
+import { asyncHandler, notFound } from '../middleware/errorHandler';
 
 const router = Router();
 
@@ -23,7 +24,7 @@ function mapRow(row: CategoryRow) {
   };
 }
 
-router.get('/tree', async (_req: Request, res: Response): Promise<void> => {
+router.get('/tree', asyncHandler(async (_req: Request, res: Response) => {
   const result = await pool.query<CategoryRow>(
     'SELECT id, name, icon, slug, parent_id, level FROM categories ORDER BY level ASC, id ASC'
   );
@@ -39,25 +40,22 @@ router.get('/tree', async (_req: Request, res: Response): Promise<void> => {
   }
 
   res.json(roots);
-});
+}));
 
-router.get('/', async (_req: Request, res: Response): Promise<void> => {
+router.get('/', asyncHandler(async (_req: Request, res: Response) => {
   const result = await pool.query<CategoryRow>(
     'SELECT id, name, icon, slug, parent_id, level FROM categories ORDER BY level ASC, id ASC'
   );
   res.json(result.rows.map(mapRow));
-});
+}));
 
-router.get('/:slug', async (req: Request, res: Response): Promise<void> => {
+router.get('/:slug', asyncHandler(async (req: Request, res: Response) => {
   const result = await pool.query<CategoryRow>(
     'SELECT id, name, icon, slug, parent_id, level FROM categories WHERE slug = $1',
     [req.params.slug]
   );
-  if (result.rows.length === 0) {
-    res.status(404).json({ message: 'Category not found' });
-    return;
-  }
+  if (result.rows.length === 0) throw notFound('Category not found');
   res.json(mapRow(result.rows[0]));
-});
+}));
 
 export default router;
