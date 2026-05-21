@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Fresh Mart",
+    "slug": "fresh-mart-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#16A34A"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.freshmart.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#16A34A"
+      },
+      "package": "com.freshmart.mobile"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "apiUrl": "http://10.0.2.2:5000"
+    }
+  }
+}
