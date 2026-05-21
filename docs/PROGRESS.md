@@ -3,9 +3,12 @@
 ## Thông tin project
 - **Repo:** https://github.com/ngoclong99/start
 - **Region:** ap-southeast-1 (Singapore)
-- **EC2 IP:** 13.229.216.57
+- **Domain:** vhnlong.store (Route 53, A record được [morning.ps1](../scripts/morning.ps1) UPSERT mỗi sáng theo IP EC2 mới)
+- **Production URL:** https://vhnlong.store
+- **EC2 IP:** _động — đổi mỗi ngày. Lookup: `aws ec2 describe-instances --region ap-southeast-1 --filters "Name=tag:Name,Values=myapp-ec2" "Name=instance-state-name,Values=running" --query "Reservations[].Instances[].PublicIpAddress" --output text`_
 - **IAM Deploy User:** github-actions-deploy
 - **ECR Registry:** _(xem trong GitHub Secrets > ECR_REGISTRY)_
+- **Daily lifecycle:** EC2 tạo sáng / huỷ tối — xem [SCRIPTS.md](SCRIPTS.md)
 
 ---
 
@@ -20,26 +23,30 @@
 - [x] Multi-environment workflow (develop → staging → production)
 - [x] AWS Parameter Store thay GitHub Secrets cho app secrets
 - [x] pgAdmin để quản lý DB qua UI (port 5050/5051)
-- [x] 1 EC2 chạy nhiều môi trường (port khác nhau)
+- [x] 1 EC2 chạy 1 môi trường active tại 1 thời điểm (staging deploy on-demand — xem ghi chú ở mục Ports & URLs bên dưới)
 - [x] Tạo branches: `develop`, `staging`, `main`
 - [x] Tạo GitHub Environments (development / staging / production)
 - [x] Tạo SSM Parameters cho production và staging
 - [x] Thêm IAM policy SSM cho `github-actions-deploy`
 
 ### Còn lại
-- [x] Test deploy branch `main` → http://13.229.216.57 ✓
-- [x] pgAdmin http://13.229.216.57:5050 ✓
-- [x] Test deploy branch `staging` → xác nhận http://13.229.216.57:8080
+- [x] Test deploy branch `main` → https://vhnlong.store ✓
+- [x] pgAdmin http://&lt;EC2-IP&gt;:5050 ✓
+- [ ] Staging deploy on-demand (hiện tại nginx hardcode `80:80`/`443:443` trong [docker-compose.prod.yml](../docker-compose.prod.yml) → muốn chạy đồng thời với production phải wire lại biến `NGINX_HTTP_PORT` vào compose)
 
 ---
 
 ## Ports & URLs
 
-| Môi trường | App | pgAdmin | Branch | Thư mục EC2 |
+| Môi trường | App URL | pgAdmin | Branch | Thư mục EC2 |
 |---|---|---|---|---|
-| production | http://13.229.216.57 | http://13.229.216.57:5050 | main | ~/app/production/ |
-| staging | http://13.229.216.57:8080 | http://13.229.216.57:5051 | staging | ~/app/staging/ |
+| production | https://vhnlong.store | http://&lt;EC2-IP&gt;:5050 | main | ~/app/production/ |
+| staging | _(chung EC2 với prod, deploy on-demand — không chạy đồng thời)_ | http://&lt;EC2-IP&gt;:5051 | staging | ~/app/staging/ |
 | development | http://localhost | http://localhost:5050 | local | máy local |
+
+> **Lưu ý IP:** `<EC2-IP>` thay đổi mỗi sáng do [morning.ps1](../scripts/morning.ps1) tạo EC2 mới. Lookup IP hiện tại bằng lệnh trong section "Lệnh hay dùng" bên dưới hoặc chạy `.\scripts\cost-check.ps1`. Truy cập app qua domain `vhnlong.store` thì không cần biết IP (Route 53 tự cập nhật).
+>
+> **Lưu ý staging:** Production và staging hiện dùng chung EC2. Nginx hardcode `80:80`/`443:443` nên 2 môi trường không thể chạy đồng thời. Muốn deploy staging: dừng production trước, hoặc wire `${NGINX_HTTP_PORT}` vào [docker-compose.prod.yml](../docker-compose.prod.yml) (đã có sẵn trong SSM).
 
 ---
 
@@ -54,8 +61,8 @@
 | DB_NAME | todos_db | Tên database production |
 | DB_USER | userPostgres | Username database |
 | DB_PASSWORD | _(ẩn)_ | Password database |
-| VITE_API_URL | http://13.229.216.57 | URL API cho frontend gọi |
-| NGINX_HTTP_PORT | 80 | Port nginx lắng nghe trên EC2 |
+| VITE_API_URL | https://vhnlong.store | URL API cho frontend gọi (dùng domain, không IP) |
+| NGINX_HTTP_PORT | 80 | Port nginx lắng nghe (hiện hardcode 80:80 trong compose) |
 | PGADMIN_PORT | 5050 | Port truy cập pgAdmin |
 | PGADMIN_EMAIL | admin@myapp.com | Email đăng nhập pgAdmin |
 | PGADMIN_PASSWORD | _(ẩn)_ | Password pgAdmin |
@@ -66,11 +73,13 @@
 | DB_NAME | todos_db_staging | DB riêng, không lẫn với production |
 | DB_USER | userPostgres | Username database |
 | DB_PASSWORD | _(ẩn)_ | Password database |
-| VITE_API_URL | http://13.229.216.57:8080 | URL API staging |
-| NGINX_HTTP_PORT | 8080 | Port khác production tránh conflict |
+| VITE_API_URL | https://vhnlong.store | URL API staging (chung domain với prod do dùng chung EC2) |
+| NGINX_HTTP_PORT | 8080 | _(không có hiệu lực — compose đang hardcode 80:80; xem ghi chú staging ở mục Ports & URLs)_ |
 | PGADMIN_PORT | 5051 | Port khác production tránh conflict |
 | PGADMIN_EMAIL | admin@myapp.com | Email đăng nhập pgAdmin |
 | PGADMIN_PASSWORD | _(ẩn)_ | Password pgAdmin |
+
+> **Lưu ý:** Giá trị VITE_API_URL trên đây phản ánh setup HTTPS hiện tại. Verify giá trị thật trong SSM bằng: `aws ssm get-parameter --region ap-southeast-1 --name "/myapp/production/VITE_API_URL" --query "Parameter.Value" --output text`. Nếu khác → cập nhật SSM bằng `aws ssm put-parameter ... --overwrite` để khớp với domain.
 
 ---
 
@@ -94,17 +103,22 @@
 ## Lệnh hay dùng
 
 ```bash
+# Lấy IP EC2 hiện tại (IP đổi mỗi ngày do morning.ps1)
+aws ec2 describe-instances --region ap-southeast-1 \
+  --filters "Name=tag:Name,Values=myapp-ec2" "Name=instance-state-name,Values=running" \
+  --query "Reservations[].Instances[].PublicIpAddress" --output text
+
 # Kiểm tra SSM parameters đã tạo
 aws ssm get-parameters-by-path --region ap-southeast-1 --path "/myapp/" --recursive --query "Parameters[*].Name" --output table
 
 # Xem giá trị 1 parameter (có giải mã)
 aws ssm get-parameter --region ap-southeast-1 --name "/myapp/production/DB_PASSWORD" --with-decryption --query "Parameter.Value" --output text
 
-# Kiểm tra EC2 instances đang chạy
+# Kiểm tra EC2 instances đang chạy (đầy đủ thông tin)
 aws ec2 describe-instances --region ap-southeast-1 --query "Reservations[*].Instances[*].{ID:InstanceId,State:State.Name,IP:PublicIpAddress,Name:Tags[?Key=='Name']|[0].Value}" --output table
 
-# SSH vào EC2
-ssh -i myapp-key.pem ubuntu@13.229.216.57
+# SSH vào EC2 (thay <EC2-IP> bằng IP lấy ở lệnh trên)
+ssh -i $env:USERPROFILE\.ssh\deploy-ec2.pem ubuntu@<EC2-IP>
 
 # Xem containers đang chạy trên EC2
 docker ps
@@ -112,9 +126,23 @@ docker ps
 # Xem logs của 1 container
 docker logs myapp-production-backend-1 --tail 50
 
-# Deploy staging thủ công (test)
+# Deploy staging thủ công (chỉ chạy khi production đã tắt — xem lưu ý ở Ports & URLs)
 git checkout staging && git merge main && git push origin staging
 ```
+
+---
+
+## Quy trình hàng ngày
+
+Project dùng chiến lược tạo/huỷ EC2 mỗi ngày qua PowerShell scripts để tiết kiệm chi phí khi học AWS. Chi tiết từng script: [SCRIPTS.md](SCRIPTS.md).
+
+| Khi nào | Lệnh | Tác dụng |
+|---|---|---|
+| Sáng — bắt đầu học | `.\scripts\morning.ps1` | Tạo EC2 + ECR repos, update Route 53 A record, set GitHub Secret `EC2_HOST`, cài Docker/Certbot/SSL, trigger deploy workflow |
+| Trong ngày | _(làm việc bình thường: push code → GitHub Actions tự deploy)_ | |
+| Tối — kết thúc | `.\scripts\evening.ps1` | Terminate EC2, xoá ECR repos, release Elastic IP chưa gắn |
+| Bất kỳ lúc nào | `.\scripts\cost-check.ps1` | Audit toàn bộ resources đang tốn tiền, có menu xoá thủ công |
+| Lần đầu / khi morning.ps1 fail | `.\scripts\setup-ec2.ps1 -IP <ec2-ip>` | Cài Docker + Certbot + SSL trên EC2 đã có sẵn |
 
 ---
 
