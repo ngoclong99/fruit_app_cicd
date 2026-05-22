@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>S3 + CloudFront cho product images</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 32px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .cover {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-bottom: 3px solid #ea580c;
+      margin-bottom: 48px;
+    }
+    .cover h1 { font-size: 2.2rem; color: #ea580c; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge {
+      display: inline-block;
+      background: #ffedd5;
+      color: #9a3412;
+      border-radius: 9999px;
+      padding: 2px 12px;
+      font-size: 0.8rem;
+      margin: 4px 2px;
+    }
+
+    .toc {
+      background: #fff7ed;
+      border-left: 4px solid #ea580c;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+      border-radius: 0 8px 8px 0;
+    }
+    .toc h2 { font-size: 1rem; color: #ea580c; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #ea580c; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    h1 { font-size: 1.8rem; color: #9a3412; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #c2410c; margin: 32px 0 10px; border-bottom: 1px solid #fed7aa; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #9a3412; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+
+    pre {
+      background: #1c1917;
+      color: #fed7aa;
+      padding: 16px 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+    code {
+      background: #ffedd5;
+      color: #9a3412;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; }
+
+    .cmt  { color: #94a3b8; }
+    .kw   { color: #fdba74; }
+    .str  { color: #86efac; }
+    .num  { color: #fca5a5; }
+    .var  { color: #fcd34d; }
+
+    .info, .warn, .tip, .danger {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .info   { border-color: #3b82f6; background: #eff6ff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong {
+      display: block; margin-bottom: 4px;
+    }
+    .info strong   { color: #1d4ed8; }
+    .warn strong   { color: #b45309; }
+    .tip strong    { color: #065f46; }
+    .danger strong { color: #b91c1c; }
+
+    .arch {
+      border: 2px solid #fed7aa;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      background: #fff7ed;
+      font-family: monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.88rem;
+    }
+    th {
+      background: #c2410c;
+      color: #fff;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+    tr:nth-child(even) td { background: #fff7ed; }
+    tr:hover td { background: #ffedd5; }
+
+    hr { border: none; border-top: 2px dashed #fed7aa; margin: 40px 0; }
+
+    .phase-card {
+      border: 1px solid #fed7aa;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 24px 0;
+      background: #fff7ed;
+    }
+    .phase-card > h2 {
+      border-bottom: none;
+      margin-top: 0;
+      padding-bottom: 0;
+    }
+    .phase-card h3 {
+      margin-top: 16px;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #c2410c;
+    }
+
+    @media print {
+      body { padding: 16px; font-size: 12px; }
+      .cover { padding: 30px 0 20px; }
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.2rem; }
+      pre { font-size: 0.75rem; }
+      a { color: #c2410c; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>🖼️ S3 + CloudFront cho product images</h1>
+  <p>Lưu ảnh sản phẩm trên S3 private, serve qua CloudFront CDN, upload trực tiếp từ frontend bằng presigned URL</p>
+  <br/>
+  <span class="badge">S3 (private)</span>
+  <span class="badge">CloudFront + OAC</span>
+  <span class="badge">Presigned URL (sigv4)</span>
+  <span class="badge">IAM Role (EC2 instance profile)</span>
+  <span class="badge">SSM Parameter Store</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">Hoàn thành 22/5/2026 — branch <code>feat/s3-images</code></p>
+</div>
+
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#why">Tại sao cần S3 cho ảnh</a></li>
+    <li><a href="#arch">Kiến trúc tổng thể</a></li>
+    <li><a href="#phase1">Phase 1 — AWS Infrastructure</a></li>
+    <li><a href="#phase2">Phase 2 — Backend (presigned URL)</a></li>
+    <li><a href="#phase3">Phase 3 — Frontend (upload UI)</a></li>
+    <li><a href="#phase4">Phase 4 — Migrate ảnh unsplash sang S3</a></li>
+    <li><a href="#cost">Chi phí ước tính</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+    <li><a href="#cleanup">Cleanup khi học xong</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<h1 id="why">1. Tại sao cần S3 cho ảnh</h1>
+
+<h3>Vấn đề trước khi migrate</h3>
+<ul>
+  <li>Ảnh sản phẩm hardcode URL từ <code>images.unsplash.com</code> trong <code>backend/src/data/mockData.ts</code> — phụ thuộc bên thứ 3, có thể bị đổi hoặc remove.</li>
+  <li>Khi admin thêm sản phẩm mới, chỉ paste được URL hoặc base64 (UI cũ có file-upload nhưng đọc thành <code>data:</code> URL rồi bị submit handler bỏ qua → upload không hoạt động).</li>
+  <li>Không có nơi tin cậy để host ảnh nội bộ.</li>
+</ul>
+
+<h3>Giải pháp</h3>
+<ul>
+  <li><strong>S3 (private bucket)</strong> — lưu file, không cho public truy cập trực tiếp.</li>
+  <li><strong>CloudFront</strong> trước S3 (qua OAC — Origin Access Control) — serve ảnh qua CDN, có HTTPS native, cache toàn cầu.</li>
+  <li><strong>Presigned PUT URL</strong> — admin upload thẳng từ browser lên S3, không qua EC2 → tiết kiệm bandwidth/RAM/CPU EC2.</li>
+</ul>
+
+<div class="tip">
+  <strong>💡 Giá trị học</strong>
+  S3 storage, CloudFront CDN, OAC (sigv4), bucket policy có condition, IAM instance profile, presigned URL với expiry, CORS cho cross-origin upload.
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<h1 id="arch">2. Kiến trúc tổng thể</h1>
+
+<div class="arch">┌─────────────────────────────────────────────────────────────────┐
+│  Admin browser (https://vhnlong.store/admin/products)           │
+│                                                                 │
+│  [1] POST /api/upload/presign                                   │
+│      { filename, contentType }                                  │
+│                                                                 │
+│  [2] PUT &lt;presignedUrl&gt;                                         │
+│      body: file binary                                          │
+│                                                                 │
+│  [3] POST /api/products  { image: publicUrl, ... }              │
+└────┬──────────────────────────────┬─────────────────────────────┘
+     │ [1][3]                       │ [2] direct upload
+     ▼                              ▼
+┌────────────────────┐      ┌──────────────────────────────┐
+│  Backend (EC2)     │      │  S3 bucket: vhnlong-images   │
+│  /api/upload/      │─────►│  - private (block public)    │
+│  presign           │ sign │  - CORS allow vhnlong.store  │
+│                    │      │  - keys: products/&lt;uuid&gt;.ext │
+│  IAM role:         │      └──────────────┬───────────────┘
+│  myapp-ec2-role    │                     │ OAC sigv4
+│  + s3:PutObject    │                     ▼
+└────────────────────┘      ┌──────────────────────────────┐
+                            │  CloudFront                  │
+                            │  d2dmcrgjyyacvu.cloudfront.. │
+                            │  - HTTPS native              │
+                            │  - cache GET/HEAD            │
+                            │  - PriceClass_200 (incl. AP) │
+                            └──────────────┬───────────────┘
+                                           │
+                                           ▼
+                            ┌──────────────────────────────┐
+                            │  Public user browser         │
+                            │  &lt;img src="cdn.../products/..│
+                            └──────────────────────────────┘</div>
+
+<h3>3 đường đi của ảnh</h3>
+<table>
+  <tr><th>Bước</th><th>Đường đi</th><th>Auth</th></tr>
+  <tr><td>Upload (admin)</td><td>Browser → S3 PUT trực tiếp</td><td>Presigned URL (sigv4, hết hạn 5 phút)</td></tr>
+  <tr><td>Lưu URL vào DB</td><td>Browser → BE → Postgres</td><td>JWT admin role</td></tr>
+  <tr><td>View (mọi user)</td><td>Browser → CloudFront → S3</td><td>CloudFront OAC ký sigv4 thay user</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════ -->
+<div class="phase-card">
+<h2 id="phase1">3. Phase 1 — AWS Infrastructure</h2>
+
+<h3>3.1 Tạo bucket private</h3>
+<pre><code><span class="kw">aws</span> s3api create-bucket <span class="cmt">`</span>
+  <span class="kw">--bucket</span> vhnlong-images <span class="cmt">`</span>
+  <span class="kw">--region</span> ap-southeast-1 <span class="cmt">`</span>
+  <span class="kw">--create-bucket-configuration</span> LocationConstraint=ap-southeast-1
+
+<span class="cmt"># Chan toan bo public access — chi CloudFront duoc phep doc qua OAC</span>
+<span class="kw">aws</span> s3api put-public-access-block <span class="cmt">`</span>
+  <span class="kw">--bucket</span> vhnlong-images <span class="cmt">`</span>
+  <span class="kw">--public-access-block-configuration</span> <span class="cmt">`</span>
+    BlockPublicAcls=<span class="str">true</span>,IgnorePublicAcls=<span class="str">true</span>,<span class="cmt">`</span>
+    BlockPublicPolicy=<span class="str">true</span>,RestrictPublicBuckets=<span class="str">true</span></code></pre>
+
+<h3>3.2 CORS cho phép FE upload</h3>
+<p>Browser PUT từ <code>vhnlong.store</code> sang <code>vhnlong-images.s3.amazonaws.com</code> là cross-origin → cần CORS:</p>
+<pre><code>{
+  <span class="str">"CORSRules"</span>: [{
+    <span class="str">"AllowedOrigins"</span>: [<span class="str">"https://vhnlong.store"</span>, <span class="str">"http://localhost:5173"</span>],
+    <span class="str">"AllowedMethods"</span>: [<span class="str">"PUT"</span>, <span class="str">"GET"</span>, <span class="str">"HEAD"</span>],
+    <span class="str">"AllowedHeaders"</span>: [<span class="str">"*"</span>],
+    <span class="str">"ExposeHeaders"</span>: [<span class="str">"ETag"</span>]
+  }]
+}</code></pre>
+
+<h3>3.3 Origin Access Control (OAC)</h3>
+<p>OAC mới hơn OAI (Origin Access Identity, deprecated). OAC ký request bằng sigv4 — chuẩn AWS hiện đại:</p>
+<pre><code><span class="kw">aws</span> cloudfront create-origin-access-control <span class="cmt">`</span>
+  <span class="kw">--origin-access-control-config</span> '<span class="str">{
+    "Name": "vhnlong-images-oac",
+    "SigningProtocol": "sigv4",
+    "SigningBehavior": "always",
+    "OriginAccessControlOriginType": "s3"
+  }</span>'
+<span class="cmt"># Tra ve: Id = E3SD4BD63A1HXK</span></code></pre>
+
+<h3>3.4 CloudFront distribution</h3>
+<pre><code><span class="cmt"># Config quan trong (luu vao .tmp-cf-config.json):</span>
+<span class="cmt">#   - Origin: vhnlong-images.s3.ap-southeast-1.amazonaws.com</span>
+<span class="cmt">#   - OriginAccessControlId: &lt;OAC ID&gt;</span>
+<span class="cmt">#   - S3OriginConfig.OriginAccessIdentity: "" (rong vi dung OAC)</span>
+<span class="cmt">#   - CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 (CachingOptimized — managed)</span>
+<span class="cmt">#   - PriceClass: PriceClass_200 (gom Asia Pacific edges)</span>
+<span class="cmt">#   - ViewerProtocolPolicy: redirect-to-https</span>
+
+<span class="kw">aws</span> cloudfront create-distribution <span class="kw">--distribution-config</span> file://.tmp-cf-config.json
+<span class="cmt"># Tra ve: Id, DomainName (d2dmcrgjyyacvu.cloudfront.net), Status: InProgress (5-15 phut deploy)</span></code></pre>
+
+<h3>3.5 Bucket policy — chỉ CloudFront mới đọc được</h3>
+<pre><code>{
+  <span class="str">"Version"</span>: <span class="str">"2012-10-17"</span>,
+  <span class="str">"Statement"</span>: [{
+    <span class="str">"Sid"</span>: <span class="str">"AllowCloudFrontServicePrincipalReadOnly"</span>,
+    <span class="str">"Effect"</span>: <span class="str">"Allow"</span>,
+    <span class="str">"Principal"</span>: { <span class="str">"Service"</span>: <span class="str">"cloudfront.amazonaws.com"</span> },
+    <span class="str">"Action"</span>: <span class="str">"s3:GetObject"</span>,
+    <span class="str">"Resource"</span>: <span class="str">"arn:aws:s3:::vhnlong-images/*"</span>,
+    <span class="str">"Condition"</span>: {
+      <span class="str">"StringEquals"</span>: {
+        <span class="cmt">// Chi distribution CU THE nay duoc phep, ai khac khong (gioi han blast radius)</span>
+        <span class="str">"AWS:SourceArn"</span>: <span class="str">"arn:aws:cloudfront::529568113348:distribution/E1IFEQXVGMUBI1"</span>
+      }
+    }
+  }]
+}</code></pre>
+
+<h3>3.6 IAM policy cho EC2 (để generate presigned URL)</h3>
+<pre><code>{
+  <span class="str">"Version"</span>: <span class="str">"2012-10-17"</span>,
+  <span class="str">"Statement"</span>: [{
+    <span class="str">"Effect"</span>: <span class="str">"Allow"</span>,
+    <span class="str">"Action"</span>: [<span class="str">"s3:PutObject"</span>, <span class="str">"s3:DeleteObject"</span>],
+    <span class="str">"Resource"</span>: <span class="str">"arn:aws:s3:::vhnlong-images/*"</span>
+  }]
+}
+
+<span class="cmt"># Tao policy va attach vao role co san cua EC2</span>
+<span class="kw">aws</span> iam create-policy <span class="kw">--policy-name</span> myapp-s3-images-write <span class="kw">--policy-document</span> file://.tmp-iam-policy.json
+<span class="kw">aws</span> iam attach-role-policy <span class="cmt">`</span>
+  <span class="kw">--role-name</span> myapp-ec2-role <span class="cmt">`</span>
+  <span class="kw">--policy-arn</span> arn:aws:iam::529568113348:policy/myapp-s3-images-write</code></pre>
+
+<div class="info">
+  <strong>ℹ️ Vì sao chỉ cấp PutObject + DeleteObject?</strong>
+  Backend không cần đọc S3 (CloudFront làm). Backend chỉ cần sign URL để FE upload. Least privilege — nếu code BE có bug RCE, attacker không dump được toàn bộ bucket.
+</div>
+
+<h3>3.7 SSM Parameter Store</h3>
+<pre><code><span class="kw">foreach</span> ($env <span class="kw">in</span> @(<span class="str">"production"</span>, <span class="str">"staging"</span>)) {
+  aws ssm put-parameter <span class="kw">--name</span> <span class="str">"/myapp/$env/S3_IMAGES_BUCKET"</span> <span class="kw">--value</span> <span class="str">"vhnlong-images"</span> <span class="kw">--type</span> String <span class="kw">--overwrite</span>
+  aws ssm put-parameter <span class="kw">--name</span> <span class="str">"/myapp/$env/S3_IMAGES_REGION"</span> <span class="kw">--value</span> <span class="str">"ap-southeast-1"</span> <span class="kw">--type</span> String <span class="kw">--overwrite</span>
+  aws ssm put-parameter <span class="kw">--name</span> <span class="str">"/myapp/$env/CDN_IMAGES_URL"</span>   <span class="kw">--value</span> <span class="str">"https://d2dmcrgjyyacvu.cloudfront.net"</span> <span class="kw">--type</span> String <span class="kw">--overwrite</span>
+}</code></pre>
+
+<div class="tip">
+  <strong>💡 Tự động xuống EC2</strong>
+  Workflow <code>deploy.yml</code> đã fetch toàn bộ <code>/myapp/&lt;env&gt;/*</code> vào <code>backend/.env</code>. Thêm SSM param mới = backend lần deploy sau sẽ có.
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<div class="phase-card">
+<h2 id="phase2">4. Phase 2 — Backend (presigned URL)</h2>
+
+<h3>4.1 Cài SDK</h3>
+<pre><code>npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner</code></pre>
+
+<h3>4.2 Env schema (<code>backend/src/config/env.ts</code>)</h3>
+<pre><code><span class="kw">const</span> envSchema = z.object({
+  <span class="cmt">// ... cac field cu</span>
+  S3_IMAGES_BUCKET: z.string().default(<span class="str">""</span>),
+  S3_IMAGES_REGION: z.string().default(<span class="str">"ap-southeast-1"</span>),
+  CDN_IMAGES_URL:   z.string().default(<span class="str">""</span>),
+});</code></pre>
+
+<h3>4.3 Route presign (<code>backend/src/routes/upload.ts</code>)</h3>
+<pre><code><span class="kw">import</span> { S3Client, PutObjectCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/client-s3'</span>;
+<span class="kw">import</span> { getSignedUrl } <span class="kw">from</span> <span class="str">'@aws-sdk/s3-request-presigner'</span>;
+
+<span class="cmt">// Tu dong dung credentials tu EC2 instance profile (khong can ACCESS_KEY)</span>
+<span class="kw">const</span> s3 = <span class="kw">new</span> S3Client({ region: env.S3_IMAGES_REGION });
+
+router.post(<span class="str">'/presign'</span>, authenticate, requireAdmin, asyncHandler(<span class="kw">async</span> (req, res) =&gt; {
+  <span class="kw">const</span> filename    = requireString(req.body?.filename, <span class="str">'filename'</span>, <span class="num">255</span>);
+  <span class="kw">const</span> contentType = requireEnum(req.body?.contentType,
+                          [<span class="str">'image/jpeg'</span>, <span class="str">'image/png'</span>, <span class="str">'image/webp'</span>], <span class="str">'contentType'</span>);
+
+  <span class="kw">const</span> key = <span class="str">`products/${randomUUID()}.${EXT_BY_MIME[contentType]}`</span>;
+
+  <span class="kw">const</span> command = <span class="kw">new</span> PutObjectCommand({
+    Bucket: env.S3_IMAGES_BUCKET,
+    Key: key,
+    ContentType: contentType,
+  });
+
+  <span class="kw">const</span> uploadUrl = <span class="kw">await</span> getSignedUrl(s3, command, { expiresIn: <span class="num">300</span> }); <span class="cmt">// 5 phut</span>
+  <span class="kw">const</span> publicUrl = <span class="str">`${env.CDN_IMAGES_URL}/${key}`</span>;
+
+  res.json({ uploadUrl, publicUrl, key });
+}));</code></pre>
+
+<div class="info">
+  <strong>ℹ️ Vì sao dùng UUID làm key?</strong>
+  Tránh đè file (file cùng tên upload sau ghi đè file trước), và che giấu thông tin meta (số lượng ảnh / pattern). Tên file gốc lưu vào <code>Metadata</code> nếu cần debug.
+</div>
+
+<h3>4.4 Mount route (<code>backend/src/index.ts</code>)</h3>
+<pre><code>app.use(<span class="str">'/api/upload'</span>, uploadRouter);</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<div class="phase-card">
+<h2 id="phase3">5. Phase 3 — Frontend (upload UI)</h2>
+
+<h3>5.1 Helper upload (<code>frontend/src/api/endpoints/uploads.ts</code>)</h3>
+<pre><code><span class="kw">export async function</span> uploadImage(file: File): Promise&lt;string&gt; {
+  <span class="cmt">// Guards: type + size truoc khi tieu ton API call</span>
+  <span class="kw">if</span> (!ALLOWED_MIME.includes(file.type)) <span class="kw">throw new</span> Error(...);
+  <span class="kw">if</span> (file.size &gt; <span class="num">10</span> * <span class="num">1024</span> * <span class="num">1024</span>) <span class="kw">throw new</span> Error(<span class="str">'Image too large'</span>);
+
+  <span class="cmt">// 1. Goi BE xin presigned URL</span>
+  <span class="kw">const</span> { uploadUrl, publicUrl } = <span class="kw">await</span> uploadsApi.presign(file.name, file.type);
+
+  <span class="cmt">// 2. PUT thang len S3 — KHONG qua BE</span>
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(uploadUrl, {
+    method: <span class="str">'PUT'</span>,
+    body:   file,
+    headers: { <span class="str">'Content-Type'</span>: file.type },
+  });
+  <span class="kw">if</span> (!res.ok) <span class="kw">throw new</span> Error(<span class="str">`S3 upload failed: ${res.status}`</span>);
+
+  <span class="cmt">// 3. Tra ve URL public — luu vao DB</span>
+  <span class="kw">return</span> publicUrl;
+}</code></pre>
+
+<h3>5.2 Tích hợp trong AdminProducts.tsx</h3>
+<pre><code><span class="kw">const</span> handleFileChange = useCallback(<span class="kw">async</span> (e) =&gt; {
+  <span class="kw">const</span> file = e.target.files?.[<span class="num">0</span>];
+  <span class="kw">if</span> (!file) <span class="kw">return</span>;
+  e.target.value = <span class="str">''</span>;  <span class="cmt">// reset de chon lai cung file</span>
+  setUploadingImage(<span class="str">true</span>);
+  <span class="kw">try</span> {
+    <span class="kw">const</span> publicUrl = <span class="kw">await</span> uploadImage(file);
+    setForm(prev =&gt; ({ ...prev, image: publicUrl }));
+  } <span class="kw">catch</span> (err) {
+    alert({ title: t(<span class="str">'admin.uploadFailed'</span>), body: err.message });
+  } <span class="kw">finally</span> {
+    setUploadingImage(<span class="str">false</span>);
+  }
+}, []);</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<div class="phase-card">
+<h2 id="phase4">6. Phase 4 — Migrate ảnh unsplash sang S3</h2>
+
+<p>Script <code>scripts/migrate-images-to-s3.ps1</code> làm 4 bước:</p>
+
+<ol>
+  <li>Đọc <code>mockData.ts</code> + regex extract 14 URL unsplash duy nhất.</li>
+  <li>Cho mỗi URL: <code>Invoke-WebRequest</code> tải về temp, <code>aws s3 cp</code> upload lên <code>s3://vhnlong-images/products/seed-&lt;hash12&gt;.jpg</code>. Hash từ URL gốc → re-run sẽ ra cùng key (idempotent).</li>
+  <li>Tạo <code>$mapping</code> hashtable, gọi <code>$content.Replace(oldUrl, newUrl)</code> rồi <code>Set-Content</code> vào mockData.ts.</li>
+  <li>Sinh ra <code>backend/sql/migrate-images-s3.sql</code> với 28 UPDATE statements (14 cho <code>image</code>, 14 cho <code>images</code> JSONB) — chạy trên prod DB qua psql trong container.</li>
+</ol>
+
+<pre><code><span class="cmt"># Chay migration</span>
+<span class="kw">.\scripts\migrate-images-to-s3.ps1</span>
+
+<span class="cmt"># Apply SQL len prod DB</span>
+<span class="kw">scp</span> <span class="kw">-i</span> $KEY backend/sql/migrate-images-s3.sql ubuntu@$EC2:/tmp/m.sql
+<span class="kw">ssh</span> <span class="kw">-i</span> $KEY ubuntu@$EC2 <span class="str">"docker cp /tmp/m.sql myapp-production-db-1:/tmp/m.sql &amp;&amp; <span class="cmt">`</span>
+  docker exec myapp-production-db-1 psql -U &lt;user&gt; -d &lt;db&gt; -f /tmp/m.sql"</span></code></pre>
+
+<div class="warn">
+  <strong>⚠️ Lưu ý khi re-run migration</strong>
+  Script idempotent về S3 keys (hash từ URL gốc) nhưng SQL không idempotent — nếu URL trong DB đã đổi sang CloudFront thì <code>WHERE image = '&lt;unsplash url&gt;'</code> sẽ match 0 row. Vẫn an toàn, chỉ là no-op.
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<h1 id="cost">7. Chi phí ước tính</h1>
+
+<table>
+  <tr><th>Resource</th><th>Đơn giá (ap-southeast-1)</th><th>Demo project</th></tr>
+  <tr><td>S3 Storage Standard</td><td>$0.025/GB/tháng</td><td>~14 ảnh × 50KB = 0.7MB → &lt;$0.001/tháng</td></tr>
+  <tr><td>S3 PUT (upload)</td><td>$0.005/1k requests</td><td>Vài chục upload/ngày → ~$0/tháng</td></tr>
+  <tr><td>S3 GET (origin cho CDN)</td><td>$0.0004/1k requests</td><td>Đã cache CloudFront → request về origin rất ít</td></tr>
+  <tr><td>CloudFront data transfer</td><td>$0.085/GB (US/EU), $0.114/GB (AP)</td><td>Demo &lt;1GB/tháng → &lt;$0.15/tháng</td></tr>
+  <tr><td>CloudFront requests</td><td>$0.012/10k HTTPS</td><td>~$0/tháng cho demo</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 AWS Free Tier (12 tháng đầu)</strong>
+  • S3: 5GB free + 20k GET + 2k PUT/tháng <br/>
+  • CloudFront: 1TB data transfer + 10M HTTPS requests/tháng <br/>
+  → Demo project thực tế <strong>$0/tháng</strong>.
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<h1 id="trouble">8. Troubleshooting</h1>
+
+<h3>"Access Denied" khi load ảnh qua CloudFront</h3>
+<ul>
+  <li>Bucket policy thiếu hoặc sai SourceArn → check: <code>aws s3api get-bucket-policy --bucket vhnlong-images</code></li>
+  <li>OAC chưa attach vào CloudFront origin → check trong distribution config: <code>Origins[].OriginAccessControlId</code> ≠ rỗng</li>
+  <li>Distribution status vẫn <code>InProgress</code> (5-15 phút) → đợi <code>Deployed</code></li>
+</ul>
+
+<h3>"CORS error" khi FE PUT lên S3</h3>
+<ul>
+  <li>CORS chưa apply: <code>aws s3api get-bucket-cors --bucket vhnlong-images</code></li>
+  <li>Origin trong CORS không khớp domain FE (ví dụ chạy ở port khác)</li>
+  <li>Browser cache CORS preflight cũ → hard reload (Ctrl+Shift+R)</li>
+</ul>
+
+<h3>BE trả 500 khi gọi <code>/api/upload/presign</code></h3>
+<ul>
+  <li>EC2 chưa có IAM policy: <code>aws iam list-attached-role-policies --role-name myapp-ec2-role</code></li>
+  <li><code>S3_IMAGES_BUCKET</code> rỗng → check SSM param + backend/.env trên EC2</li>
+  <li>EC2 instance metadata bị disable → check IMDSv2: <code>aws ec2 describe-instances --query "Reservations[].Instances[].MetadataOptions"</code></li>
+</ul>
+
+<!-- ════════════════════════════════════════════════ -->
+<h1 id="cleanup">9. Cleanup khi học xong</h1>
+
+<pre><code><span class="cmt"># 1. Xoa tat ca object trong bucket (CloudFront khong xoa duoc bucket non-empty)</span>
+<span class="kw">aws</span> s3 rm s3://vhnlong-images <span class="kw">--recursive</span> <span class="kw">--region</span> ap-southeast-1
+
+<span class="cmt"># 2. Disable + delete CloudFront distribution (15-20 phut)</span>
+<span class="cmt"># Phai disable truoc, doi den khi "Deployed", roi moi delete</span>
+<span class="kw">aws</span> cloudfront get-distribution-config <span class="kw">--id</span> E1IFEQXVGMUBI1 &gt; cf.json
+<span class="cmt"># sua "Enabled": false trong cf.json -> update -> doi -> delete</span>
+
+<span class="cmt"># 3. Xoa OAC</span>
+<span class="kw">aws</span> cloudfront delete-origin-access-control <span class="kw">--id</span> E3SD4BD63A1HXK <span class="kw">--if-match</span> &lt;ETag&gt;
+
+<span class="cmt"># 4. Detach + xoa IAM policy</span>
+<span class="kw">aws</span> iam detach-role-policy <span class="kw">--role-name</span> myapp-ec2-role <span class="cmt">`</span>
+  <span class="kw">--policy-arn</span> arn:aws:iam::529568113348:policy/myapp-s3-images-write
+<span class="kw">aws</span> iam delete-policy <span class="kw">--policy-arn</span> arn:aws:iam::529568113348:policy/myapp-s3-images-write
+
+<span class="cmt"># 5. Xoa bucket</span>
+<span class="kw">aws</span> s3api delete-bucket <span class="kw">--bucket</span> vhnlong-images <span class="kw">--region</span> ap-southeast-1
+
+<span class="cmt"># 6. Xoa SSM params</span>
+<span class="kw">foreach</span> ($e <span class="kw">in</span> <span class="str">'production'</span>,<span class="str">'staging'</span>) {
+  aws ssm delete-parameter <span class="kw">--name</span> <span class="str">"/myapp/$e/S3_IMAGES_BUCKET"</span>
+  aws ssm delete-parameter <span class="kw">--name</span> <span class="str">"/myapp/$e/S3_IMAGES_REGION"</span>
+  aws ssm delete-parameter <span class="kw">--name</span> <span class="str">"/myapp/$e/CDN_IMAGES_URL"</span>
+}</code></pre>
+
+<div class="danger">
+  <strong>🚨 Không xoá ngược thứ tự</strong>
+  Bucket không xoá được khi còn object. CloudFront không xoá được khi còn enabled. IAM policy không xoá được khi còn attach vào role.
+</div>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>S3 + CloudFront cho product images</strong></p>
+  <p>Bucket: vhnlong-images · CDN: d2dmcrgjyyacvu.cloudfront.net · Region: ap-southeast-1</p>
+</div>
+
+</body>
+</html>
