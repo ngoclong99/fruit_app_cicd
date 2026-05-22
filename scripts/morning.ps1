@@ -109,48 +109,76 @@ Start-Sleep -Seconds 60
 # ─── Buoc 5: Cai Docker, Certbot, lay SSL ───────────────────
 Write-Host "[5/6] Cai Docker + Certbot + SSL certificate..." -ForegroundColor Cyan
 
-# Script nay se duoc chay TREN EC2 qua SSH
+# Script nay se duoc chay TREN EC2 qua SSH.
+# Idempotent: re-run an toan neu Docker/AWS CLI/certbot da cai san.
+# KHONG silence stdout/stderr cua cac lenh install -- truoc day silent fail
+# (vd: apt lock van bi unattended-upgrades giu) khien script lan dau the la xong,
+# nhung Docker/AWS thuc te chua cai duoc.
 $SETUP = @"
 set -e
 
+# Cho dpkg lock duoc free (unattended-upgrades giu lock 1-3 phut sau khi EC2 boot)
+wait_apt() {
+  for i in {1..60}; do
+    if ! sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+       && ! sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1; then
+      return 0
+    fi
+    echo "  apt locked, waiting... (\$i/60)"
+    sleep 5
+  done
+  echo "ERROR: apt lock van bi giu sau 5 phut"
+  return 1
+}
+
+echo '--- Cho apt lock + update package list ---'
+wait_apt
+sudo apt-get update -y
+
 echo '--- Cai Docker ---'
-# Tai va chay script cai dat Docker chinh thuc tu docker.com
-curl -fsSL https://get.docker.com | sh > /dev/null 2>&1
-# Them user ubuntu vao nhom docker de chay docker khong can sudo
-sudo usermod -aG docker ubuntu
-# Bat Docker tu dong khoi dong khi EC2 reboot
-sudo systemctl enable docker --now > /dev/null 2>&1
+if command -v docker >/dev/null 2>&1; then
+  echo "  docker da co: \$(docker --version)"
+else
+  curl -fsSL https://get.docker.com | sh
+  sudo usermod -aG docker ubuntu
+  sudo systemctl enable docker --now
+fi
 
 echo '--- Cai AWS CLI ---'
-# Tai AWS CLI v2 cho Linux x86_64
-curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-sudo apt-get install -y unzip > /dev/null 2>&1
-# Giai nen va cai dat AWS CLI
-unzip -q awscliv2.zip && sudo ./aws/install > /dev/null 2>&1
-# Don dep file tam sau khi cai xong
-rm -rf aws awscliv2.zip
+if command -v aws >/dev/null 2>&1; then
+  echo "  aws da co: \$(aws --version)"
+else
+  wait_apt
+  sudo apt-get install -y unzip
+  curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+  unzip -q awscliv2.zip
+  sudo ./aws/install
+  rm -rf aws awscliv2.zip
+fi
 
 echo '--- Cai Certbot ---'
-# Certbot la cong cu lay SSL certificate mien phi tu Let's Encrypt
-sudo apt-get install -y certbot > /dev/null 2>&1
-
-echo '--- Cho DNS propagate (60s) ---'
-# Doi Route 53 cap nhat lan ra cac DNS server toan cau truoc khi lay cert
-# Certbot can xac minh domain qua DNS de cap certificate
-sleep 60
+if command -v certbot >/dev/null 2>&1; then
+  echo "  certbot da co: \$(certbot --version)"
+else
+  wait_apt
+  sudo apt-get install -y certbot
+fi
 
 echo '--- Lay SSL certificate ---'
-# --standalone: Certbot tu chay web server tam thoi tren port 80 de xac minh domain
-# --non-interactive: Khong hoi gi, tu dong thuc hien
-# --agree-tos: Dong y dieu khoan su dung cua Let's Encrypt
-sudo certbot certonly --standalone \
+# Skip neu cert da ton tai (idempotent + tranh hit rate limit Let's Encrypt)
+if sudo test -d /etc/letsencrypt/live/$DOMAIN; then
+  echo "  cert da co cho $DOMAIN"
+else
+  echo "  cho DNS propagate (60s) truoc khi xin cert..."
+  sleep 60
+  # --standalone: certbot chay web server tam tren port 80 de verify domain
+  sudo certbot certonly --standalone \
     -d $DOMAIN -d www.$DOMAIN \
     --non-interactive --agree-tos \
     --email $EMAIL
+fi
 
 echo '--- Tao thu muc app ---'
-# Tao thu muc rieng cho tung moi truong
-# GitHub Actions se deploy code vao dung thu muc nay
 mkdir -p ~/app/production ~/app/staging
 
 echo 'SETUP DONE'

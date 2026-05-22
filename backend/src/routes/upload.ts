@@ -1,18 +1,15 @@
 import { Router, Response } from 'express';
 import { randomUUID } from 'crypto';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 import { env } from '../config/env';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 import { asyncHandler, badRequest } from '../middleware/errorHandler';
 import { requireString, requireEnum } from '../utils/validate';
+import { s3 } from '../utils/s3';
 
 const router = Router();
-
-// Khoi tao S3 client mot lan (dung credentials tu EC2 instance profile khi chay prod,
-// hoac AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY khi chay local)
-const s3 = new S3Client({ region: env.S3_IMAGES_REGION });
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const EXT_BY_MIME: Record<(typeof ALLOWED_TYPES)[number], string> = {

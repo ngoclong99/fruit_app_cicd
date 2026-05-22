@@ -10,6 +10,7 @@ import {
   requireNonNegNumber,
   requireString,
 } from "../utils/validate";
+import { deleteManyFromS3 } from "../utils/s3";
 import type { Product } from "../types";
 
 const router = Router();
@@ -198,11 +199,13 @@ router.put(
   authenticate,
   requireAdmin,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await pool.query<{ id: string }>(
-      "SELECT id FROM products WHERE id = $1",
+    const existing = await pool.query<{ id: string; image: string; images: string[] | null }>(
+      "SELECT id, image, images FROM products WHERE id = $1",
       [req.params.id]
     );
     if (existing.rows.length === 0) throw notFound("Product not found");
+    const oldImage = existing.rows[0].image;
+    const oldImages = existing.rows[0].images ?? [];
 
     const body = (req.body ?? {}) as Partial<Product>;
     const fields: string[] = [];
@@ -248,7 +251,17 @@ router.put(
       "SELECT * FROM products WHERE id = $1",
       [req.params.id]
     );
-    res.json(mapProduct(result.rows[0]));
+    const newRow = result.rows[0];
+    // Best-effort xoa anh cu da bi thay the. Phai chay sau UPDATE de
+    // tranh xoa nham truoc khi co URL moi.
+    const newImages = newRow.images ?? [];
+    const removed: string[] = [];
+    if (oldImage && oldImage !== newRow.image) removed.push(oldImage);
+    for (const url of oldImages) {
+      if (!newImages.includes(url) && url !== newRow.image) removed.push(url);
+    }
+    if (removed.length > 0) void deleteManyFromS3(removed);
+    res.json(mapProduct(newRow));
   })
 );
 
@@ -257,12 +270,16 @@ router.delete(
   authenticate,
   requireAdmin,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await pool.query<{ id: string }>(
-      "SELECT id FROM products WHERE id = $1",
+    const existing = await pool.query<{ image: string; images: string[] | null }>(
+      "SELECT image, images FROM products WHERE id = $1",
       [req.params.id]
     );
     if (existing.rows.length === 0) throw notFound("Product not found");
     await pool.query("DELETE FROM products WHERE id = $1", [req.params.id]);
+    // Best-effort xoa anh khoi S3. Khong await -> response ve client som,
+    // S3 cleanup chay nen.
+    const row = existing.rows[0];
+    void deleteManyFromS3([row.image, ...(row.images ?? [])]);
     res.status(204).send();
   })
 );
@@ -362,7 +379,18 @@ router.post(
       res.status(400).json({ message: 'Max 1000 ids per request' });
       return;
     }
+    // Lay URL anh truoc khi xoa de S3 cleanup
+    const imageRows = await pool.query<{ image: string; images: string[] | null }>(
+      'SELECT image, images FROM products WHERE id = ANY($1::text[])',
+      [ids]
+    );
     const result = await pool.query('DELETE FROM products WHERE id = ANY($1::text[])', [ids]);
+    const urls: string[] = [];
+    for (const row of imageRows.rows) {
+      if (row.image) urls.push(row.image);
+      if (row.images) urls.push(...row.images);
+    }
+    if (urls.length > 0) void deleteManyFromS3(urls);
     res.json({ deleted: result.rowCount ?? 0 });
   })
 );
