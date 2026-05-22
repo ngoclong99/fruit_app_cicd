@@ -1,18 +1,16 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../../shared/components/ui/Button";
 import { Input } from "../../../shared/components/ui/Input";
 import { loginSchema, type LoginInput } from "../../../shared/schemas/auth.schema";
 
 /**
- * Reusable LoginForm using react-hook-form + zod.
+ * Reusable LoginForm using react-hook-form + zod + i18n.
  * — Type-safe: `onSubmit` receives `LoginInput` with proper types.
- * — Validation: client-side via zod schema (must mirror backend).
+ * — Validation: zod schema returns i18n keys, dịch tại render time.
  * — Loading/disabled states: managed by react-hook-form `isSubmitting`.
- *
- * Drop-in usage:
- *   <LoginForm onSubmit={async (data) => { await authApi.login(data); }} />
  */
 interface LoginFormProps {
   onSubmit: (data: LoginInput) => Promise<void>;
@@ -22,6 +20,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onSubmit, defaultValues, showForgotPassword, onForgotPassword }: LoginFormProps) {
+  const { t } = useTranslation();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -39,34 +38,34 @@ export function LoginForm({ onSubmit, defaultValues, showForgotPassword, onForgo
     try {
       await onSubmit(data);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Đăng nhập thất bại");
+      setSubmitError(err instanceof Error ? err.message : t("auth.loginFailed"));
     }
   };
 
   return (
     <form onSubmit={handleSubmit(onValidSubmit)} className="space-y-4" noValidate>
       <Input
-        label="Email"
+        label={t("auth.email")}
         type="email"
         autoComplete="email"
         placeholder="you@example.com"
         {...register("email")}
-        error={errors.email?.message}
+        error={errors.email?.message ? t(errors.email.message) : undefined}
       />
 
       <Input
-        label="Mật khẩu"
+        label={t("auth.password")}
         type={showPassword ? "text" : "password"}
         autoComplete="current-password"
         placeholder="••••••"
         {...register("password")}
-        error={errors.password?.message}
+        error={errors.password?.message ? t(errors.password.message) : undefined}
         rightIcon={
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
             className="text-gray-500 hover:text-gray-700"
-            aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+            aria-label={t(showPassword ? "auth.hidePassword" : "auth.showPassword")}
           >
             {showPassword ? "👁" : "👁‍🗨"}
           </button>
@@ -79,7 +78,7 @@ export function LoginForm({ onSubmit, defaultValues, showForgotPassword, onForgo
           onClick={onForgotPassword}
           className="text-sm text-green-600 hover:text-green-700 hover:underline"
         >
-          Quên mật khẩu?
+          {t("auth.forgotPassword")}
         </button>
       )}
 
@@ -90,7 +89,7 @@ export function LoginForm({ onSubmit, defaultValues, showForgotPassword, onForgo
       )}
 
       <Button type="submit" variant="primary" fullWidth isLoading={isSubmitting}>
-        Đăng nhập
+        {isSubmitting ? t("auth.loggingIn") : t("auth.login")}
       </Button>
     </form>
   );
