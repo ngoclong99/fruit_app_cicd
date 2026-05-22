@@ -347,13 +347,18 @@ aws route53 list-resource-record-sets <span class="kw">--hosted-zone-id</span> Z
 <table>
   <tr><th>Cách</th><th>Map sang</th><th>Có dùng được không?</th></tr>
   <tr><td>A record</td><td>IP cụ thể</td><td>❌ Không — ALB không có IP tĩnh, IP thay đổi liên tục</td></tr>
-  <tr><td>CNAME</td><td>tên DNS (vd <code>myalb-1234.elb.amazonaws.com</code>)</td><td>⚠️ Được cho subdomain, NHƯNG root domain (<code>vhnlong.store</code> không có www) không cho CNAME (DNS RFC cấm)</td></tr>
+  <tr><td>CNAME</td><td>tên DNS (vd <code>myalb-1234.elb.amazonaws.com</code>)</td><td>⚠️ OK cho subdomain (<code>www.vhnlong.store</code>) — KHÔNG OK cho apex/root domain (<code>vhnlong.store</code>)</td></tr>
   <tr><td><strong>ALIAS</strong> (Route 53 only)</td><td>AWS resource (ALB, CloudFront, S3...)</td><td>✅ <strong>Đây là cách đúng.</strong> Hoạt động cho cả root domain. Miễn phí query. AWS tự xử lý IP đổi</td></tr>
 </table>
 
+<div class="info">
+  <strong>ℹ️ Vì sao CNAME không dùng được ở apex/root?</strong>
+  Theo RFC 1034 §3.6.2: 1 tên DNS đã có CNAME thì <strong>không được có record nào khác</strong> ở cùng tên. Nhưng root domain (<code>vhnlong.store</code>) <strong>bắt buộc</strong> phải có SOA + NS record (do DNS hosted zone yêu cầu). Hai điều này xung đột → CNAME không thể tồn tại ở apex. Subdomain (<code>www.</code>) không có SOA/NS nên CNAME OK.
+</div>
+
 <div class="tip">
-  <strong>💡 Vì sao có ALIAS?</strong>
-  ALIAS là phát minh riêng của AWS để "chữa" cái yếu của CNAME (không dùng được cho root). Với người dùng, nó trả về IP như A record — nhưng Route 53 tự update IP khi ALB thay.
+  <strong>💡 ALIAS — phát minh của Route 53</strong>
+  Để giải quyết hạn chế trên, AWS tạo ALIAS — về kỹ thuật là một extension của record A/AAAA: khi resolver hỏi, Route 53 tự lookup target (ALB/CloudFront/S3...) và trả về IP. Người dùng thấy như A record bình thường, nhưng bạn không phải nhập IP thủ công.
 </div>
 
 <!-- ════════════════════════════════════════════════ -->

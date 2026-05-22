@@ -517,16 +517,23 @@ sudo -u ubuntu mkdir -p /home/ubuntu/app/production /home/ubuntu/app/staging
 ENVIRONMENT=production
 ECR_REGISTRY=&lt;tu cap nhat ECR_REGISTRY vao day, hoac fetch tu SSM&gt;
 
-cd /home/ubuntu/app/$ENVIRONMENT
+APP_DIR=/home/ubuntu/app/$ENVIRONMENT
+mkdir -p $APP_DIR/backend
+chown -R ubuntu:ubuntu /home/ubuntu/app
 
-<span class="cmt"># Fetch backend/.env tu SSM</span>
-sudo -u ubuntu bash -c "
-  aws ssm get-parameters-by-path --region ap-southeast-1 --path /myapp/$ENVIRONMENT/ \
-    --with-decryption --query 'Parameters[*].[Name,Value]' --output text |
-  awk -F'\\t' '{n=split(\$1,a,\"/\"); print a[n]\"=\"\"\\\"\"\$2\"\\\"\"}' &gt; backend/.env
-  echo 'PORT=5000' &gt;&gt; backend/.env
-  echo 'ENVIRONMENT=$ENVIRONMENT' &gt;&gt; backend/.env
-"
+<span class="cmt"># Fetch backend/.env tu SSM (giong nhu deploy.yml dang lam):</span>
+<span class="cmt">#   - get-parameters-by-path lay tat ca /myapp/&lt;env&gt;/* mot luot</span>
+<span class="cmt">#   - awk tach phan cuoi: /myapp/production/DB_NAME -&gt; DB_NAME</span>
+<span class="cmt">#   - Boc gia tri trong '' de an toan voi ky tu dac biet (!, @, $, ...)</span>
+aws ssm get-parameters-by-path --region ap-southeast-1 \
+  --path "/myapp/$ENVIRONMENT/" --with-decryption \
+  --query "Parameters[*].[Name,Value]" --output text | \
+awk -F'\t' '{ n=split($1,a,"/"); print a[n]"='"'"'"$2"'"'"'" }' \
+  &gt; $APP_DIR/backend/.env
+
+echo "PORT=5000"               &gt;&gt; $APP_DIR/backend/.env
+echo "ENVIRONMENT=$ENVIRONMENT" &gt;&gt; $APP_DIR/backend/.env
+chown ubuntu:ubuntu $APP_DIR/backend/.env
 
 echo 'USER-DATA DONE'</code></pre>
 
@@ -629,14 +636,19 @@ echo 'USER-DATA DONE'</code></pre>
   <li>Next</li>
   <li>Group size:
     <ul>
-      <li>Desired capacity: <strong>1</strong></li>
-      <li>Min: <strong>1</strong></li>
+      <li>Desired capacity: <strong>1</strong> (demo)</li>
+      <li>Min: <strong>1</strong> (demo)</li>
       <li>Max: <strong>2</strong></li>
     </ul>
   </li>
   <li>Scaling policies: <strong>None</strong> (chưa cần, Module F sẽ thêm)</li>
   <li>Next → Next → Review → Create Auto Scaling group</li>
 </ol>
+
+<div class="warn">
+  <strong>⚠️ min=1 vẫn là SPOF</strong>
+  Với min=desired=1: khi EC2 chết, ASG tạo lại mất ~3-5 phút (boot + user-data). Trong khoảng đó site down. Production thực sự cần <strong>min=2, desired=2, max=4+</strong> để khi 1 EC2 chết vẫn còn 1 cái phục vụ — đây mới là true HA. Demo chấp nhận SPOF để tiết kiệm cost.
+</div>
 
 <h3><span class="step-num">C2</span> ASG tạo EC2 đầu tiên</h3>
 <p>Ngay khi ASG được tạo, nó sẽ tự khởi động 1 EC2 (vì desired=1). Theo dõi:</p>
@@ -705,9 +717,15 @@ echo 'USER-DATA DONE'</code></pre>
     </ul>
   </li>
   <li>Disable automated backups (demo) hoặc giữ 7 ngày (production)</li>
-  <li>Database insights: turn off</li>
-  <li>Performance Insights: turn off (tốn tiền)</li>
-  <li>Maintenance: minor version upgrade turn off (demo)</li>
+  <li>Encryption: bật (mặc định, dùng AWS-managed key)</li>
+  <li>Performance Insights:
+    <ul>
+      <li><strong>Turn off</strong> cho demo. (7 ngày retention free, nhưng dữ liệu lưu vào Performance Insights tốn thêm $7-9/tháng cho instance type này nếu enable.)</li>
+      <li>Lưu ý: AWS Console gần đây cũng có riêng <em>Database Insights</em> ở Advanced — đó là sản phẩm khác (deeper analytics, phí riêng). Cũng turn off.</li>
+    </ul>
+  </li>
+  <li>Enhanced monitoring: Off (demo). Production có thể bật 60s granularity.</li>
+  <li>Maintenance: minor version upgrade — off cho demo, on cho production</li>
   <li>Create database (~10-15 phút)</li>
 </ol>
 

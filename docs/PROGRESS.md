@@ -181,7 +181,7 @@ Mở [docs/S3_FRONTEND.md](S3_FRONTEND.md) để xem hướng dẫn từng bư�
 > Mục tiêu: Data không mất, app an toàn hơn
 
 - [x] **RDS** — học xong, hiểu migrate Docker DB → RDS. Hiện revert về Docker DB để tiết kiệm chi phí demo. Xem [RDS_GUIDE.md](RDS_GUIDE.md)
-- [ ] **S3** — lưu file upload (ảnh, documents)
+- [x] **S3** — lưu file upload (ảnh, documents)
 - [x] **HTTPS** — `https://vhnlong.store` với Let's Encrypt + Certbot
 - [x] **Security Group** — mở đúng port: 22, 80, 443, 5050, 5051, 8080
 - [x] **IAM** — EC2 Instance Role `myapp-ec2-role`, least privilege (ECR read, SSM read)

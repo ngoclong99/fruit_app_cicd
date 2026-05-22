@@ -355,11 +355,24 @@ aws cloudwatch get-metric-statistics <span class="cmt">`</span>
 
 <h3><span class="step-num">C2</span> App đọc secret</h3>
 <p>Cách 1 — ECS Fargate (đẹp nhất):</p>
-<pre><code><span class="cmt"># Task definition</span>
+<pre><code><span class="cmt"># Task definition - format valueFrom cho Secrets Manager:</span>
+<span class="cmt">#   arn:aws:secretsmanager:&lt;region&gt;:&lt;account&gt;:secret:&lt;name&gt;-&lt;random&gt;:&lt;json-key&gt;:&lt;version-stage&gt;:&lt;version-id&gt;</span>
+<span class="cmt">#                                                                       ^                ^                ^</span>
+<span class="cmt">#                                                                       |                |                |</span>
+<span class="cmt">#                                          ten field trong JSON (vd "username")    AWSCURRENT (mac dinh)  rong (mac dinh)</span>
+<span class="cmt">#</span>
+<span class="cmt"># Cu phap full: ":username:AWSCURRENT:"</span>
+<span class="cmt"># Rut gon (de empty cho default): ":username::"  -- 2 dau ":" cuoi BAT BUOC co</span>
 <span class="str">"secrets"</span>: [
-  { <span class="str">"name"</span>: <span class="str">"DB_USERNAME"</span>, <span class="str">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:ap-southeast-1:...:secret:myapp/production/db-credentials:username::"</span> },
-  { <span class="str">"name"</span>: <span class="str">"DB_PASSWORD"</span>, <span class="str">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:ap-southeast-1:...:secret:myapp/production/db-credentials:password::"</span> }
+  { <span class="str">"name"</span>: <span class="str">"DB_USERNAME"</span>, <span class="str">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:ap-southeast-1:529568113348:secret:myapp/production/db-credentials-AbCdEf:username::"</span> },
+  { <span class="str">"name"</span>: <span class="str">"DB_PASSWORD"</span>, <span class="str">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:ap-southeast-1:529568113348:secret:myapp/production/db-credentials-AbCdEf:password::"</span> }
 ]</code></pre>
+
+<div class="info">
+  <strong>ℹ️ Secret ARN có random suffix</strong>
+  Mỗi Secrets Manager secret có hậu tố 6 ký tự random (vd <code>-AbCdEf</code>) — AWS thêm để chống "secret hijacking" (kẻ xấu xóa secret rồi tạo lại cùng tên). Lấy ARN đầy đủ bằng:
+  <code>aws secretsmanager describe-secret --secret-id myapp/production/db-credentials --query ARN --output text</code>
+</div>
 
 <p>Cách 2 — Node.js đọc lúc startup:</p>
 <pre><code><span class="kw">import</span> { SecretsManagerClient, GetSecretValueCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/client-secrets-manager'</span>;

@@ -224,7 +224,7 @@
 
 <div class="tip">
   <strong>💡 Đổi sang Fargate có rẻ hơn không?</strong>
-  Với demo 12h/ngày: EC2 t3.small $0.0208/h × 12h × 30 = ~$7.5/tháng vs Fargate 0.5 vCPU+2GB $0.0364/h × 12h × 30 = ~$13/tháng → Fargate ĐẮT HƠN. Nhưng đổi lại không phải quản OS + có blue/green tốt hơn + scale tới 0 dễ.
+  Với demo 12h/ngày ở ap-southeast-1: EC2 t3.small $0.0264/h × 12h × 30 = ~$9.5/tháng vs Fargate 0.5 vCPU + 2 GB $0.0364/h × 12h × 30 = ~$13/tháng → Fargate <strong>đắt hơn ~$3.5/tháng</strong>. Nhưng đổi lại không phải quản OS + blue/green tốt hơn + scale tới 0 dễ.
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
@@ -744,11 +744,17 @@ aws ecs update-service <span class="cmt">`</span>
 <pre><code><span class="cmt"># deploy.yml -- thay buoc Deploy</span>
 - name: Render new task definition
   run: |
+    <span class="cmt"># describe-task-definition tra ve cac field read-only (taskDefinitionArn,</span>
+    <span class="cmt"># revision, status, requiresAttributes, compatibilities, registeredAt,</span>
+    <span class="cmt"># registeredBy) ma register-task-definition se reject. PHAI strip truoc.</span>
     aws ecs describe-task-definition --task-definition myapp-production \
-      --query <span class="str">'taskDefinition'</span> &gt; td.json
-    <span class="cmt"># thay image cu bang image moi vua build</span>
-    jq <span class="str">'.containerDefinitions[0].image = "'"$ECR/myapp-backend:$TAG"'"'</span> td.json &gt; td.new.json
-    jq <span class="str">'.containerDefinitions[1].image = "'"$ECR/myapp-frontend:$TAG"'"'</span> td.new.json &gt; td.final.json
+      --query <span class="str">'taskDefinition'</span> \
+      | jq <span class="str">'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)'</span> \
+      &gt; td.json
+
+    <span class="cmt"># Thay image cu bang image moi vua build</span>
+    jq --arg img <span class="str">"$ECR/myapp-backend:$TAG"</span>  <span class="str">'.containerDefinitions[0].image = $img'</span> td.json     &gt; td.new.json
+    jq --arg img <span class="str">"$ECR/myapp-frontend:$TAG"</span> <span class="str">'.containerDefinitions[1].image = $img'</span> td.new.json &gt; td.final.json
 
 - name: Register new revision
   id: register

@@ -472,7 +472,13 @@ terraform plan -generate-config-out=generated.tf
   port        = 80
   protocol    = <span class="str">"HTTP"</span>
   vpc_id      = var.vpc_id
-  target_type = <span class="str">"ip"</span>  <span class="cmt"># Fargate dung IP target</span>
+
+  <span class="cmt"># target_type quan trong:</span>
+  <span class="cmt">#   "instance" -- EC2 hoac ASG (Phase 3). ALB route bang instance-id.</span>
+  <span class="cmt">#   "ip"       -- Fargate (Phase 4) hoac IP truc tiep. Fargate task moi co IP rieng trong VPC.</span>
+  <span class="cmt">#   "lambda"   -- Lambda function (use case it gap).</span>
+  <span class="cmt"># Module nay default "ip" vi assumeplaying voi Fargate. Doi sang "instance" neu dung ASG.</span>
+  target_type = <span class="str">"ip"</span>
 
   <span class="kw">health_check</span> {
     path                = <span class="str">"/api/health"</span>
