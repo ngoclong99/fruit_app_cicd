@@ -12,7 +12,7 @@ $SUBNET_ID      = "subnet-046de50c5c6c52006"
 $IAM_PROFILE    = "myapp-ec2-role"          # Role cho phep EC2 truy cap ECR va SSM
 $HOSTED_ZONE_ID = "Z0999500HD1JE8VHHDN2"   # Route 53 hosted zone cua vhnlong.store
 $DOMAIN         = "vhnlong.store"
-$GITHUB_REPO    = "ngoclong99/start"
+$GITHUB_REPO    = "ngoclong99/fruit_app_cicd"
 $KEY_PATH       = "E:\AWS\deploy-ec2.pem"  # Duong dan den private key SSH tren may local
 $EMAIL          = "longvhn1999@gmail.com"
 

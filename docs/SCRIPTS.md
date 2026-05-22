@@ -51,7 +51,7 @@ Tạo EC2 mới + cài đặt + deploy app trong 1 lệnh duy nhất. Sau ~8 ph�
 | `$IAM_PROFILE` | `myapp-ec2-role` | Đổi tên role |
 | `$HOSTED_ZONE_ID` | `Z0999500HD1JE8VHHDN2` | Tạo lại hosted zone |
 | `$DOMAIN` | `vhnlong.store` | Đổi domain |
-| `$GITHUB_REPO` | `ngoclong99/start` | Đổi repo |
+| `$GITHUB_REPO` | `ngoclong99/fruit_app_cicd` | Đổi repo |
 | `$KEY_PATH` | `E:\AWS\deploy-ec2.pem` | Đổi vị trí key |
 | `$EMAIL` | `longvhn1999@gmail.com` | Email đăng ký Let's Encrypt |
 

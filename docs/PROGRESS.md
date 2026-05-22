@@ -1,7 +1,7 @@
 # AWS DevOps Learning Progress
 
 ## Thông tin project
-- **Repo:** https://github.com/ngoclong99/start
+- **Repo:** https://github.com/ngoclong99/fruit_app_cicd
 - **Region:** ap-southeast-1 (Singapore)
 - **Domain:** vhnlong.store (Route 53, A record được [morning.ps1](../scripts/morning.ps1) UPSERT mỗi sáng theo IP EC2 mới)
 - **Production URL:** https://vhnlong.store
