@@ -17,6 +17,7 @@ import categoriesRouter from "./routes/categories";
 import ordersRouter from "./routes/orders";
 import usersRouter from "./routes/users";
 import statsRouter from "./routes/stats";
+import uploadRouter from "./routes/upload";
 
 const app = express();
 
@@ -71,6 +72,7 @@ app.use("/api/categories", categoriesRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/stats", statsRouter);
+app.use("/api/upload", uploadRouter);
 
 // ─── Invalid JSON body → 400 ─────────────────────────────────────────
 app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {

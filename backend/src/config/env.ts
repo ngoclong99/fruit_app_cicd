@@ -20,6 +20,13 @@ const envSchema = z.object({
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+
+  // S3 image storage — optional in dev so the app still boots without AWS creds.
+  // In production these must be set via SSM; the upload route refuses to run
+  // if S3_IMAGES_BUCKET is empty.
+  S3_IMAGES_BUCKET: z.string().default(""),
+  S3_IMAGES_REGION: z.string().default("ap-southeast-1"),
+  CDN_IMAGES_URL: z.string().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);
