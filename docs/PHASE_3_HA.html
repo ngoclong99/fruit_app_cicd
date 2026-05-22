@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giai đoạn 3 — High Availability (HA)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 32px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .cover {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-bottom: 3px solid #047857;
+      margin-bottom: 48px;
+    }
+    .cover h1 { font-size: 2.2rem; color: #047857; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge {
+      display: inline-block;
+      background: #d1fae5;
+      color: #065f46;
+      border-radius: 9999px;
+      padding: 2px 12px;
+      font-size: 0.8rem;
+      margin: 4px 2px;
+    }
+
+    .toc {
+      background: #ecfdf5;
+      border-left: 4px solid #047857;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+      border-radius: 0 8px 8px 0;
+    }
+    .toc h2 { font-size: 1rem; color: #047857; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #047857; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    h1 { font-size: 1.8rem; color: #065f46; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #047857; margin: 32px 0 10px; border-bottom: 1px solid #a7f3d0; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #065f46; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+
+    pre {
+      background: #022c22;
+      color: #d1fae5;
+      padding: 16px 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+    code {
+      background: #d1fae5;
+      color: #065f46;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; }
+
+    .cmt  { color: #94a3b8; }
+    .kw   { color: #86efac; }
+    .str  { color: #fef08a; }
+    .num  { color: #fca5a5; }
+    .var  { color: #fcd34d; }
+
+    .info, .warn, .tip, .danger {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .info   { border-color: #3b82f6; background: #eff6ff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong {
+      display: block; margin-bottom: 4px;
+    }
+    .info strong   { color: #1d4ed8; }
+    .warn strong   { color: #b45309; }
+    .tip strong    { color: #065f46; }
+    .danger strong { color: #b91c1c; }
+
+    .arch {
+      border: 2px solid #a7f3d0;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      background: #ecfdf5;
+      font-family: monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.88rem;
+    }
+    th {
+      background: #047857;
+      color: #fff;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #f0fdf4; }
+    tr:hover td { background: #d1fae5; }
+
+    hr { border: none; border-top: 2px dashed #a7f3d0; margin: 40px 0; }
+
+    .module-card {
+      border: 1px solid #a7f3d0;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 24px 0;
+      background: #f0fdf4;
+    }
+    .module-card > h2 {
+      border-bottom: none;
+      margin-top: 0;
+      padding-bottom: 0;
+    }
+    .module-card h3 {
+      margin-top: 16px;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #047857;
+    }
+
+    .step-num {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #047857;
+      color: white;
+      text-align: center;
+      line-height: 28px;
+      font-weight: bold;
+      margin-right: 8px;
+      font-size: 0.9rem;
+    }
+
+    .ui-path {
+      background: #fef3c7;
+      color: #78350f;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin: 16px 0 0 0;
+      border-bottom: 1px solid #d1fae5;
+    }
+    .tab-label {
+      padding: 6px 14px;
+      background: #047857;
+      color: white;
+      border-radius: 6px 6px 0 0;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+    .tab-label.cli { background: #1f2937; }
+
+    @media print {
+      body { padding: 16px; font-size: 12px; }
+      .cover { padding: 30px 0 20px; }
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.2rem; }
+      pre { font-size: 0.75rem; }
+      a { color: #047857; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>🛡️ Giai đoạn 3 — High Availability</h1>
+  <p>Master guide: ALB + Auto Scaling Group + Multi-AZ RDS + Zero-downtime deploy<br/>Có cả AWS Console (UI) và AWS CLI cho mọi bước</p>
+  <br/>
+  <span class="badge">ALB</span>
+  <span class="badge">Launch Template</span>
+  <span class="badge">Auto Scaling Group</span>
+  <span class="badge">Multi-AZ RDS</span>
+  <span class="badge">Rolling Deploy</span>
+  <span class="badge">CloudWatch Alarms</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">Đọc tới mục 3 để hiểu dependency. Bắt đầu từ Module A đi tiếp xuống.</p>
+</div>
+
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#overview">Tổng quan: HA là gì &amp; tại sao cần</a></li>
+    <li><a href="#cost">Chi phí cả Phase 3</a></li>
+    <li><a href="#order">Dependency &amp; thứ tự thực hiện</a></li>
+    <li><a href="#module-a">Module A — ALB (Application Load Balancer)</a></li>
+    <li><a href="#module-b">Module B — Launch Template (template tạo EC2)</a></li>
+    <li><a href="#module-c">Module C — Auto Scaling Group</a></li>
+    <li><a href="#module-d">Module D — Multi-AZ RDS (optional, đắt)</a></li>
+    <li><a href="#module-e">Module E — Zero-downtime Deploy</a></li>
+    <li><a href="#module-f">Module F — CloudWatch Alarms + monitoring</a></li>
+    <li><a href="#lifecycle">Tích hợp Daily Lifecycle</a></li>
+    <li><a href="#e2e">End-to-end test (mô phỏng EC2 chết)</a></li>
+    <li><a href="#cleanup">Cleanup theo đúng thứ tự</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+    <li><a href="#next">Sang Giai đoạn 4</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="overview">1. Tổng quan: HA là gì &amp; tại sao cần</h1>
+
+<h3>High Availability (HA) định nghĩa</h3>
+<p><strong>HA = hệ thống vẫn chạy khi 1 thành phần chết.</strong> Cụ thể trong AWS:</p>
+<ul>
+  <li>1 EC2 chết → có EC2 khác đỡ tải</li>
+  <li>1 AZ (Availability Zone, ~1 data center) chết → resource ở AZ khác đỡ</li>
+  <li>1 lần deploy fail → tự rollback, user không thấy lỗi</li>
+</ul>
+
+<h3>Single Point of Failure (SPOF) hiện tại</h3>
+<table>
+  <tr><th>Component</th><th>SPOF?</th><th>Hậu quả nếu chết</th></tr>
+  <tr><td>1 EC2 (Docker containers)</td><td>✅ Có</td><td>Toàn bộ site down — frontend, backend, DB, pgAdmin</td></tr>
+  <tr><td>Docker Postgres trên EC2</td><td>✅ Có (kèm EC2)</td><td>EC2 chết → mất container DB → cần restore từ EBS snapshot</td></tr>
+  <tr><td>Route 53 hosted zone</td><td>❌ AWS quản (99.99% SLA)</td><td>AWS lo</td></tr>
+  <tr><td>S3 + CloudFront</td><td>❌ AWS quản (đã multi-AZ)</td><td>AWS lo</td></tr>
+</table>
+
+<h3>Sau Phase 3 sẽ ra sao</h3>
+<div class="arch">                      ┌──── User browser ────┐
+                      │                      │
+                      ▼                      │
+              ┌───────────────┐              │
+              │   Route 53    │              │
+              │ ALIAS -> ALB  │              │
+              └───────┬───────┘              │
+                      │ DNS co dinh          │
+                      ▼                      │
+              ┌───────────────┐              │
+              │      ALB      │ ◄── health check moi 30s
+              │  (Multi-AZ)   │
+              └───────┬───────┘
+                      │
+        ┌─────────────┼─────────────┐
+        ▼             ▼             ▼
+   ┌────────┐    ┌────────┐    ┌────────┐
+   │ EC2 #1 │    │ EC2 #2 │    │ EC2 #3 │  ◄── Auto Scaling Group
+   │ AZ-1a  │    │ AZ-1b  │    │ AZ-1c  │      min=1, desired=2, max=4
+   │ Docker │    │ Docker │    │ Docker │
+   └────┬───┘    └────┬───┘    └────┬───┘
+        │             │             │
+        └─────────────┼─────────────┘
+                      ▼
+            ┌──────────────────┐
+            │   RDS Postgres   │ ◄── Multi-AZ failover
+            │ Primary AZ-1a    │     (optional, $$$)
+            │ Standby  AZ-1b   │
+            └──────────────────┘</div>
+
+<div class="info">
+  <strong>ℹ️ Demo project trade-off</strong>
+  HA full setup chạy 24/7 sẽ ~$60-80/tháng (ALB $16 + 2 EC2 $30 + RDS multi-AZ $30+). Phase 3 này tập trung <strong>học từng concept</strong> — có thể setup tạm, verify, rồi tear down. Skip Module D (RDS) nếu muốn rẻ.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cost">2. Chi phí cả Phase 3</h1>
+
+<table>
+  <tr><th>Module</th><th>Cost 24/7</th><th>Cost session 2h học</th><th>Bắt buộc?</th></tr>
+  <tr><td>A — ALB</td><td>~$16/tháng</td><td>~$0.05</td><td>✅ Yes (gốc của HA)</td></tr>
+  <tr><td>B — Launch Template</td><td>FREE</td><td>FREE</td><td>✅ Yes (cần cho ASG)</td></tr>
+  <tr><td>C — ASG (2 × t3.small)</td><td>~$30/tháng (gấp đôi hiện tại)</td><td>~$0.08</td><td>✅ Yes</td></tr>
+  <tr><td>D — Multi-AZ RDS db.t4g.micro</td><td>~$30/tháng</td><td>~$0.10</td><td>❌ Optional</td></tr>
+  <tr><td>E — Zero-downtime deploy</td><td>FREE (code thay đổi)</td><td>FREE</td><td>⚠️ Nice-to-have</td></tr>
+  <tr><td>F — CloudWatch alarms (3-5 cái)</td><td>~$0.30/tháng</td><td>FREE</td><td>⚠️ Nice-to-have</td></tr>
+  <tr><td><strong>Tổng</strong></td><td><strong>~$76/tháng nếu full 24/7</strong></td><td><strong>~$0.25/session</strong></td><td></td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Đề xuất chi phí thấp</strong>
+  Làm <strong>A → B → C → E</strong> (skip D), setup mỗi buổi học rồi tear down. Cost &lt;$1/tuần. Module D học bằng [RDS_GUIDE.md](RDS_GUIDE.md) trên giấy.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="order">3. Dependency &amp; thứ tự thực hiện</h1>
+
+<div class="arch">A. ALB           (60 phut — tao 1 lan, dung mai)
+   │
+   │  TG_ARN can cho ASG
+   ▼
+B. Launch Template (30 phut — template tao EC2 theo cau hinh chuan)
+   │
+   │  Launch Template ID can cho ASG
+   ▼
+C. Auto Scaling Group (45 phut — replace lenh aws ec2 run-instances)
+   │
+   ▼
+D. Multi-AZ RDS  (60 phut — OPTIONAL, $$$)
+   │
+   ▼
+E. Zero-downtime deploy (30 phut — sua deploy.yml + scripts)
+   │
+   ▼
+F. CloudWatch alarms (20 phut — alert khi co su co)
+   │
+   ▼
+Lifecycle integration (45 phut — sua morning/evening.ps1)</div>
+
+<p><strong>Tổng:</strong> ~4-5 giờ làm chậm để hiểu rõ. Có thể chia 2-3 buổi.</p>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-a">4. Module A — ALB (Application Load Balancer)</h2>
+
+<div class="info">
+  <strong>📖 Lý thuyết &amp; CLI chi tiết</strong>
+  Module này dùng nguyên doc <a href="ALB_DNS.html">ALB_DNS.html</a> đã có (DNS basics, ALB anatomy, 8 bước CLI). Phần dưới đây bổ sung <strong>cách làm qua AWS Console UI</strong>.
+</div>
+
+<h3><span class="step-num">A1</span> Tạo Security Group cho ALB</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">EC2 → Security Groups → Create security group</span></li>
+  <li>Name: <code>myapp-alb-sg</code></li>
+  <li>VPC: chọn default VPC</li>
+  <li>Inbound rules: Add 2 rules
+    <ul>
+      <li>Type: HTTP, Source: Anywhere-IPv4 (0.0.0.0/0)</li>
+      <li>Type: HTTPS, Source: Anywhere-IPv4 (0.0.0.0/0)</li>
+    </ul>
+  </li>
+  <li>Outbound: để mặc định (All)</li>
+  <li>Create</li>
+</ol>
+
+<h3><span class="step-num">A2</span> Request ACM certificate</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">Certificate Manager → Request</span></li>
+  <li><strong>QUAN TRỌNG:</strong> Region phải là <code>ap-southeast-1</code> (Singapore), không phải us-east-1
+    <ul><li>us-east-1 chỉ cho CloudFront. ALB cần cert cùng region.</li></ul>
+  </li>
+  <li>Public certificate → Next</li>
+  <li>Domain names:
+    <ul>
+      <li><code>vhnlong.store</code></li>
+      <li>Add another: <code>www.vhnlong.store</code></li>
+    </ul>
+  </li>
+  <li>Validation method: <strong>DNS validation</strong> (recommended)</li>
+  <li>Request</li>
+  <li>Quay lại danh sách certificate → click vào cert vừa tạo → button <strong>"Create records in Route 53"</strong> (AWS tự thêm CNAME validation cho bạn vì hosted zone vhnlong.store cùng account)</li>
+  <li>Đợi 2-5 phút, Status: <code>Pending validation</code> → <code>Issued</code></li>
+</ol>
+
+<h3><span class="step-num">A3</span> Tạo Target Group</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">EC2 → Target Groups → Create target group</span></li>
+  <li>Choose target type: <strong>Instances</strong></li>
+  <li>Target group name: <code>myapp-tg</code></li>
+  <li>Protocol: HTTP, Port: 80</li>
+  <li>VPC: default</li>
+  <li>Health checks:
+    <ul>
+      <li>Protocol: HTTP</li>
+      <li>Path: <code>/api/health</code></li>
+      <li>Advanced: Interval 30s, Timeout 5s, Healthy threshold 2, Unhealthy threshold 2</li>
+    </ul>
+  </li>
+  <li>Next → Skip register targets (sẽ đăng ký sau) → Create</li>
+</ol>
+
+<h3><span class="step-num">A4</span> Tạo ALB</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">EC2 → Load Balancers → Create load balancer</span></li>
+  <li>Application Load Balancer → Create</li>
+  <li>Name: <code>myapp-alb</code></li>
+  <li>Scheme: <strong>Internet-facing</strong></li>
+  <li>IP address type: IPv4</li>
+  <li>Network mapping:
+    <ul>
+      <li>VPC: default</li>
+      <li>Mappings: tick ít nhất <strong>2 AZ</strong> (ap-southeast-1a + ap-southeast-1b)</li>
+    </ul>
+  </li>
+  <li>Security groups: chọn <code>myapp-alb-sg</code> (đã tạo A1), bỏ default</li>
+  <li>Listeners:
+    <ul>
+      <li>HTTP:80 → forward to <code>myapp-tg</code></li>
+      <li>Add listener: HTTPS:443 → forward to <code>myapp-tg</code> → chọn ACM cert vừa tạo A2</li>
+    </ul>
+  </li>
+  <li>Create load balancer</li>
+  <li><strong>Lưu DNS name</strong> (vd <code>myapp-alb-12345.ap-southeast-1.elb.amazonaws.com</code>) — sẽ dùng ở A6</li>
+</ol>
+
+<h3><span class="step-num">A5</span> Đăng ký EC2 vào Target Group</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">EC2 → Target Groups → myapp-tg → tab "Targets"</span></li>
+  <li>Register targets</li>
+  <li>Tick instance <code>myapp-ec2</code> (đang chạy)</li>
+  <li>Include as pending → Register pending targets</li>
+  <li>Đợi 30-60s, refresh, Health status chuyển từ <code>initial</code> → <code>healthy</code></li>
+</ol>
+
+<div class="warn">
+  <strong>⚠️ EC2 Security Group phải cho ALB SG vào port 80</strong>
+  Hiện EC2 mở port 80 cho 0.0.0.0/0 nên OK. Nếu muốn close khỏi internet (best practice): EC2 SG → Edit inbound → port 80 source = <code>myapp-alb-sg</code>.
+</div>
+
+<h3><span class="step-num">A6</span> Trỏ Route 53 ALIAS sang ALB</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">Route 53 → Hosted zones → vhnlong.store</span></li>
+  <li>Chọn record <code>vhnlong.store</code> type A → Edit</li>
+  <li>Bật <strong>"Alias"</strong> toggle</li>
+  <li>Route traffic to: <strong>Alias to Application and Classic Load Balancer</strong></li>
+  <li>Region: Asia Pacific (Singapore) ap-southeast-1</li>
+  <li>Load balancer: chọn <code>myapp-alb</code> từ dropdown</li>
+  <li>Save</li>
+  <li>Lặp lại cho record <code>www.vhnlong.store</code></li>
+</ol>
+
+<h3><span class="step-num">A7</span> Verify</h3>
+<pre><code><span class="cmt"># 1. Truy cap qua ALB DNS truc tiep (bypass DNS)</span>
+curl <span class="kw">-v</span> https://&lt;ALB_DNS&gt;/api/health
+<span class="cmt"># Expect: 200 {"status":"ok"}</span>
+
+<span class="cmt"># 2. Truy cap qua domain (sau ~60s DNS propagate)</span>
+curl <span class="kw">-v</span> https://vhnlong.store/api/health
+<span class="cmt"># Response header co "Server: awselb/2.0" -> dung ALB</span>
+
+<span class="cmt"># 3. Cert duoc dung la ACM, khong phai Let's Encrypt</span>
+openssl s_client <span class="kw">-connect</span> vhnlong.store:443 -servername vhnlong.store &lt; /dev/null 2&gt;/dev/null | openssl x509 -noout -issuer
+<span class="cmt"># Expect: issuer=C=US, O=Amazon, CN=Amazon RSA 2048 M02 (cu se la Let's Encrypt R3/R10)</span></code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-b">5. Module B — Launch Template</h2>
+
+<h3>Launch Template là gì</h3>
+<p>Là <strong>khuôn mẫu</strong> để tạo EC2 instance với cấu hình chuẩn (AMI, instance type, key pair, SG, IAM role, user-data...). Cần thiết cho ASG — ASG dùng Launch Template để biết tạo EC2 thế nào.</p>
+
+<p>Hiện tại morning.ps1 truyền các tham số này vào lệnh <code>aws ec2 run-instances</code>. Launch Template gói chúng lại để tái sử dụng.</p>
+
+<h3><span class="step-num">B1</span> Chuẩn bị User Data script</h3>
+<p>User Data là shell script chạy <strong>tự động lúc EC2 boot lần đầu</strong>. Đây là cách ASG có thể tạo EC2 mới mà không cần SSH thủ công cài Docker.</p>
+
+<p>Tạo file <code>scripts/ec2-userdata.sh</code> trên local:</p>
+
+<pre><code><span class="cmt">#!/bin/bash
+# User-data script chay khi EC2 boot lan dau (theo Launch Template).
+# Output ghi vao /var/log/cloud-init-output.log</span>
+set -e
+
+<span class="cmt"># Cho apt lock duoc free</span>
+for i in {1..60}; do
+  if ! sudo fuser /var/lib/dpkg/lock-frontend &gt;/dev/null 2&gt;&amp;1; then break; fi
+  sleep 5
+done
+
+sudo apt-get update -y
+
+<span class="cmt"># Docker</span>
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker ubuntu
+sudo systemctl enable docker --now
+
+<span class="cmt"># AWS CLI v2</span>
+sudo apt-get install -y unzip
+curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+unzip -q awscliv2.zip &amp;&amp; sudo ./aws/install
+rm -rf aws awscliv2.zip
+
+<span class="cmt"># Khong can certbot/SSL nua -- ALB lo HTTPS, EC2 chi can HTTP</span>
+
+<span class="cmt"># Tao app dir</span>
+sudo -u ubuntu mkdir -p /home/ubuntu/app/production /home/ubuntu/app/staging
+
+<span class="cmt"># Pull va chay app tu ECR (uu tien IAM role cua EC2)</span>
+ENVIRONMENT=production
+ECR_REGISTRY=&lt;tu cap nhat ECR_REGISTRY vao day, hoac fetch tu SSM&gt;
+
+cd /home/ubuntu/app/$ENVIRONMENT
+
+<span class="cmt"># Fetch backend/.env tu SSM</span>
+sudo -u ubuntu bash -c "
+  aws ssm get-parameters-by-path --region ap-southeast-1 --path /myapp/$ENVIRONMENT/ \
+    --with-decryption --query 'Parameters[*].[Name,Value]' --output text |
+  awk -F'\\t' '{n=split(\$1,a,\"/\"); print a[n]\"=\"\"\\\"\"\$2\"\\\"\"}' &gt; backend/.env
+  echo 'PORT=5000' &gt;&gt; backend/.env
+  echo 'ENVIRONMENT=$ENVIRONMENT' &gt;&gt; backend/.env
+"
+
+echo 'USER-DATA DONE'</code></pre>
+
+<div class="warn">
+  <strong>⚠️ Note</strong>
+  User-data này chỉ install dependencies. Để app thực sự chạy cần đẩy <code>docker-compose.prod.yml</code> và pull image. Sẽ làm ở Module E.
+</div>
+
+<h3><span class="step-num">B2</span> Tạo Launch Template (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">EC2 → Launch Templates → Create launch template</span></li>
+  <li>Name: <code>myapp-lt</code></li>
+  <li>Template version description: <code>v1 — initial</code></li>
+  <li>Application and OS Images: Ubuntu 22.04 LTS (AMI ID: <code>ami-02dd44faa40720bb8</code> — copy đúng từ morning.ps1)</li>
+  <li>Instance type: <code>t3.small</code></li>
+  <li>Key pair: <code>deploy-ec2</code></li>
+  <li>Network settings:
+    <ul>
+      <li>Subnet: <strong>Don't include in launch template</strong> (ASG sẽ chỉ định)</li>
+      <li>Firewall: chọn SG hiện tại của EC2 (<code>sg-039475caacad36625</code>)</li>
+    </ul>
+  </li>
+  <li>Advanced details:
+    <ul>
+      <li>IAM instance profile: <code>myapp-ec2-role</code></li>
+      <li>User data: paste nội dung <code>scripts/ec2-userdata.sh</code></li>
+    </ul>
+  </li>
+  <li>Resource tags: thêm <code>Name=myapp-ec2</code></li>
+  <li>Create launch template</li>
+</ol>
+
+<h3><span class="step-num">B3</span> Test Launch Template (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Launch Templates → <code>myapp-lt</code> → Actions → <strong>Launch instance from template</strong></li>
+  <li>Subnet: chọn 1 subnet bất kỳ → Launch instance</li>
+  <li>Đợi instance state = running (~1 phút)</li>
+  <li>SSH vào: <code>ssh -i E:\AWS\deploy-ec2.pem ubuntu@&lt;new-ip&gt;</code></li>
+  <li>Kiểm tra user-data đã chạy:
+    <ul>
+      <li><code>which docker</code> → /usr/bin/docker</li>
+      <li><code>which aws</code> → /usr/local/bin/aws</li>
+      <li><code>tail /var/log/cloud-init-output.log</code> → "USER-DATA DONE"</li>
+    </ul>
+  </li>
+  <li>Terminate instance test này — chỉ để verify template</li>
+</ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-c">6. Module C — Auto Scaling Group (ASG)</h2>
+
+<h3>ASG là gì</h3>
+<p>ASG <strong>quản lý lifecycle của một nhóm EC2</strong>: tự tạo, tự terminate, tự thay thế khi instance lỗi. Có 3 setting quan trọng:</p>
+<ul>
+  <li><code>min</code>: số EC2 tối thiểu luôn duy trì (vd 1)</li>
+  <li><code>desired</code>: số EC2 muốn chạy hiện tại (ASG cố giữ con số này)</li>
+  <li><code>max</code>: số EC2 tối đa khi scale-out</li>
+</ul>
+
+<h3>ASG vs morning.ps1 hiện tại</h3>
+<table>
+  <tr><th>Hành vi</th><th>morning.ps1 (cũ)</th><th>ASG (mới)</th></tr>
+  <tr><td>Tạo EC2</td><td><code>aws ec2 run-instances</code></td><td><code>set-desired-capacity 1</code></td></tr>
+  <tr><td>Khi EC2 chết</td><td>Không tự thay → user bị 502</td><td>Tự terminate + tạo EC2 mới sau 1-2 phút</td></tr>
+  <tr><td>Khi traffic tăng</td><td>Manual run-instances</td><td>Auto scale-out theo CPU/network alarm (Module F)</td></tr>
+  <tr><td>Terminate</td><td><code>aws ec2 terminate-instances</code></td><td><code>set-desired-capacity 0</code></td></tr>
+</table>
+
+<h3><span class="step-num">C1</span> Tạo ASG (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">EC2 → Auto Scaling Groups → Create Auto Scaling group</span></li>
+  <li>Name: <code>myapp-asg</code></li>
+  <li>Launch template: chọn <code>myapp-lt</code></li>
+  <li>Next</li>
+  <li>Network:
+    <ul>
+      <li>VPC: default</li>
+      <li>Availability Zones and subnets: chọn <strong>2-3 subnet khác AZ</strong> (ap-southeast-1a, 1b, 1c)</li>
+      <li>Availability Zone distribution: <strong>Balanced best effort</strong></li>
+    </ul>
+  </li>
+  <li>Next</li>
+  <li>Load balancing: <strong>Attach to an existing load balancer</strong>
+    <ul>
+      <li>Choose from load balancer target groups</li>
+      <li>Existing target groups: <code>myapp-tg</code></li>
+    </ul>
+  </li>
+  <li>Health checks:
+    <ul>
+      <li>Turn on Elastic Load Balancing health checks ✅</li>
+      <li>Grace period: 180 seconds (cho EC2 thời gian boot + user-data chạy xong)</li>
+    </ul>
+  </li>
+  <li>Next</li>
+  <li>Group size:
+    <ul>
+      <li>Desired capacity: <strong>1</strong></li>
+      <li>Min: <strong>1</strong></li>
+      <li>Max: <strong>2</strong></li>
+    </ul>
+  </li>
+  <li>Scaling policies: <strong>None</strong> (chưa cần, Module F sẽ thêm)</li>
+  <li>Next → Next → Review → Create Auto Scaling group</li>
+</ol>
+
+<h3><span class="step-num">C2</span> ASG tạo EC2 đầu tiên</h3>
+<p>Ngay khi ASG được tạo, nó sẽ tự khởi động 1 EC2 (vì desired=1). Theo dõi:</p>
+<ol>
+  <li>Console → <span class="ui-path">EC2 → Auto Scaling Groups → myapp-asg → tab Activity</span></li>
+  <li>Sẽ thấy "Launching a new EC2 instance: i-xxx" → "Successful"</li>
+  <li>Tab Instance management: instance ở trạng thái <code>InService</code></li>
+</ol>
+
+<div class="warn">
+  <strong>⚠️ Conflict với morning.ps1</strong>
+  Khi ASG đã chạy, EC2 cũ (tạo bằng morning.ps1) sẽ <strong>trùng nhau</strong> trong Target Group. Cần terminate EC2 cũ thủ công, hoặc đợi tới khi update morning.ps1 ở Module Lifecycle.
+</div>
+
+<h3><span class="step-num">C3</span> Test ASG self-healing</h3>
+<ol>
+  <li>SSH vào EC2 do ASG tạo</li>
+  <li>Manually shutdown: <code>sudo shutdown -h now</code></li>
+  <li>Console → ASG → Activity: sau ~3-5 phút sẽ thấy<br/>
+    "Terminating EC2 instance: i-xxx (Reason: Instance failed ELB health check)"<br/>
+    "Launching a new EC2 instance: i-yyy"</li>
+  <li>Verify: site vẫn truy cập được tới gần khi EC2 mới thay xong</li>
+</ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-d">7. Module D — Multi-AZ RDS (optional)</h2>
+
+<div class="warn">
+  <strong>💰 Module này tốn $30+/tháng nếu để chạy</strong>
+  Cân nhắc làm 1 buổi để verify rồi xóa. Hoặc skip — học concept qua <a href="RDS_GUIDE.md">RDS_GUIDE.md</a>.
+</div>
+
+<h3>Multi-AZ là gì</h3>
+<p>RDS bình thường = 1 instance ở 1 AZ. Multi-AZ = <strong>2 instance</strong>: Primary (active) + Standby (passive, sync replication). Khi Primary chết, RDS tự promote Standby → Primary trong ~60s. User cảm nhận 1 phút disconnect ngắn.</p>
+
+<h3><span class="step-num">D1</span> Tạo RDS Multi-AZ (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">RDS → Databases → Create database</span></li>
+  <li>Choose: <strong>Standard create</strong></li>
+  <li>Engine: PostgreSQL, Version: 15.x</li>
+  <li>Templates: <strong>Free tier</strong> không hỗ trợ Multi-AZ → chọn <strong>Production</strong></li>
+  <li>Settings:
+    <ul>
+      <li>DB instance identifier: <code>myapp-prod-db</code></li>
+      <li>Master username: <code>userPostgres</code> (khớp với SSM)</li>
+      <li>Master password: copy từ SSM <code>/myapp/production/DB_PASSWORD</code></li>
+    </ul>
+  </li>
+  <li>Instance configuration:
+    <ul>
+      <li>Burstable classes (includes t classes)</li>
+      <li>db.t4g.micro (cheapest ARM)</li>
+    </ul>
+  </li>
+  <li>Storage: gp3 20 GB, KHÔNG bật auto-scaling storage</li>
+  <li>Availability &amp; durability: <strong>Multi-AZ DB instance</strong> ✅</li>
+  <li>Connectivity:
+    <ul>
+      <li>VPC: default</li>
+      <li>Public access: <strong>No</strong> (chỉ EC2 trong VPC mới connect được)</li>
+      <li>VPC security group: tạo mới <code>myapp-rds-sg</code></li>
+      <li>Initial database name: <code>todos_db</code> (khớp với DB_NAME hiện tại)</li>
+    </ul>
+  </li>
+  <li>Disable automated backups (demo) hoặc giữ 7 ngày (production)</li>
+  <li>Database insights: turn off</li>
+  <li>Performance Insights: turn off (tốn tiền)</li>
+  <li>Maintenance: minor version upgrade turn off (demo)</li>
+  <li>Create database (~10-15 phút)</li>
+</ol>
+
+<h3><span class="step-num">D2</span> Cho EC2 SG vào RDS SG</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>EC2 → Security Groups → <code>myapp-rds-sg</code> → Edit inbound rules</li>
+  <li>Add rule: Type PostgreSQL (port 5432), Source <code>sg-039475caacad36625</code> (EC2 SG)</li>
+  <li>Save</li>
+</ol>
+
+<h3><span class="step-num">D3</span> Migration data từ Docker DB → RDS</h3>
+<pre><code><span class="cmt"># Tren EC2:</span>
+
+<span class="cmt"># 1. Dump tu Docker Postgres</span>
+docker exec myapp-production-db-1 pg_dump <span class="kw">-U</span> userPostgres todos_db <span class="kw">--clean</span> <span class="kw">--if-exists</span> &gt; backup.sql
+
+<span class="cmt"># 2. Restore vao RDS</span>
+RDS_ENDPOINT=$(aws rds describe-db-instances <span class="kw">--db-instance-identifier</span> myapp-prod-db <span class="kw">--query</span> <span class="str">"DBInstances[0].Endpoint.Address"</span> <span class="kw">--output</span> text)
+
+PGPASSWORD=&lt;password&gt; psql <span class="kw">-h</span> $RDS_ENDPOINT <span class="kw">-U</span> userPostgres <span class="kw">-d</span> todos_db &lt; backup.sql
+
+<span class="cmt"># 3. Cap nhat SSM DB_HOST tro vao RDS</span>
+aws ssm put-parameter <span class="kw">--name</span> /myapp/production/DB_HOST <span class="kw">--value</span> $RDS_ENDPOINT <span class="kw">--overwrite</span> <span class="kw">--type</span> String</code></pre>
+
+<h3><span class="step-num">D4</span> Xóa Docker DB service</h3>
+<ol>
+  <li>Sửa <code>docker-compose.prod.yml</code>: bỏ service <code>db</code> + volume <code>postgres_data</code> + <code>depends_on: db</code> ở backend/pgadmin</li>
+  <li>Backend code có hỗ trợ SSL khi DB_HOST chứa <code>rds.amazonaws.com</code> (đã có sẵn, xem backend/src/db.ts)</li>
+  <li>Redeploy: push code → CI auto deploy</li>
+</ol>
+
+<h3><span class="step-num">D5</span> Test failover</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>RDS → Databases → myapp-prod-db → Actions → <strong>Reboot</strong></li>
+  <li>Tick "Reboot with failover?"</li>
+  <li>Confirm — quá trình mất ~60s</li>
+  <li>Trong khi đó verify từ EC2: <code>psql -h $RDS_ENDPOINT ...</code> — sẽ disconnect ~30-60s rồi reconnect</li>
+  <li>RDS event log sẽ ghi "Multi-AZ instance failover started → completed"</li>
+</ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-e">8. Module E — Zero-downtime Deploy</h2>
+
+<h3>Khái niệm</h3>
+<p>Hiện tại deploy là <strong>big-bang</strong>: SSH vào EC2 → docker compose down → up. User thấy 502 trong 30-60s.</p>
+
+<p>Với ASG + ALB, có thể làm <strong>rolling update</strong>:</p>
+<ol>
+  <li>Tăng desired capacity 1 → 2 (ASG tạo EC2 mới với version mới)</li>
+  <li>Đợi EC2 mới healthy trong target group</li>
+  <li>Giảm desired 2 → 1 (ASG terminate EC2 cũ)</li>
+  <li>User không thấy downtime</li>
+</ol>
+
+<h3><span class="step-num">E1</span> Cách 1 — Instance Refresh (đơn giản nhất)</h3>
+<p>Instance Refresh là feature của ASG để rolling-replace toàn bộ instances theo Launch Template mới.</p>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>EC2 → Auto Scaling Groups → myapp-asg → tab <strong>Instance refresh</strong></li>
+  <li>Start instance refresh</li>
+  <li>Minimum healthy percentage: <strong>50%</strong> (giữ ít nhất 50% capacity online)</li>
+  <li>Instance warmup: 180s</li>
+  <li>Start</li>
+</ol>
+
+<p>Khi nào dùng:</p>
+<ul>
+  <li>User-data thay đổi → cần boot lại từ template mới</li>
+  <li>AMI mới (vd patch security)</li>
+</ul>
+
+<h3><span class="step-num">E2</span> Cách 2 — Sửa deploy.yml để rolling update</h3>
+<p>Deploy hiện tại SSH vào 1 EC2 và <code>docker compose pull/up</code>. Với ASG có nhiều EC2, cần đổi cách:</p>
+
+<pre><code><span class="cmt"># deploy.yml -- thay buoc "Deploy" cu</span>
+
+- name: Get ASG instances
+  id: instances
+  run: |
+    INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+      --auto-scaling-group-names myapp-asg \
+      --query <span class="str">"AutoScalingGroups[0].Instances[?LifecycleState=='InService'].InstanceId"</span> \
+      --output text)
+    echo <span class="str">"ids=$INSTANCE_IDS"</span> &gt;&gt; $GITHUB_OUTPUT
+
+- name: Rolling deploy (1 instance at a time)
+  run: |
+    <span class="kw">for</span> id <span class="kw">in</span> ${{ steps.instances.outputs.ids }}; <span class="kw">do</span>
+      echo <span class="str">"Deploying to $id"</span>
+
+      <span class="cmt"># 1. Deregister khoi target group (drain ket noi cu)</span>
+      aws elbv2 deregister-targets <span class="kw">--target-group-arn</span> &lt;TG_ARN&gt; <span class="kw">--targets</span> Id=$id
+
+      <span class="cmt"># 2. Doi 30s cho draining xong</span>
+      sleep 30
+
+      <span class="cmt"># 3. SSH vao docker compose pull + up</span>
+      IP=$(aws ec2 describe-instances <span class="kw">--instance-ids</span> $id <span class="kw">--query</span> ... <span class="kw">--output</span> text)
+      ssh ubuntu@$IP <span class="str">"cd ~/app/production &amp;&amp; docker compose pull &amp;&amp; docker compose up -d"</span>
+
+      <span class="cmt"># 4. Re-register vao target group</span>
+      aws elbv2 register-targets <span class="kw">--target-group-arn</span> &lt;TG_ARN&gt; <span class="kw">--targets</span> Id=$id
+
+      <span class="cmt"># 5. Doi health check pass roi moi sang instance tiep theo</span>
+      aws elbv2 wait target-in-service <span class="kw">--target-group-arn</span> &lt;TG_ARN&gt; <span class="kw">--targets</span> Id=$id
+    <span class="kw">done</span></code></pre>
+
+<div class="info">
+  <strong>ℹ️ Lưu ý</strong>
+  Với chỉ 1 EC2 trong ASG (demo), không thực sự là rolling. Cần ít nhất 2 instance. Set desired=2 khi muốn test E2 thật.
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-f">9. Module F — CloudWatch Alarms</h2>
+
+<h3>Tại sao</h3>
+<p>HA không chỉ là tự thay thế khi chết — còn cần <strong>biết khi nào có sự cố</strong>. CloudWatch Alarms gửi email/SMS khi metric vượt ngưỡng.</p>
+
+<h3><span class="step-num">F1</span> Tạo SNS topic + subscribe email</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">SNS → Topics → Create topic</span></li>
+  <li>Type: Standard</li>
+  <li>Name: <code>myapp-alerts</code></li>
+  <li>Create</li>
+  <li>Tab Subscriptions → Create subscription</li>
+  <li>Protocol: Email, Endpoint: longvhn1999@gmail.com</li>
+  <li>Create — sẽ nhận email confirmation, click link để verify</li>
+</ol>
+
+<h3><span class="step-num">F2</span> Tạo CloudWatch Alarms</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+
+<p><strong>Alarm 1: ALB unhealthy hosts &gt; 0</strong></p>
+<ol>
+  <li>CloudWatch → All alarms → Create alarm</li>
+  <li>Select metric → Application ELB → Per AppELB, per TG → metric <code>UnHealthyHostCount</code></li>
+  <li>Filter LoadBalancer = app/myapp-alb, TargetGroup = myapp-tg → Select metric</li>
+  <li>Threshold: Greater than 0</li>
+  <li>Period: 1 minute, Datapoints: 1 out of 1</li>
+  <li>Alarm action: send to <code>myapp-alerts</code> SNS topic</li>
+  <li>Name: <code>myapp-alb-unhealthy-hosts</code></li>
+  <li>Create</li>
+</ol>
+
+<p><strong>Alarm 2: ASG CPU &gt; 70% (scale-out trigger)</strong></p>
+<ol>
+  <li>CloudWatch → Create alarm → Metric: EC2 → Per Auto Scaling Group → CPUUtilization</li>
+  <li>Threshold: Greater than 70 for 5 minutes</li>
+  <li>Action: trigger ASG scaling policy (tạo policy add 1 instance) hoặc gửi SNS</li>
+</ol>
+
+<p><strong>Alarm 3 (nếu có RDS): DB CPU &gt; 80%</strong></p>
+<p><strong>Alarm 4: ALB 5xx response rate &gt; 5%</strong></p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="lifecycle">10. Tích hợp Daily Lifecycle</h1>
+
+<p>Sau khi Module A-C chạy ngon, sửa scripts để tận dụng ASG thay vì run-instances thủ công.</p>
+
+<h3>morning.ps1 — phiên bản HA</h3>
+<pre><code><span class="cmt"># Cu (xoa):</span>
+<span class="cmt"># aws ec2 run-instances ...</span>
+<span class="cmt"># aws route53 change-resource-record-sets ...  (boi domain da ALIAS vao ALB)</span>
+<span class="cmt"># gh secret set EC2_HOST ...                   (deploy.yml khong can EC2_HOST nua)</span>
+<span class="cmt"># SSH cai Docker/AWS CLI/Certbot                (user-data trong Launch Template lo)</span>
+
+<span class="cmt"># Moi:</span>
+aws autoscaling set-desired-capacity <span class="cmt">`</span>
+  <span class="kw">--auto-scaling-group-name</span> myapp-asg <span class="cmt">`</span>
+  <span class="kw">--desired-capacity</span> 1
+
+<span class="cmt"># Doi instance vao InService</span>
+Start-Sleep 90
+aws autoscaling wait <span class="cmt"># khong co built-in wait — poll bang ;loop</span></code></pre>
+
+<h3>evening.ps1 — phiên bản HA</h3>
+<pre><code><span class="cmt"># Cu (xoa):</span>
+<span class="cmt"># aws ec2 terminate-instances ...</span>
+
+<span class="cmt"># Moi:</span>
+aws autoscaling set-desired-capacity <span class="cmt">`</span>
+  <span class="kw">--auto-scaling-group-name</span> myapp-asg <span class="cmt">`</span>
+  <span class="kw">--desired-capacity</span> 0
+<span class="cmt"># ASG se terminate het instance</span>
+
+<span class="cmt"># Optional: xoa ECR repos / xoa SSL cu / xoa Elastic IP de tiet kiem hon nua</span></code></pre>
+
+<h3>So sánh cost</h3>
+<table>
+  <tr><th>Mode</th><th>Cost/tháng</th><th>Available</th></tr>
+  <tr><td>Hiện tại (1 EC2, daily 12h)</td><td>~$8</td><td>12h/ngày</td></tr>
+  <tr><td>Sau Phase 3 (ALB 24/7 + ASG daily 12h)</td><td>~$24 (ALB $16 + EC2 $8)</td><td>24/7 ALB + 12h app</td></tr>
+  <tr><td>Sau Phase 3 (ALB 24/7 + ASG 24/7 ×2)</td><td>~$46 (ALB $16 + 2 EC2 $30)</td><td>24/7</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="e2e">11. End-to-end test (mô phỏng EC2 chết)</h1>
+
+<p>Sau khi setup xong, test xem hệ thống có thật sự HA không:</p>
+
+<h3>Test 1: Kill 1 EC2 (ASG self-heal)</h3>
+<ol>
+  <li>EC2 → Instances → chọn 1 instance của ASG → Terminate</li>
+  <li>Theo dõi ASG → Activity: "Terminating ... " → "Launching new"</li>
+  <li>Trong khi đó truy cập https://vhnlong.store — vẫn 200 (vì ALB còn EC2 khác nếu desired&gt;=2; nếu desired=1, có gap ~3-5 phút)</li>
+</ol>
+
+<h3>Test 2: Kill backend container (ALB health-check)</h3>
+<ol>
+  <li>SSH vào EC2: <code>docker stop myapp-production-backend-1</code></li>
+  <li>Đợi ~1 phút (2 lần health-check fail = 60s)</li>
+  <li>ALB → Target group: instance chuyển sang <code>unhealthy</code></li>
+  <li>ASG → Activity: nếu bật ELB health check, ASG terminate EC2 + replace</li>
+</ol>
+
+<h3>Test 3 (nếu có RDS Multi-AZ): force failover</h3>
+<ol>
+  <li>RDS → Reboot with failover</li>
+  <li>App vẫn chạy, chỉ disconnect ~60s</li>
+</ol>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cleanup">12. Cleanup theo đúng thứ tự</h1>
+
+<pre><code><span class="cmt"># Xoa nguoc voi luc tao:</span>
+
+<span class="cmt"># 1. RDS (lau nhat -- 10-15 phut)</span>
+aws rds delete-db-instance <span class="kw">--db-instance-identifier</span> myapp-prod-db <span class="cmt">`</span>
+  <span class="kw">--skip-final-snapshot</span> <span class="kw">--delete-automated-backups</span>
+
+<span class="cmt"># 2. ASG (terminate het instance)</span>
+aws autoscaling update-auto-scaling-group <span class="kw">--auto-scaling-group-name</span> myapp-asg <span class="cmt">`</span>
+  <span class="kw">--min-size</span> 0 <span class="kw">--desired-capacity</span> 0
+<span class="cmt"># Doi 2-3 phut</span>
+aws autoscaling delete-auto-scaling-group <span class="kw">--auto-scaling-group-name</span> myapp-asg
+
+<span class="cmt"># 3. Launch Template</span>
+aws ec2 delete-launch-template <span class="kw">--launch-template-name</span> myapp-lt
+
+<span class="cmt"># 4. ALB listeners + ALB</span>
+<span class="cmt"># Lay listener ARN tu describe-listeners</span>
+aws elbv2 delete-listener <span class="kw">--listener-arn</span> &lt;HTTPS&gt;
+aws elbv2 delete-listener <span class="kw">--listener-arn</span> &lt;HTTP&gt;
+aws elbv2 delete-load-balancer <span class="kw">--load-balancer-arn</span> &lt;ALB_ARN&gt;
+
+<span class="cmt"># 5. Target Group (doi ALB xoa xong)</span>
+sleep 30
+aws elbv2 delete-target-group <span class="kw">--target-group-arn</span> &lt;TG_ARN&gt;
+
+<span class="cmt"># 6. ACM certificate (optional, giu lai dung sau)</span>
+aws acm delete-certificate <span class="kw">--certificate-arn</span> &lt;ACM_ARN&gt;
+
+<span class="cmt"># 7. Route 53: tro lai A record voi IP EC2 (sau khi chay morning.ps1 lai)</span>
+
+<span class="cmt"># 8. CloudWatch alarms + SNS topic</span>
+aws cloudwatch delete-alarms <span class="kw">--alarm-names</span> myapp-alb-unhealthy-hosts <span class="cmt">`</span>
+                                          myapp-asg-cpu-high
+aws sns delete-topic <span class="kw">--topic-arn</span> &lt;SNS_ARN&gt;
+
+<span class="cmt"># 9. Security groups</span>
+aws ec2 delete-security-group <span class="kw">--group-id</span> &lt;ALB_SG&gt;
+aws ec2 delete-security-group <span class="kw">--group-id</span> &lt;RDS_SG&gt; <span class="cmt"># neu co</span></code></pre>
+
+<div class="danger">
+  <strong>🚨 Tránh để quên</strong>
+  Cái dễ quên nhất: <strong>RDS</strong> (vì tốn nhiều nhất ~$30/tháng). Set reminder trên điện thoại 30 ngày sau ngày tạo. ALB cũng $16/tháng nếu để chạy.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="trouble">13. Troubleshooting</h1>
+
+<h3>ALB target unhealthy: 502 ở health check</h3>
+<ul>
+  <li>EC2 chưa boot xong (user-data đang chạy) → đợi 2-3 phút</li>
+  <li>EC2 SG chưa cho ALB SG vào port 80</li>
+  <li>Backend chưa start xong (container chưa pull image)</li>
+  <li>Nginx config trên EC2 vẫn listen :443 + cần SSL → đổi config khi đã có ALB</li>
+</ul>
+
+<h3>ASG luôn thay thế EC2 (loop)</h3>
+<ul>
+  <li>Health check grace period quá ngắn → tăng lên 300s</li>
+  <li>User-data fail → check <code>/var/log/cloud-init-output.log</code></li>
+  <li>App không respond <code>/api/health</code> trong grace period</li>
+</ul>
+
+<h3>RDS Multi-AZ tạo thất bại: "InvalidSubnet"</h3>
+<ul>
+  <li>RDS subnet group cần ≥2 subnet ở ≥2 AZ → tạo DB Subnet Group trước</li>
+</ul>
+
+<h3>Domain vẫn ra IP cũ thay vì ALB</h3>
+<ul>
+  <li>DNS cache → ipconfig /flushdns + hard reload browser</li>
+  <li>Route 53 record vẫn type A → IP. Phải edit thành Alias</li>
+</ul>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="next">14. Sang Giai đoạn 4</h1>
+
+<p>Sau khi Phase 3 thành thạo, tiếp theo là Phase 4 — Container Orchestration với ECS Fargate:</p>
+<ul>
+  <li>Không cần quản lý EC2 nữa — AWS tự lo container scheduling</li>
+  <li>Pay-per-task — chỉ trả tiền khi container chạy</li>
+  <li>Blue/Green deployment built-in</li>
+  <li>Nhiều concept giống Kubernetes mà không cần học K8s</li>
+</ul>
+
+<p>Phase 3 setup (ALB + ACM + Route 53) <strong>tái sử dụng được</strong> cho Phase 4 — chỉ thay ASG bằng ECS Service.</p>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>Phase 3 — High Availability</strong></p>
+  <p>Region: ap-southeast-1 · Hosted zone: Z0999500HD1JE8VHHDN2 · Account: 529568113348</p>
+</div>
+
+</body>
+</html>
