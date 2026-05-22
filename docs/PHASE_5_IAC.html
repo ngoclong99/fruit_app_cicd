@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giai đoạn 5 — Infrastructure as Code (Terraform)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 32px; max-width: 1000px; margin: 0 auto; }
+    .cover { text-align: center; padding: 60px 0 40px; border-bottom: 3px solid #db2777; margin-bottom: 48px; }
+    .cover h1 { font-size: 2.2rem; color: #db2777; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge { display: inline-block; background: #fce7f3; color: #9f1239; border-radius: 9999px; padding: 2px 12px; font-size: 0.8rem; margin: 4px 2px; }
+    .toc { background: #fdf2f8; border-left: 4px solid #db2777; padding: 20px 24px; margin-bottom: 48px; border-radius: 0 8px 8px 0; }
+    .toc h2 { font-size: 1rem; color: #db2777; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #db2777; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    h1 { font-size: 1.8rem; color: #9f1239; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #be185d; margin: 32px 0 10px; border-bottom: 1px solid #fbcfe8; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #9f1239; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    pre { background: #500724; color: #fce7f3; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 12px 0 20px; font-size: 0.82rem; line-height: 1.6; }
+    code { background: #fce7f3; color: #9f1239; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    .cmt  { color: #94a3b8; }
+    .kw   { color: #f9a8d4; }
+    .str  { color: #86efac; }
+    .num  { color: #fca5a5; }
+    .var  { color: #fcd34d; }
+    .info, .warn, .tip, .danger { border-left: 4px solid; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+    .info   { border-color: #3b82f6; background: #eff6ff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong { display: block; margin-bottom: 4px; }
+    .info strong   { color: #1d4ed8; }
+    .warn strong   { color: #b45309; }
+    .tip strong    { color: #065f46; }
+    .danger strong { color: #b91c1c; }
+    .arch { border: 2px solid #fbcfe8; border-radius: 12px; padding: 20px; margin: 16px 0; background: #fdf2f8; font-family: monospace; font-size: 0.82rem; line-height: 1.8; white-space: pre; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.88rem; }
+    th { background: #be185d; color: #fff; padding: 8px 12px; text-align: left; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #fdf2f8; }
+    tr:hover td { background: #fce7f3; }
+    hr { border: none; border-top: 2px dashed #fbcfe8; margin: 40px 0; }
+    .module-card { border: 1px solid #fbcfe8; border-radius: 12px; padding: 20px 24px; margin: 24px 0; background: #fdf2f8; }
+    .module-card > h2 { border-bottom: none; margin-top: 0; padding-bottom: 0; }
+    .module-card h3 { margin-top: 16px; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.03em; color: #be185d; }
+    .step-num { display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: #be185d; color: white; text-align: center; line-height: 28px; font-weight: bold; margin-right: 8px; font-size: 0.9rem; }
+    .ui-path { background: #fef3c7; color: #78350f; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+    .file-tree { background: #1e293b; color: #e2e8f0; padding: 16px 20px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; line-height: 1.8; margin: 12px 0 20px; }
+    @media print { body { padding: 16px; font-size: 12px; } .cover { padding: 30px 0 20px; } h1 { font-size: 1.5rem; } h2 { font-size: 1.2rem; } pre { font-size: 0.75rem; } a { color: #be185d; } }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>📦 Giai đoạn 5 — Infrastructure as Code</h1>
+  <p>Master guide: Terraform — codify lại toàn bộ AWS infra<br/>
+  Từ "click chuột trên Console" sang "git commit" và "terraform apply".</p>
+  <br/>
+  <span class="badge">Terraform 1.x</span>
+  <span class="badge">HCL</span>
+  <span class="badge">S3 backend</span>
+  <span class="badge">DynamoDB lock</span>
+  <span class="badge">Modules</span>
+  <span class="badge">Workspaces</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">Phase 5 = "code hóa" Phase 3-4 — re-create infra trong 5 phút</p>
+</div>
+
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#why">Tại sao Infrastructure as Code (IaC)</a></li>
+    <li><a href="#tf-vs">Terraform vs CloudFormation vs CDK</a></li>
+    <li><a href="#install">Cài đặt + setup local</a></li>
+    <li><a href="#first">First Terraform — hello world</a></li>
+    <li><a href="#concepts">Khái niệm cốt lõi (resource, state, provider...)</a></li>
+    <li><a href="#backend">Module A — Remote State (S3 + DynamoDB)</a></li>
+    <li><a href="#import">Module B — Import existing AWS resources</a></li>
+    <li><a href="#modules">Module C — Refactor thành modules</a></li>
+    <li><a href="#vars">Module D — Variables, locals, outputs</a></li>
+    <li><a href="#workspaces">Module E — Workspaces (separate environments)</a></li>
+    <li><a href="#cicd">Module F — Terraform trong CI/CD</a></li>
+    <li><a href="#structure">Cấu trúc thư mục đề xuất</a></li>
+    <li><a href="#cmd">Lệnh hay dùng</a></li>
+    <li><a href="#cleanup">Cleanup an toàn</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+    <li><a href="#next">Sang Phase 6</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="why">1. Tại sao Infrastructure as Code (IaC)</h1>
+
+<h3>Vấn đề "ClickOps"</h3>
+<ul>
+  <li>Sau Phase 3-4, bạn đã click hàng trăm option trên AWS Console</li>
+  <li>Nếu vô tình xóa nhầm → không thể "redo Ctrl+Z" → phải nhớ và làm lại từ đầu</li>
+  <li>Muốn tạo môi trường staging giống production → phải click lại 100% như cũ</li>
+  <li>Đồng nghiệp join project → không biết hạ tầng có những gì</li>
+  <li>Disaster recovery → không có nguồn để khôi phục</li>
+</ul>
+
+<h3>IaC là gì</h3>
+<p><strong>Mô tả hạ tầng bằng code, version trong Git, apply tự động.</strong></p>
+
+<table>
+  <tr><th>Hành động</th><th>ClickOps (cũ)</th><th>IaC (Terraform)</th></tr>
+  <tr><td>Tạo ALB</td><td>15 click trên Console</td><td><code>resource "aws_lb" "..."</code> 10 dòng</td></tr>
+  <tr><td>Reproduce ở account khác</td><td>Tự click lại 15 lần</td><td><code>terraform apply -var "account=..."</code></td></tr>
+  <tr><td>Review trước khi đổi prod</td><td>Phải có 2 người click cùng</td><td>PR review code → terraform plan trong CI</td></tr>
+  <tr><td>Undo nhầm</td><td>Restore từ backup hoặc redo manual</td><td><code>git revert + terraform apply</code></td></tr>
+  <tr><td>Audit ai đổi gì</td><td>CloudTrail (logs API call thô)</td><td>Git history (diff người-đọc-được)</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="tf-vs">2. Terraform vs CloudFormation vs CDK</h1>
+
+<table>
+  <tr><th>Công cụ</th><th>Ngôn ngữ</th><th>Multi-cloud?</th><th>Khi nào dùng</th></tr>
+  <tr><td><strong>Terraform</strong></td><td>HCL (declarative)</td><td>✅ Yes (AWS, GCP, Azure, Cloudflare...)</td><td>✅ Đa số dự án. Cộng đồng lớn nhất. Doc nhiều.</td></tr>
+  <tr><td>CloudFormation</td><td>YAML/JSON</td><td>❌ AWS only</td><td>Pure AWS shop, không học công cụ mới</td></tr>
+  <tr><td>AWS CDK</td><td>TypeScript / Python / Java</td><td>❌ AWS only (CDK for Terraform có)</td><td>Team strong code, muốn loop/condition phức tạp</td></tr>
+  <tr><td>Pulumi</td><td>TypeScript / Python / Go</td><td>✅ Multi-cloud</td><td>Như CDK nhưng đa-cloud</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Chọn Terraform</strong>
+  HCL declarative dễ đọc. Skill transferable sang job khác (mọi cty đều dùng). Đầu ra (state file) là JSON chuẩn → debug được.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="install">3. Cài đặt + setup local</h1>
+
+<h3><span class="step-num">1</span> Cài Terraform</h3>
+<pre><code><span class="cmt"># Windows -- dung Chocolatey hoac winget</span>
+winget install Hashicorp.Terraform
+
+<span class="cmt"># Verify</span>
+terraform version
+<span class="cmt"># Terraform v1.9.0+</span></code></pre>
+
+<h3><span class="step-num">2</span> AWS credentials đã có</h3>
+<p>Terraform dùng AWS credentials từ:</p>
+<ol>
+  <li><code>AWS_ACCESS_KEY_ID</code> + <code>AWS_SECRET_ACCESS_KEY</code> env vars</li>
+  <li><code>~/.aws/credentials</code></li>
+  <li>IAM role (nếu chạy trên EC2/CI)</li>
+</ol>
+
+<pre><code><span class="cmt"># Test</span>
+aws sts get-caller-identity
+<span class="cmt"># Tra ve account ID -> da co credentials</span></code></pre>
+
+<h3><span class="step-num">3</span> VS Code extension</h3>
+<ul>
+  <li>HashiCorp Terraform — syntax highlight + autocomplete</li>
+  <li>Hashicorp HCL — fallback</li>
+</ul>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="first">4. First Terraform — hello world</h1>
+
+<h3><span class="step-num">1</span> Tạo thư mục</h3>
+<pre><code>mkdir e:\AWS\Deploy-1\terraform
+cd e:\AWS\Deploy-1\terraform</code></pre>
+
+<h3><span class="step-num">2</span> File <code>main.tf</code> đầu tiên</h3>
+<pre><code><span class="cmt"># Khai bao provider (AWS, version, region)</span>
+<span class="kw">terraform</span> {
+  <span class="kw">required_version</span> = <span class="str">"&gt;= 1.5"</span>
+  <span class="kw">required_providers</span> {
+    aws = {
+      source  = <span class="str">"hashicorp/aws"</span>
+      version = <span class="str">"~&gt; 5.0"</span>
+    }
+  }
+}
+
+<span class="kw">provider</span> <span class="str">"aws"</span> {
+  region = <span class="str">"ap-southeast-1"</span>
+}
+
+<span class="cmt"># Resource dau tien -- tao 1 S3 bucket de test</span>
+<span class="kw">resource</span> <span class="str">"aws_s3_bucket"</span> <span class="str">"hello"</span> {
+  bucket = <span class="str">"vhnlong-tf-hello-2026"</span>  <span class="cmt"># phai unique toan cau</span>
+}
+
+<span class="cmt"># Output -- in ra sau khi apply</span>
+<span class="kw">output</span> <span class="str">"bucket_arn"</span> {
+  value = aws_s3_bucket.hello.arn
+}</code></pre>
+
+<h3><span class="step-num">3</span> 4 lệnh Terraform cốt lõi</h3>
+<pre><code><span class="cmt"># 1. Init -- tai provider plugin (lan dau)</span>
+terraform init
+<span class="cmt"># Tao thu muc .terraform/ va file .terraform.lock.hcl</span>
+
+<span class="cmt"># 2. Plan -- xem se thay doi gi (KHONG ap dung)</span>
+terraform plan
+<span class="cmt"># Output: + aws_s3_bucket.hello will be created</span>
+
+<span class="cmt"># 3. Apply -- ap dung</span>
+terraform apply
+<span class="cmt"># Hoi yes/no, go 'yes' de tao bucket that</span>
+<span class="cmt"># Output: bucket_arn = arn:aws:s3:::vhnlong-tf-hello-2026</span>
+
+<span class="cmt"># 4. Destroy -- xoa moi thu da tao</span>
+terraform destroy</code></pre>
+
+<div class="tip">
+  <strong>💡 Workflow chuẩn</strong>
+  <code>edit .tf → terraform plan → review → terraform apply → git commit</code>. Plan trước, đọc kỹ trước khi apply.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="concepts">5. Khái niệm cốt lõi</h1>
+
+<table>
+  <tr><th>Khái niệm</th><th>Định nghĩa ngắn</th><th>Ví dụ</th></tr>
+  <tr><td><strong>Provider</strong></td><td>Plugin nói chuyện với 1 cloud (AWS / GCP / Cloudflare)</td><td><code>provider "aws"</code></td></tr>
+  <tr><td><strong>Resource</strong></td><td>1 thực thể cụ thể trên cloud</td><td><code>resource "aws_s3_bucket" "x"</code></td></tr>
+  <tr><td><strong>Data source</strong></td><td>Đọc resource có sẵn (không tạo, chỉ tham chiếu)</td><td><code>data "aws_vpc" "default"</code></td></tr>
+  <tr><td><strong>Variable</strong></td><td>Input từ ngoài</td><td><code>variable "region" {}</code></td></tr>
+  <tr><td><strong>Output</strong></td><td>Trả ra sau apply</td><td><code>output "alb_dns" {}</code></td></tr>
+  <tr><td><strong>Local</strong></td><td>Constant trong file</td><td><code>locals { name = "myapp" }</code></td></tr>
+  <tr><td><strong>Module</strong></td><td>Nhóm resource tái sử dụng</td><td><code>module "vpc" { source = "./modules/vpc" }</code></td></tr>
+  <tr><td><strong>State</strong></td><td>JSON file Terraform dùng để track resource đã tạo</td><td><code>terraform.tfstate</code></td></tr>
+</table>
+
+<h3>State quan trọng như thế nào</h3>
+<p>Terraform <strong>không hỏi AWS</strong> mỗi lần — nó đọc <code>.tfstate</code> để biết đã tạo gì. State chứa cả secret (DB password, private key...) → <strong>không commit vào Git</strong> và phải backup.</p>
+
+<div class="danger">
+  <strong>🚨 .tfstate phải remote + lock</strong>
+  Local <code>.tfstate</code> chỉ OK cho cá nhân. Team → bắt buộc S3 backend + DynamoDB lock (Module A bên dưới). Mất state = không thể manage infra nữa, phải import lại.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="backend">6. Module A — Remote State (S3 + DynamoDB)</h2>
+
+<h3>Cấu trúc</h3>
+<ul>
+  <li><strong>S3 bucket</strong>: lưu file <code>terraform.tfstate</code></li>
+  <li><strong>DynamoDB table</strong>: lock để 2 người không apply cùng lúc</li>
+</ul>
+
+<h3><span class="step-num">A1</span> Bootstrap (tạo backend bằng tay)</h3>
+<p>Vấn đề "chicken-and-egg": muốn dùng S3 làm backend nhưng S3 chưa có. Có 2 cách:</p>
+<ul>
+  <li>Tạo S3 + DynamoDB bằng CLI (1 lần)</li>
+  <li>Tạo bằng Terraform với local state, rồi migrate state lên S3 (đẹp hơn)</li>
+</ul>
+
+<p>Đề xuất cách 1 cho đơn giản:</p>
+
+<pre><code><span class="cmt"># Tao bucket cho state</span>
+aws s3api create-bucket <span class="cmt">`</span>
+  <span class="kw">--bucket</span> vhnlong-tf-state <span class="cmt">`</span>
+  <span class="kw">--region</span> ap-southeast-1 <span class="cmt">`</span>
+  <span class="kw">--create-bucket-configuration</span> LocationConstraint=ap-southeast-1
+
+<span class="cmt"># Bat versioning de revert state khi can</span>
+aws s3api put-bucket-versioning <span class="cmt">`</span>
+  <span class="kw">--bucket</span> vhnlong-tf-state <span class="cmt">`</span>
+  <span class="kw">--versioning-configuration</span> Status=Enabled
+
+<span class="cmt"># Encrypt at rest</span>
+aws s3api put-bucket-encryption <span class="cmt">`</span>
+  <span class="kw">--bucket</span> vhnlong-tf-state <span class="cmt">`</span>
+  <span class="kw">--server-side-encryption-configuration</span> '<span class="str">{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}</span>'
+
+<span class="cmt"># Block public access</span>
+aws s3api put-public-access-block <span class="cmt">`</span>
+  <span class="kw">--bucket</span> vhnlong-tf-state <span class="cmt">`</span>
+  <span class="kw">--public-access-block-configuration</span> <span class="str">"BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</span>
+
+<span class="cmt"># Tao DynamoDB table cho lock</span>
+aws dynamodb create-table <span class="cmt">`</span>
+  <span class="kw">--region</span> ap-southeast-1 <span class="cmt">`</span>
+  <span class="kw">--table-name</span> vhnlong-tf-lock <span class="cmt">`</span>
+  <span class="kw">--attribute-definitions</span> AttributeName=LockID,AttributeType=S <span class="cmt">`</span>
+  <span class="kw">--key-schema</span> AttributeName=LockID,KeyType=HASH <span class="cmt">`</span>
+  <span class="kw">--billing-mode</span> PAY_PER_REQUEST</code></pre>
+
+<h3><span class="step-num">A2</span> Khai báo backend trong code</h3>
+<p>Sửa <code>main.tf</code>:</p>
+
+<pre><code><span class="kw">terraform</span> {
+  <span class="kw">required_version</span> = <span class="str">"&gt;= 1.5"</span>
+  <span class="kw">required_providers</span> { ... }
+
+  <span class="kw">backend</span> <span class="str">"s3"</span> {
+    bucket         = <span class="str">"vhnlong-tf-state"</span>
+    key            = <span class="str">"production/terraform.tfstate"</span>  <span class="cmt"># path trong bucket</span>
+    region         = <span class="str">"ap-southeast-1"</span>
+    encrypt        = <span class="kw">true</span>
+    dynamodb_table = <span class="str">"vhnlong-tf-lock"</span>
+  }
+}</code></pre>
+
+<h3><span class="step-num">A3</span> Migrate state local → S3</h3>
+<pre><code>terraform init -migrate-state
+<span class="cmt"># Hoi yes/no -- yes de copy state cu len S3 backend</span>
+
+<span class="cmt"># Verify -- xoa state local di, plan van OK</span>
+Remove-Item terraform.tfstate*
+terraform plan  <span class="cmt"># van doc state tu S3</span></code></pre>
+
+<div class="info">
+  <strong>ℹ️ Chi phí backend</strong>
+  S3: vài KB → $0.0001/tháng. DynamoDB pay-per-request: vài cents nếu apply nhiều. <strong>~$0/tháng cho demo</strong>.
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="import">7. Module B — Import existing AWS resources</h2>
+
+<p>Bạn đã có ALB, ASG, ECS, S3... từ Phase 3-4. Không cần xóa rồi tạo lại — <strong>import</strong> chúng vào Terraform state.</p>
+
+<h3><span class="step-num">B1</span> Cách 1 — Lệnh <code>terraform import</code></h3>
+<p>Format: <code>terraform import &lt;resource_address&gt; &lt;cloud_id&gt;</code></p>
+
+<pre><code><span class="cmt"># 1. Viet skeleton resource trong .tf (chua co value)</span>
+<span class="cmt"># resources.tf:</span>
+<span class="kw">resource</span> <span class="str">"aws_lb"</span> <span class="str">"main"</span> {
+  <span class="cmt"># de trong, se fill sau khi import</span>
+}
+
+<span class="cmt"># 2. Lay ARN cua ALB hien tai</span>
+aws elbv2 describe-load-balancers <span class="kw">--names</span> myapp-alb <span class="cmt">`</span>
+  <span class="kw">--query</span> <span class="str">"LoadBalancers[0].LoadBalancerArn"</span> <span class="kw">--output</span> text
+
+<span class="cmt"># 3. Import</span>
+terraform import aws_lb.main &lt;ALB_ARN&gt;
+
+<span class="cmt"># 4. terraform plan -- se bao "no changes" hoac liet ke field bi khac</span>
+<span class="cmt"># Fill cac field thieu trong .tf cho khop voi reality</span></code></pre>
+
+<h3><span class="step-num">B2</span> Cách 2 — <code>import block</code> (Terraform 1.5+, dễ hơn)</h3>
+<pre><code><span class="cmt"># resources.tf:</span>
+<span class="kw">import</span> {
+  to = aws_lb.main
+  id = <span class="str">"arn:aws:elasticloadbalancing:ap-southeast-1:529568113348:loadbalancer/app/myapp-alb/abc123"</span>
+}
+
+<span class="kw">resource</span> <span class="str">"aws_lb"</span> <span class="str">"main"</span> {
+  name = <span class="str">"myapp-alb"</span>
+  <span class="cmt"># ... fill sau</span>
+}
+
+<span class="cmt"># Generate config tu existing</span>
+terraform plan -generate-config-out=generated.tf
+<span class="cmt"># Terraform sinh ra file generated.tf voi day du field. Merge thu cong vao .tf cua ban.</span></code></pre>
+
+<h3>Roadmap import từ Phase 3-4</h3>
+<table>
+  <tr><th>Resource hiện có</th><th>Terraform type</th><th>ID format</th></tr>
+  <tr><td>S3 bucket vhnlong-images</td><td><code>aws_s3_bucket</code></td><td>bucket name</td></tr>
+  <tr><td>CloudFront distribution</td><td><code>aws_cloudfront_distribution</code></td><td>distribution ID (E1IFE...)</td></tr>
+  <tr><td>ALB</td><td><code>aws_lb</code></td><td>ARN đầy đủ</td></tr>
+  <tr><td>Target Group</td><td><code>aws_lb_target_group</code></td><td>ARN</td></tr>
+  <tr><td>ACM cert</td><td><code>aws_acm_certificate</code></td><td>ARN</td></tr>
+  <tr><td>Route 53 record</td><td><code>aws_route53_record</code></td><td>ZONE_ID_NAME_TYPE (vd <code>Z099_vhnlong.store_A</code>)</td></tr>
+  <tr><td>SSM Parameter</td><td><code>aws_ssm_parameter</code></td><td>param name</td></tr>
+  <tr><td>IAM role</td><td><code>aws_iam_role</code></td><td>role name</td></tr>
+  <tr><td>Security Group</td><td><code>aws_security_group</code></td><td>sg-id</td></tr>
+</table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="modules">8. Module C — Refactor thành modules</h2>
+
+<h3>Tại sao</h3>
+<p>1 file <code>main.tf</code> 1000 dòng = không maintain được. Tách thành modules theo concern:</p>
+
+<div class="file-tree">terraform/
+├── main.tf                    # root: provider + backend + module calls
+├── variables.tf               # input vars
+├── outputs.tf                 # output (ALB DNS, RDS endpoint...)
+├── terraform.tfvars           # values cua vars (gitignore neu co secret)
+├── modules/
+│   ├── network/
+│   │   ├── main.tf            # VPC, subnets, security groups
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   ├── alb/
+│   │   ├── main.tf            # ALB + listeners + target groups
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   ├── ecs/
+│   │   ├── main.tf            # cluster + service + task def
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   ├── rds/
+│   │   ├── main.tf            # RDS instance + subnet group
+│   │   ├── variables.tf
+│   │   └── outputs.tf
+│   └── s3-cdn/
+│       ├── main.tf            # bucket + CloudFront + OAC
+│       ├── variables.tf
+│       └── outputs.tf
+└── environments/
+    ├── production/
+    │   ├── main.tf            # goi modules voi var production
+    │   └── terraform.tfvars
+    └── staging/
+        ├── main.tf
+        └── terraform.tfvars</div>
+
+<h3><span class="step-num">C1</span> Ví dụ module ALB</h3>
+<p><code>modules/alb/variables.tf</code>:</p>
+<pre><code><span class="kw">variable</span> <span class="str">"name"</span>            { <span class="kw">type</span> = string }
+<span class="kw">variable</span> <span class="str">"vpc_id"</span>          { <span class="kw">type</span> = string }
+<span class="kw">variable</span> <span class="str">"subnet_ids"</span>      { <span class="kw">type</span> = list(string) }
+<span class="kw">variable</span> <span class="str">"certificate_arn"</span> { <span class="kw">type</span> = string }
+<span class="kw">variable</span> <span class="str">"tags"</span> {
+  <span class="kw">type</span>    = map(string)
+  <span class="kw">default</span> = {}
+}</code></pre>
+
+<p><code>modules/alb/main.tf</code>:</p>
+<pre><code><span class="kw">resource</span> <span class="str">"aws_security_group"</span> <span class="str">"alb"</span> {
+  name        = <span class="str">"</span>${var.name}<span class="str">-sg"</span>
+  description = <span class="str">"ALB inbound 80/443"</span>
+  vpc_id      = var.vpc_id
+
+  <span class="kw">ingress</span> {
+    protocol    = <span class="str">"tcp"</span>
+    from_port   = 80
+    to_port     = 80
+    cidr_blocks = [<span class="str">"0.0.0.0/0"</span>]
+  }
+  <span class="kw">ingress</span> {
+    protocol    = <span class="str">"tcp"</span>
+    from_port   = 443
+    to_port     = 443
+    cidr_blocks = [<span class="str">"0.0.0.0/0"</span>]
+  }
+  <span class="kw">egress</span> {
+    protocol    = <span class="str">"-1"</span>
+    from_port   = 0
+    to_port     = 0
+    cidr_blocks = [<span class="str">"0.0.0.0/0"</span>]
+  }
+
+  tags = var.tags
+}
+
+<span class="kw">resource</span> <span class="str">"aws_lb"</span> <span class="str">"main"</span> {
+  name               = var.name
+  load_balancer_type = <span class="str">"application"</span>
+  subnets            = var.subnet_ids
+  security_groups    = [aws_security_group.alb.id]
+
+  tags = var.tags
+}
+
+<span class="kw">resource</span> <span class="str">"aws_lb_target_group"</span> <span class="str">"main"</span> {
+  name        = <span class="str">"</span>${var.name}<span class="str">-tg"</span>
+  port        = 80
+  protocol    = <span class="str">"HTTP"</span>
+  vpc_id      = var.vpc_id
+  target_type = <span class="str">"ip"</span>  <span class="cmt"># Fargate dung IP target</span>
+
+  <span class="kw">health_check</span> {
+    path                = <span class="str">"/api/health"</span>
+    interval            = 30
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+<span class="kw">resource</span> <span class="str">"aws_lb_listener"</span> <span class="str">"https"</span> {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = <span class="str">"HTTPS"</span>
+  certificate_arn   = var.certificate_arn
+
+  <span class="kw">default_action</span> {
+    type             = <span class="str">"forward"</span>
+    target_group_arn = aws_lb_target_group.main.arn
+  }
+}
+
+<span class="kw">resource</span> <span class="str">"aws_lb_listener"</span> <span class="str">"http"</span> {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 80
+  protocol          = <span class="str">"HTTP"</span>
+
+  <span class="kw">default_action</span> {
+    type = <span class="str">"redirect"</span>
+    <span class="kw">redirect</span> {
+      port        = <span class="str">"443"</span>
+      protocol    = <span class="str">"HTTPS"</span>
+      status_code = <span class="str">"HTTP_301"</span>
+    }
+  }
+}</code></pre>
+
+<p><code>modules/alb/outputs.tf</code>:</p>
+<pre><code><span class="kw">output</span> <span class="str">"alb_dns_name"</span>      { value = aws_lb.main.dns_name }
+<span class="kw">output</span> <span class="str">"alb_zone_id"</span>       { value = aws_lb.main.zone_id }
+<span class="kw">output</span> <span class="str">"target_group_arn"</span>  { value = aws_lb_target_group.main.arn }
+<span class="kw">output</span> <span class="str">"security_group_id"</span> { value = aws_security_group.alb.id }</code></pre>
+
+<h3><span class="step-num">C2</span> Sử dụng module ở root</h3>
+<p><code>main.tf</code>:</p>
+<pre><code><span class="kw">module</span> <span class="str">"alb"</span> {
+  source = <span class="str">"./modules/alb"</span>
+
+  name            = <span class="str">"myapp-alb"</span>
+  vpc_id          = module.network.vpc_id
+  subnet_ids      = module.network.public_subnet_ids
+  certificate_arn = aws_acm_certificate.main.arn
+  tags = {
+    Environment = <span class="str">"production"</span>
+    ManagedBy   = <span class="str">"terraform"</span>
+  }
+}
+
+<span class="cmt"># Truy cap output cua module</span>
+<span class="kw">output</span> <span class="str">"app_url"</span> {
+  value = <span class="str">"https://</span>${aws_route53_record.main.fqdn}<span class="str">"</span>
+}</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="vars">9. Module D — Variables, locals, outputs</h2>
+
+<h3>Variable types</h3>
+<pre><code><span class="kw">variable</span> <span class="str">"region"</span> {
+  type        = string
+  default     = <span class="str">"ap-southeast-1"</span>
+  description = <span class="str">"AWS region"</span>
+}
+
+<span class="kw">variable</span> <span class="str">"instance_count"</span> {
+  type    = number
+  default = 1
+
+  <span class="kw">validation</span> {
+    condition     = var.instance_count &gt;= 1 &amp;&amp; var.instance_count &lt;= 10
+    error_message = <span class="str">"instance_count must be 1-10"</span>
+  }
+}
+
+<span class="kw">variable</span> <span class="str">"subnet_ids"</span> {
+  type = list(string)
+}
+
+<span class="kw">variable</span> <span class="str">"tags"</span> {
+  type    = map(string)
+  default = {}
+}
+
+<span class="kw">variable</span> <span class="str">"db_password"</span> {
+  type      = string
+  sensitive = <span class="kw">true</span>  <span class="cmt"># Khong in ra console</span>
+}</code></pre>
+
+<h3>Truyền giá trị</h3>
+<table>
+  <tr><th>Cách</th><th>Ưu tiên</th></tr>
+  <tr><td>Default trong khai báo</td><td>Thấp nhất</td></tr>
+  <tr><td>File <code>terraform.tfvars</code></td><td>Tự load</td></tr>
+  <tr><td>File <code>*.auto.tfvars</code></td><td>Tự load</td></tr>
+  <tr><td>Env var <code>TF_VAR_xxx</code></td><td>Trung bình</td></tr>
+  <tr><td>CLI <code>-var "xxx=yyy"</code></td><td>Cao nhất</td></tr>
+</table>
+
+<h3>Locals</h3>
+<pre><code><span class="kw">locals</span> {
+  name_prefix = <span class="str">"</span>${var.project}-${var.environment}<span class="str">"</span>
+
+  common_tags = {
+    Project     = var.project
+    Environment = var.environment
+    ManagedBy   = <span class="str">"terraform"</span>
+  }
+}
+
+<span class="cmt"># Dung</span>
+<span class="kw">resource</span> <span class="str">"aws_lb"</span> <span class="str">"main"</span> {
+  name = <span class="str">"</span>${local.name_prefix}<span class="str">-alb"</span>
+  tags = local.common_tags
+}</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="workspaces">10. Module E — Workspaces hoặc Directory-per-env</h2>
+
+<h3>2 cách tách prod/staging</h3>
+
+<h3>Cách 1 — Workspaces (đơn giản hơn)</h3>
+<pre><code><span class="cmt"># Tao workspace</span>
+terraform workspace new production
+terraform workspace new staging
+
+<span class="cmt"># Switch</span>
+terraform workspace select production
+terraform plan
+
+<span class="cmt"># Trong code dung var terraform.workspace</span>
+<span class="kw">locals</span> {
+  is_production = terraform.workspace == <span class="str">"production"</span>
+
+  instance_count = local.is_production ? 2 : 1
+  db_instance_class = local.is_production ? <span class="str">"db.t4g.small"</span> : <span class="str">"db.t4g.micro"</span>
+}</code></pre>
+
+<p>State file: <code>s3://bucket/env:/production/terraform.tfstate</code> + <code>env:/staging/</code></p>
+
+<h3>Cách 2 — Directory per env (linh hoạt hơn)</h3>
+<div class="file-tree">terraform/
+├── modules/...        # shared modules
+├── environments/
+│   ├── production/
+│   │   ├── main.tf    # backend key = production/...
+│   │   └── terraform.tfvars
+│   └── staging/
+│       ├── main.tf    # backend key = staging/...
+│       └── terraform.tfvars</div>
+
+<pre><code>cd environments/production
+terraform init
+terraform apply
+
+cd ../staging
+terraform init
+terraform apply</code></pre>
+
+<div class="tip">
+  <strong>💡 Khi nào chọn cái nào</strong>
+  Workspaces OK nếu env giống nhau ~95%. Directory-per-env OK nếu env khác biệt lớn (vd prod có RDS Multi-AZ, staging không).
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="cicd">11. Module F — Terraform trong CI/CD</h2>
+
+<h3>Strategy</h3>
+<ul>
+  <li><strong>Pull request</strong>: chạy <code>terraform plan</code>, comment plan output vào PR</li>
+  <li><strong>Merge to main</strong>: chạy <code>terraform apply</code> tự động</li>
+  <li><strong>Manual gate</strong>: GitHub Environment approval cho production</li>
+</ul>
+
+<h3>GitHub Actions workflow ví dụ</h3>
+<pre><code><span class="cmt"># .github/workflows/terraform.yml</span>
+name: Terraform
+
+on:
+  pull_request:
+    paths: [<span class="str">'terraform/**'</span>]
+  push:
+    branches: [main]
+    paths: [<span class="str">'terraform/**'</span>]
+
+jobs:
+  plan:
+    if: github.event_name == <span class="str">'pull_request'</span>
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ap-southeast-1
+
+      - run: terraform init
+        working-directory: terraform
+      - run: terraform plan -out=tfplan
+        working-directory: terraform
+
+      - name: Comment plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const plan = require(<span class="str">'child_process'</span>).execSync(<span class="str">'terraform show tfplan'</span>).toString();
+            github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: <span class="str">'```\n'</span> + plan + <span class="str">'\n```'</span>
+            });
+
+  apply:
+    if: github.event_name == <span class="str">'push'</span> &amp;&amp; github.ref == <span class="str">'refs/heads/main'</span>
+    runs-on: ubuntu-latest
+    environment: production   <span class="cmt"># yeu cau manual approval</span>
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { ... }
+      - run: terraform init
+      - run: terraform apply -auto-approve</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="structure">12. Cấu trúc thư mục đề xuất</h1>
+
+<div class="file-tree">e:\AWS\Deploy-1\
+├── backend/
+├── frontend/
+├── mobile/
+├── scripts/                    # PowerShell scripts hien tai
+├── docs/
+└── terraform/                  # MOI
+    ├── .terraform.lock.hcl
+    ├── .gitignore              # .terraform/, *.tfstate*, *.tfvars (neu co secret)
+    ├── backend.tf              # backend "s3" config
+    ├── providers.tf            # provider "aws" config
+    ├── variables.tf            # var khai bao
+    ├── locals.tf               # local values
+    ├── outputs.tf              # outputs cua root
+    ├── data.tf                 # data sources (default VPC, ACM cert...)
+    ├── main.tf                 # call modules
+    ├── terraform.tfvars        # values (gitignore neu co secret)
+    └── modules/
+        ├── network/
+        ├── alb/
+        ├── ecs/
+        ├── rds/
+        └── s3-cdn/</div>
+
+<h3><code>.gitignore</code> phải có</h3>
+<pre><code>terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.lock.hcl  # tuy chon -- commit neu muon pin version</code></pre>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cmd">13. Lệnh hay dùng</h1>
+
+<pre><code><span class="cmt"># Format code</span>
+terraform fmt -recursive
+
+<span class="cmt"># Validate syntax (khong goi AWS)</span>
+terraform validate
+
+<span class="cmt"># Plan với detailed exit code -- 0=no change, 1=error, 2=changes</span>
+terraform plan -detailed-exitcode
+
+<span class="cmt"># Apply chỉ 1 resource</span>
+terraform apply -target=aws_lb.main
+
+<span class="cmt"># Refresh state -- so sanh state file voi reality o AWS</span>
+terraform refresh
+
+<span class="cmt"># Xem state</span>
+terraform state list
+terraform state show aws_lb.main
+terraform state pull &gt; backup.tfstate
+
+<span class="cmt"># Sua state khi sai (cẩn thận)</span>
+terraform state rm aws_lb.main          <span class="cmt"># xoa khoi state -- KHONG xoa AWS</span>
+terraform state mv aws_lb.main aws_lb.new  <span class="cmt"># rename</span>
+
+<span class="cmt"># Force unlock neu lock bi treo (vi du Ctrl+C giua chung)</span>
+terraform force-unlock &lt;lock-id&gt;
+
+<span class="cmt"># Output</span>
+terraform output                <span class="cmt"># tat ca</span>
+terraform output -json          <span class="cmt"># cho script</span>
+terraform output alb_dns_name   <span class="cmt"># 1 cai</span></code></pre>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cleanup">14. Cleanup an toàn</h1>
+
+<pre><code><span class="cmt"># 1. Destroy moi thing trong .tf hien tai</span>
+terraform destroy
+
+<span class="cmt"># 2. Xoa state file local (neu chua migrate)</span>
+Remove-Item terraform.tfstate*
+
+<span class="cmt"># 3. Xoa S3 backend bucket (lan cuoi cung)</span>
+aws s3 rm s3://vhnlong-tf-state --recursive
+aws s3api delete-bucket --bucket vhnlong-tf-state --region ap-southeast-1
+
+<span class="cmt"># 4. Xoa DynamoDB lock table</span>
+aws dynamodb delete-table --table-name vhnlong-tf-lock --region ap-southeast-1</code></pre>
+
+<div class="danger">
+  <strong>🚨 Trước khi destroy</strong>
+  <code>terraform plan -destroy</code> in xem se xoa gi. Đọc kỹ. Xác nhận đúng môi trường (workspace / directory). Đã có ai dùng database không? Đã backup chưa?
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="trouble">15. Troubleshooting</h1>
+
+<h3>"Error acquiring state lock"</h3>
+<ul>
+  <li>1 lần apply trước đó bị crash → lock bị treo</li>
+  <li>Force unlock: <code>terraform force-unlock &lt;lock-id&gt;</code> (chỉ khi chắc không ai đang chạy)</li>
+</ul>
+
+<h3>Plan ra "changes" dù không sửa code</h3>
+<ul>
+  <li>Ai đó sửa resource trên Console → drift. Cách xử lý: hoặc revert trên Console, hoặc import lại + update code cho khớp</li>
+  <li>Provider version đổi → API behavior khác</li>
+</ul>
+
+<h3>Import resource nhưng vẫn báo "will be created"</h3>
+<ul>
+  <li>Resource address sai → check <code>terraform state list</code></li>
+  <li>Một số attribute không match (tag, name) → fill cho đúng</li>
+</ul>
+
+<h3>State bị mất</h3>
+<ul>
+  <li>S3 versioning đang bật → restore version cũ qua console</li>
+  <li>Không có backup → phải import lại tất cả resource (đau)</li>
+</ul>
+
+<h3>Apply trên CI nhưng credentials không đủ</h3>
+<ul>
+  <li>IAM user <code>github-actions-deploy</code> cần quyền tạo/xóa mọi resource bạn quản lý → có thể add <code>PowerUserAccess</code> (rộng) hoặc viết policy hẹp</li>
+</ul>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="next">16. Sang Phase 6</h1>
+
+<p>Sau Phase 5, infra đã codify. Phase 6 (Advanced) tập trung vào:</p>
+<ul>
+  <li>WAF (chống tấn công)</li>
+  <li>Secrets Manager (rotate secrets tự động)</li>
+  <li>Cost optimization (Spot, Reserved, Savings Plans)</li>
+  <li>Multi-region disaster recovery</li>
+</ul>
+
+<p>Tất cả Phase 6 đều có thể (và nên) code bằng Terraform — Phase 5 là nền cho Phase 6.</p>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>Phase 5 — Infrastructure as Code (Terraform)</strong></p>
+  <p>State: s3://vhnlong-tf-state · Lock: DynamoDB vhnlong-tf-lock · Region: ap-southeast-1</p>
+</div>
+
+</body>
+</html>

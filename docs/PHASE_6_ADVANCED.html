@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giai đoạn 6 — Advanced (WAF + Secrets Manager + Cost opt + Multi-region)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 32px; max-width: 1000px; margin: 0 auto; }
+    .cover { text-align: center; padding: 60px 0 40px; border-bottom: 3px solid #475569; margin-bottom: 48px; }
+    .cover h1 { font-size: 2.2rem; color: #475569; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge { display: inline-block; background: #e2e8f0; color: #334155; border-radius: 9999px; padding: 2px 12px; font-size: 0.8rem; margin: 4px 2px; }
+    .toc { background: #f1f5f9; border-left: 4px solid #475569; padding: 20px 24px; margin-bottom: 48px; border-radius: 0 8px 8px 0; }
+    .toc h2 { font-size: 1rem; color: #475569; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #475569; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    h1 { font-size: 1.8rem; color: #334155; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #475569; margin: 32px 0 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #334155; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 12px 0 20px; font-size: 0.82rem; line-height: 1.6; }
+    code { background: #e2e8f0; color: #334155; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    .cmt  { color: #94a3b8; }
+    .kw   { color: #93c5fd; }
+    .str  { color: #86efac; }
+    .num  { color: #fca5a5; }
+    .var  { color: #fcd34d; }
+    .info, .warn, .tip, .danger { border-left: 4px solid; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+    .info   { border-color: #3b82f6; background: #eff6ff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong { display: block; margin-bottom: 4px; }
+    .info strong   { color: #1d4ed8; }
+    .warn strong   { color: #b45309; }
+    .tip strong    { color: #065f46; }
+    .danger strong { color: #b91c1c; }
+    .arch { border: 2px solid #cbd5e1; border-radius: 12px; padding: 20px; margin: 16px 0; background: #f1f5f9; font-family: monospace; font-size: 0.82rem; line-height: 1.8; white-space: pre; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.88rem; }
+    th { background: #475569; color: #fff; padding: 8px 12px; text-align: left; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #f1f5f9; }
+    tr:hover td { background: #e2e8f0; }
+    hr { border: none; border-top: 2px dashed #cbd5e1; margin: 40px 0; }
+    .module-card { border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px 24px; margin: 24px 0; background: #f1f5f9; }
+    .module-card > h2 { border-bottom: none; margin-top: 0; padding-bottom: 0; }
+    .module-card h3 { margin-top: 16px; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569; }
+    .step-num { display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: #475569; color: white; text-align: center; line-height: 28px; font-weight: bold; margin-right: 8px; font-size: 0.9rem; }
+    .ui-path { background: #fef3c7; color: #78350f; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+    .tabs { display: flex; gap: 4px; margin: 16px 0 0 0; border-bottom: 1px solid #cbd5e1; }
+    .tab-label { padding: 6px 14px; background: #475569; color: white; border-radius: 6px 6px 0 0; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.03em; }
+    .tab-label.cli { background: #1f2937; }
+    @media print { body { padding: 16px; font-size: 12px; } .cover { padding: 30px 0 20px; } h1 { font-size: 1.5rem; } h2 { font-size: 1.2rem; } pre { font-size: 0.75rem; } a { color: #475569; } }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>🛡️ Giai đoạn 6 — Advanced</h1>
+  <p>Master guide: CloudFront + WAF + Secrets Manager + Cost optimization + Multi-region<br/>
+  Production-grade hardening + cost discipline.</p>
+  <br/>
+  <span class="badge">CloudFront FE</span>
+  <span class="badge">WAF</span>
+  <span class="badge">Secrets Manager</span>
+  <span class="badge">Spot/Reserved/Savings</span>
+  <span class="badge">Multi-region DR</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">Phase 6 là collection các best-practice — không phải tất cả đều cần cho demo</p>
+</div>
+
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#overview">Tổng quan Phase 6</a></li>
+    <li><a href="#module-a">Module A — CloudFront serve Frontend (S3 static hosting)</a></li>
+    <li><a href="#module-b">Module B — WAF (Web Application Firewall)</a></li>
+    <li><a href="#module-c">Module C — Secrets Manager + rotation</a></li>
+    <li><a href="#module-d">Module D — Cost Optimization</a></li>
+    <li><a href="#module-e">Module E — Multi-region Disaster Recovery</a></li>
+    <li><a href="#checklist">Production readiness checklist</a></li>
+    <li><a href="#cleanup">Cleanup</a></li>
+    <li><a href="#next">Sau Phase 6 — gì tiếp theo</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="overview">1. Tổng quan Phase 6</h1>
+
+<p>Phase 6 không phải linear path — là "menu" các best practice. Chọn cái nào tùy nhu cầu:</p>
+
+<table>
+  <tr><th>Module</th><th>Mục đích</th><th>Khi nào cần</th><th>Cost</th></tr>
+  <tr><td>A. CloudFront FE</td><td>FE 24/7 độc lập EC2, CDN toàn cầu</td><td>Site có user, daily EC2 down ảnh hưởng UX</td><td>~$0-1/tháng demo</td></tr>
+  <tr><td>B. WAF</td><td>Chặn DDoS, SQL injection, XSS</td><td>Có user thật, public app</td><td>~$5-10/tháng</td></tr>
+  <tr><td>C. Secrets Manager</td><td>Rotate secrets tự động + audit</td><td>Production có RDS, JWT_SECRET, API keys</td><td>$0.40/secret + $0.05/10k API call</td></tr>
+  <tr><td>D. Cost optimization</td><td>Giảm bill 30-70%</td><td>Bill &gt; $50/tháng</td><td>Free (tự tiết kiệm)</td></tr>
+  <tr><td>E. Multi-region</td><td>Survive 1 region chết</td><td>Critical app, SLA cao</td><td>~×2 cost gốc</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Cho demo project</strong>
+  Module A đã có sẵn doc [S3_FRONTEND.md](S3_FRONTEND.md) — đáng làm. Module D nên làm (giảm cost = trực tiếp thấy lợi ích). Module B-C-E là "nice to know" cho phỏng vấn.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-a">2. Module A — CloudFront serve Frontend (S3)</h2>
+
+<div class="info">
+  <strong>📖 Doc chi tiết</strong>
+  Module này đã có doc riêng: <a href="S3_FRONTEND.md">S3_FRONTEND.md</a> (7 phase + cutover). Phần dưới đây là tóm tắt + bổ sung UI walkthrough.
+</div>
+
+<h3>Tại sao migrate</h3>
+<p>Hiện tại frontend serve qua nginx trên EC2 → EC2 down ban đêm thì FE cũng down. Migrate sang S3 static hosting + CloudFront:</p>
+
+<ul>
+  <li>FE accessible 24/7 (S3 99.99% SLA)</li>
+  <li>Tốc độ nhanh hơn (CDN edge gần user)</li>
+  <li>Cost gần $0 (free tier 1TB/tháng vĩnh viễn)</li>
+  <li>EC2 chỉ cần phục vụ <code>api.vhnlong.store</code> → có thể downgrade <code>t3.small → t3.micro</code></li>
+</ul>
+
+<h3>Kiến trúc đích</h3>
+<div class="arch">vhnlong.store          ─► CloudFront (alias) ─► S3 bucket (private)
+                                              "vhnlong-frontend"
+                                                /index.html
+                                                /assets/...
+                                                /static/...
+
+api.vhnlong.store      ─► ALB (alias) ─► EC2 / ECS backend</div>
+
+<h3>Các bước chính</h3>
+<ol>
+  <li><strong>Tạo S3 bucket cho frontend</strong> (similar S3_IMAGES nhưng dùng cho static site)</li>
+  <li><strong>Build &amp; upload</strong>: <code>cd frontend &amp;&amp; npm run build &amp;&amp; aws s3 sync dist/ s3://vhnlong-frontend/</code></li>
+  <li><strong>CloudFront distribution</strong>:
+    <ul>
+      <li>Origin: S3 bucket qua OAC (như đã làm cho images)</li>
+      <li>Default root object: <code>index.html</code></li>
+      <li>Custom error pages: 403/404 → <code>/index.html</code> 200 (SPA routing)</li>
+      <li>Behavior: <code>/*</code> cache long, <code>/index.html</code> no-cache</li>
+    </ul>
+  </li>
+  <li><strong>ACM cert ở us-east-1</strong> (CloudFront ONLY accept us-east-1 cert — KHÁC ALB)</li>
+  <li><strong>Route 53</strong>: <code>vhnlong.store</code> → CloudFront alias</li>
+  <li><strong>Tách backend domain</strong>: tạo <code>api.vhnlong.store</code> → ALB</li>
+  <li><strong>Sửa frontend env</strong>: <code>VITE_API_URL=https://api.vhnlong.store</code></li>
+  <li><strong>Update CI</strong>: split deploy thành 2 workflow (frontend → S3+invalidate, backend → ECS/ASG)</li>
+</ol>
+
+<h3>S3 bucket policy cho CloudFront OAC</h3>
+<pre><code>{
+  <span class="str">"Version"</span>: <span class="str">"2012-10-17"</span>,
+  <span class="str">"Statement"</span>: [{
+    <span class="str">"Effect"</span>: <span class="str">"Allow"</span>,
+    <span class="str">"Principal"</span>: { <span class="str">"Service"</span>: <span class="str">"cloudfront.amazonaws.com"</span> },
+    <span class="str">"Action"</span>: <span class="str">"s3:GetObject"</span>,
+    <span class="str">"Resource"</span>: <span class="str">"arn:aws:s3:::vhnlong-frontend/*"</span>,
+    <span class="str">"Condition"</span>: {
+      <span class="str">"StringEquals"</span>: {
+        <span class="str">"AWS:SourceArn"</span>: <span class="str">"arn:aws:cloudfront::529568113348:distribution/&lt;DIST_ID&gt;"</span>
+      }
+    }
+  }]
+}</code></pre>
+
+<h3>CloudFront cache behavior cho SPA</h3>
+<table>
+  <tr><th>Path pattern</th><th>TTL</th><th>Lý do</th></tr>
+  <tr><td><code>/assets/*</code> (CSS, JS với hash)</td><td>1 năm</td><td>File có hash trong tên → đổi tên khi đổi nội dung</td></tr>
+  <tr><td><code>/index.html</code></td><td>0 (no-cache)</td><td>HTML root phải fetch fresh để biết file CSS/JS hash mới</td></tr>
+  <tr><td><code>/*</code> (mặc định)</td><td>1 giờ</td><td>An toàn</td></tr>
+</table>
+
+<h3>Custom error pages cho SPA routing</h3>
+<p>SPA dùng client-side routing (React Router). User vào <code>/admin/products</code> trực tiếp → S3 trả 403/404 vì không có file đó. Cần CloudFront error response:</p>
+<table>
+  <tr><th>HTTP error code</th><th>Response page</th><th>Response code</th></tr>
+  <tr><td>403</td><td>/index.html</td><td>200</td></tr>
+  <tr><td>404</td><td>/index.html</td><td>200</td></tr>
+</table>
+<p>Như vậy mọi URL không match file → trả index.html → React Router tự xử lý.</p>
+
+<h3>CI deploy frontend script</h3>
+<pre><code><span class="cmt"># .github/workflows/deploy-frontend.yml</span>
+- name: Build frontend
+  run: |
+    cd frontend
+    npm install
+    VITE_API_URL=https://api.vhnlong.store npm run build
+
+- name: Sync to S3
+  run: |
+    aws s3 sync frontend/dist/ s3://vhnlong-frontend/ \
+      --delete \
+      --cache-control <span class="str">"public, max-age=31536000"</span> \
+      --exclude index.html
+
+    <span class="cmt"># index.html cache khac</span>
+    aws s3 cp frontend/dist/index.html s3://vhnlong-frontend/index.html \
+      --cache-control <span class="str">"no-cache, no-store, must-revalidate"</span>
+
+- name: Invalidate CloudFront
+  run: |
+    aws cloudfront create-invalidation \
+      --distribution-id $CF_DIST_ID \
+      --paths <span class="str">"/index.html"</span> <span class="str">"/"</span></code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-b">3. Module B — WAF (Web Application Firewall)</h2>
+
+<h3>WAF làm gì</h3>
+<p>Đứng trước ALB hoặc CloudFront, inspect mỗi HTTP request và <strong>block / allow / count</strong> theo rule:</p>
+<ul>
+  <li>Rate limit: 1 IP &gt; 2000 req/5 phút → block</li>
+  <li>Geo block: chặn IP từ countries cụ thể</li>
+  <li>SQL injection / XSS detection (managed rule)</li>
+  <li>Bot control (managed rule, có phí riêng)</li>
+  <li>Custom rules: chặn theo header, URI, body...</li>
+</ul>
+
+<h3><span class="step-num">B1</span> Quyết định attach vào ALB hay CloudFront</h3>
+<table>
+  <tr><th>Attach vào</th><th>Region WAF phải tạo</th><th>Scope</th></tr>
+  <tr><td>ALB</td><td>Cùng region ALB (ap-southeast-1)</td><td>Regional WebACL</td></tr>
+  <tr><td>CloudFront</td><td>us-east-1 (BẮT BUỘC)</td><td>Global / CLOUDFRONT scope</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Best</strong>
+  Attach vào <strong>CloudFront</strong> (filter trước khi vào origin) + giữ ALB tách biệt. Demo này có thể bắt đầu với ALB nếu chưa có CloudFront cho backend.
+</div>
+
+<h3><span class="step-num">B2</span> Tạo WAF Web ACL (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">WAF & Shield → Web ACLs → Create web ACL</span></li>
+  <li>Resource type:
+    <ul>
+      <li><strong>Regional resources (ALB, API Gateway...)</strong> → region ap-southeast-1</li>
+      <li>HOẶC CloudFront distributions → region tự động us-east-1</li>
+    </ul>
+  </li>
+  <li>Name: <code>myapp-waf</code></li>
+  <li>CloudWatch metric name: <code>myapp-waf</code></li>
+  <li>Add AWS resources: chọn <code>myapp-alb</code> (hoặc CloudFront distribution)</li>
+  <li>Next → <strong>Add rules and rule groups</strong></li>
+</ol>
+
+<h3><span class="step-num">B3</span> Add Managed Rule Groups (free + recommended)</h3>
+<ol>
+  <li><strong>AWS Managed Rules</strong>: AWSManagedRulesCommonRuleSet (chặn OWASP top 10 cơ bản)</li>
+  <li><strong>AWSManagedRulesKnownBadInputsRuleSet</strong> (chặn known malicious patterns)</li>
+  <li><strong>AWSManagedRulesAmazonIpReputationList</strong> (chặn IP có lịch sử xấu)</li>
+  <li><strong>AWSManagedRulesSQLiRuleSet</strong> (SQL injection)</li>
+</ol>
+
+<p>Mỗi managed rule: chọn <strong>Count</strong> trước (chỉ log, không block) trong vài ngày để xem có false positive không, rồi đổi sang <strong>Block</strong>.</p>
+
+<h3><span class="step-num">B4</span> Add custom rate limit rule</h3>
+<ol>
+  <li>Add my own rules → Rule builder</li>
+  <li>Name: <code>rate-limit-per-ip</code></li>
+  <li>Type: Rate-based rule</li>
+  <li>Rate limit: <strong>2000</strong> requests per 5 minute period per IP</li>
+  <li>Action: <strong>Block</strong></li>
+  <li>Add rule</li>
+</ol>
+
+<h3><span class="step-num">B5</span> Default action + priority</h3>
+<ul>
+  <li>Default action (request không match rule nào): <strong>Allow</strong></li>
+  <li>Priority: rate-limit ưu tiên cao (chạy trước), managed rules sau</li>
+</ul>
+
+<h3>Verify</h3>
+<pre><code><span class="cmt"># Test rate limit bang ab (Apache Bench)</span>
+ab -n 3000 -c 50 https://vhnlong.store/api/health
+<span class="cmt"># Sau khi vuot 2000 req/5min, se thay 403 Forbidden</span>
+
+<span class="cmt"># Xem WAF metrics o CloudWatch</span>
+aws cloudwatch get-metric-statistics <span class="cmt">`</span>
+  <span class="kw">--namespace</span> AWS/WAFV2 <span class="cmt">`</span>
+  <span class="kw">--metric-name</span> BlockedRequests <span class="cmt">`</span>
+  <span class="kw">--dimensions</span> Name=WebACL,Value=myapp-waf Name=Rule,Value=rate-limit-per-ip <span class="cmt">`</span>
+  <span class="kw">--start-time</span> 2026-05-22T00:00:00Z <span class="cmt">`</span>
+  <span class="kw">--end-time</span> 2026-05-22T23:59:59Z <span class="cmt">`</span>
+  <span class="kw">--period</span> 300 <span class="kw">--statistics</span> Sum</code></pre>
+
+<h3>Chi phí WAF</h3>
+<table>
+  <tr><th>Item</th><th>Cost</th></tr>
+  <tr><td>Web ACL</td><td>$5/tháng</td></tr>
+  <tr><td>Mỗi rule</td><td>$1/tháng</td></tr>
+  <tr><td>Mỗi 1M requests inspect</td><td>$0.60</td></tr>
+  <tr><td>Demo (1 ACL + 4-5 rules + ít traffic)</td><td>~$10/tháng</td></tr>
+</table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-c">4. Module C — Secrets Manager + Rotation</h2>
+
+<h3>SSM Parameter Store SecureString vs Secrets Manager</h3>
+<table>
+  <tr><th>Tiêu chí</th><th>SSM SecureString</th><th>Secrets Manager</th></tr>
+  <tr><td>Cost</td><td>FREE</td><td>$0.40/secret/tháng</td></tr>
+  <tr><td>Encryption</td><td>KMS</td><td>KMS</td></tr>
+  <tr><td>Rotation tự động</td><td>❌ Manual</td><td>✅ Lambda-based, hỗ trợ RDS sẵn</td></tr>
+  <tr><td>Versioning</td><td>✅ Có</td><td>✅ Có</td></tr>
+  <tr><td>Cross-account access</td><td>Khó</td><td>Dễ (resource policy)</td></tr>
+  <tr><td>Cross-region replication</td><td>❌</td><td>✅</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Khi nào dùng cái nào</strong>
+  Demo / config → SSM SecureString (free).<br/>
+  Production secrets cần rotate / audit → Secrets Manager.<br/>
+  Project bạn hiện dùng SSM ổn — không cần migrate trừ khi muốn auto rotate JWT_SECRET / DB_PASSWORD.
+</div>
+
+<h3><span class="step-num">C1</span> Tạo secret (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">Secrets Manager → Store a new secret</span></li>
+  <li>Secret type: <strong>Credentials for Amazon RDS database</strong> (nếu là DB) / <strong>Other type of secret</strong> (nếu generic)</li>
+  <li>Key/value:
+    <ul>
+      <li>username: <code>userPostgres</code></li>
+      <li>password: <code>&lt;current password&gt;</code></li>
+    </ul>
+  </li>
+  <li>Encryption key: <code>aws/secretsmanager</code> (managed)</li>
+  <li>Name: <code>myapp/production/db-credentials</code></li>
+  <li>Configure rotation:
+    <ul>
+      <li>Automatic rotation: <strong>On</strong></li>
+      <li>Rotation schedule: 30 days</li>
+      <li>Rotation function: tạo mới Lambda từ template (AWS có sẵn cho RDS)</li>
+    </ul>
+  </li>
+  <li>Store</li>
+</ol>
+
+<h3><span class="step-num">C2</span> App đọc secret</h3>
+<p>Cách 1 — ECS Fargate (đẹp nhất):</p>
+<pre><code><span class="cmt"># Task definition</span>
+<span class="str">"secrets"</span>: [
+  { <span class="str">"name"</span>: <span class="str">"DB_USERNAME"</span>, <span class="str">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:ap-southeast-1:...:secret:myapp/production/db-credentials:username::"</span> },
+  { <span class="str">"name"</span>: <span class="str">"DB_PASSWORD"</span>, <span class="str">"valueFrom"</span>: <span class="str">"arn:aws:secretsmanager:ap-southeast-1:...:secret:myapp/production/db-credentials:password::"</span> }
+]</code></pre>
+
+<p>Cách 2 — Node.js đọc lúc startup:</p>
+<pre><code><span class="kw">import</span> { SecretsManagerClient, GetSecretValueCommand } <span class="kw">from</span> <span class="str">'@aws-sdk/client-secrets-manager'</span>;
+
+<span class="kw">async function</span> getSecret(name: string) {
+  <span class="kw">const</span> client = <span class="kw">new</span> SecretsManagerClient({ region: <span class="str">'ap-southeast-1'</span> });
+  <span class="kw">const</span> { SecretString } = <span class="kw">await</span> client.send(<span class="kw">new</span> GetSecretValueCommand({ SecretId: name }));
+  <span class="kw">return</span> JSON.parse(SecretString!);
+}
+
+<span class="kw">const</span> dbCreds = <span class="kw">await</span> getSecret(<span class="str">'myapp/production/db-credentials'</span>);
+<span class="cmt">// dbCreds.username, dbCreds.password</span></code></pre>
+
+<h3>RDS auto rotation flow</h3>
+<div class="arch">1. Secrets Manager Lambda chay theo schedule (30 ngay)
+2. Lambda tao password moi
+3. Lambda goi RDS ModifyDBInstance MasterUserPassword
+4. RDS update password (online, khong downtime)
+5. Lambda update Secret voi password moi
+6. App o reboot ke tiep doc password moi
+   (hoac dung "AWSCURRENT" -- secret auto cap nhat)</div>
+
+<h3>Chi phí</h3>
+<table>
+  <tr><th>Item</th><th>Cost</th></tr>
+  <tr><td>Mỗi secret/tháng</td><td>$0.40</td></tr>
+  <tr><td>Mỗi 10k API call</td><td>$0.05</td></tr>
+  <tr><td>Rotation Lambda</td><td>Free tier 1M invocations/tháng</td></tr>
+  <tr><td>Demo (1-3 secret)</td><td>~$1.20/tháng</td></tr>
+</table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-d">5. Module D — Cost Optimization</h2>
+
+<p>Đây là module <strong>có giá trị thực tế nhất</strong> trong Phase 6 cho demo project.</p>
+
+<h3>5.1 Compute pricing models (EC2 / Fargate)</h3>
+<table>
+  <tr><th>Mode</th><th>Cost so với On-Demand</th><th>Cam kết</th><th>Phù hợp</th></tr>
+  <tr><td><strong>On-Demand</strong></td><td>100% (baseline)</td><td>Không</td><td>Demo, dev, traffic không đoán được</td></tr>
+  <tr><td><strong>Spot</strong></td><td>~30% (giảm 70%)</td><td>AWS có thể terminate &lt;2 phút notice</td><td>Batch job, CI runners, stateless app có ASG đỡ</td></tr>
+  <tr><td><strong>Reserved (1y)</strong></td><td>~60% (giảm 40%)</td><td>Cam kết 1 năm</td><td>Production stable workload</td></tr>
+  <tr><td><strong>Reserved (3y)</strong></td><td>~40% (giảm 60%)</td><td>Cam kết 3 năm</td><td>Long-running platform</td></tr>
+  <tr><td><strong>Savings Plans</strong></td><td>~50-70% (linh hoạt)</td><td>Cam kết $/giờ trong 1-3 năm</td><td>✅ Tốt nhất cho production có scale</td></tr>
+</table>
+
+<h3>5.2 Spot instances cho ASG</h3>
+<p>ASG có thể dùng <strong>mixed instance policy</strong>: 50% on-demand + 50% spot. Khi spot bị terminate, on-demand vẫn còn.</p>
+
+<pre><code>aws autoscaling create-auto-scaling-group <span class="cmt">`</span>
+  <span class="kw">--auto-scaling-group-name</span> myapp-asg <span class="cmt">`</span>
+  <span class="kw">--mixed-instances-policy</span> '<span class="str">{
+    "LaunchTemplate": {
+      "LaunchTemplateSpecification": {"LaunchTemplateId": "lt-...", "Version": "$Latest"}
+    },
+    "InstancesDistribution": {
+      "OnDemandPercentageAboveBaseCapacity": 50,
+      "SpotAllocationStrategy": "capacity-optimized"
+    }
+  }</span>'</code></pre>
+
+<h3>5.3 Storage tiering</h3>
+<table>
+  <tr><th>S3 storage class</th><th>Cost/GB/tháng</th><th>Retrieval cost</th><th>Phù hợp</th></tr>
+  <tr><td>S3 Standard</td><td>$0.025</td><td>$0</td><td>Hot data &lt;30 ngày</td></tr>
+  <tr><td>S3 Intelligent-Tiering</td><td>$0.025 → $0.0125 → $0.004</td><td>$0</td><td>✅ Default cho mọi data &gt;128KB không biết pattern</td></tr>
+  <tr><td>S3 Standard-IA</td><td>$0.0125</td><td>$0.01/GB</td><td>Backup truy cập 1 lần/tháng</td></tr>
+  <tr><td>S3 Glacier Instant</td><td>$0.004</td><td>$0.03/GB</td><td>Archive truy cập hiếm</td></tr>
+  <tr><td>S3 Glacier Deep Archive</td><td>$0.00099</td><td>$0.02/GB + 12h retrieval</td><td>Long-term archive (legal/compliance)</td></tr>
+</table>
+
+<p><strong>Áp dụng lifecycle rule</strong> để tự move data sang tier rẻ hơn:</p>
+<pre><code>{
+  <span class="str">"Rules"</span>: [{
+    <span class="str">"Id"</span>: <span class="str">"move-to-IA-then-glacier"</span>,
+    <span class="str">"Status"</span>: <span class="str">"Enabled"</span>,
+    <span class="str">"Transitions"</span>: [
+      { <span class="str">"Days"</span>: 30,  <span class="str">"StorageClass"</span>: <span class="str">"STANDARD_IA"</span> },
+      { <span class="str">"Days"</span>: 90,  <span class="str">"StorageClass"</span>: <span class="str">"GLACIER_IR"</span> },
+      { <span class="str">"Days"</span>: 365, <span class="str">"StorageClass"</span>: <span class="str">"DEEP_ARCHIVE"</span> }
+    ]
+  }]
+}</code></pre>
+
+<h3>5.4 CloudWatch logs retention</h3>
+<p>Log group mặc định "Never expire" → phình. Set retention:</p>
+<pre><code><span class="cmt"># Liet ke log group khong co retention</span>
+aws logs describe-log-groups <span class="kw">--query</span> <span class="str">"logGroups[?retentionInDays==null].logGroupName"</span>
+
+<span class="cmt"># Set retention 7 ngay cho tat ca</span>
+aws logs describe-log-groups <span class="kw">--query</span> <span class="str">"logGroups[].logGroupName"</span> <span class="kw">--output</span> text | <span class="cmt">`</span>
+  ForEach-Object { aws logs put-retention-policy <span class="kw">--log-group-name</span> $_ <span class="kw">--retention-in-days</span> 7 }</code></pre>
+
+<h3>5.5 ECR lifecycle</h3>
+<p>Đã làm ở Phase 4 Module A — giữ 10 image gần nhất.</p>
+
+<h3>5.6 Unused resources audit</h3>
+<pre><code><span class="cmt"># Elastic IP khong gan vao instance -- ton $0.005/giờ</span>
+aws ec2 describe-addresses <span class="kw">--query</span> <span class="str">"Addresses[?AssociationId==null].PublicIp"</span> <span class="kw">--output</span> text
+
+<span class="cmt"># EBS volumes "available" (khong attach instance)</span>
+aws ec2 describe-volumes <span class="kw">--filters</span> Name=status,Values=available <span class="kw">--query</span> <span class="str">"Volumes[].VolumeId"</span>
+
+<span class="cmt"># EBS snapshots cu &gt; 90 ngay</span>
+aws ec2 describe-snapshots <span class="kw">--owner-ids</span> self <span class="kw">--query</span> <span class="str">"Snapshots[?StartTime&lt;'2026-02-22'].SnapshotId"</span>
+
+<span class="cmt"># Old AMIs (duplicate)</span>
+aws ec2 describe-images <span class="kw">--owners</span> self <span class="kw">--query</span> <span class="str">"Images[].{Id:ImageId,Name:Name,Date:CreationDate}"</span> <span class="kw">--output</span> table
+
+<span class="cmt"># NAT Gateway -- $32/thang/cai. Co the bo va dung VPC endpoint hoac public subnet</span>
+aws ec2 describe-nat-gateways <span class="kw">--query</span> <span class="str">"NatGateways[].{Id:NatGatewayId,State:State}"</span>
+
+<span class="cmt"># Project nay co cost-check.ps1 audit tat ca</span></code></pre>
+
+<h3>5.7 Cost alarms</h3>
+<pre><code><span class="cmt"># SNS topic cho alert</span>
+aws sns create-topic <span class="kw">--name</span> billing-alarms
+
+<span class="cmt"># Alarm: bill du doan vuot $20</span>
+aws cloudwatch put-metric-alarm <span class="cmt">`</span>
+  <span class="kw">--region</span> us-east-1 <span class="cmt"># billing metric chi o us-east-1</span> <span class="cmt">`</span>
+  <span class="kw">--alarm-name</span> billing-over-20 <span class="cmt">`</span>
+  <span class="kw">--namespace</span> AWS/Billing <span class="kw">--metric-name</span> EstimatedCharges <span class="cmt">`</span>
+  <span class="kw">--dimensions</span> Name=Currency,Value=USD <span class="cmt">`</span>
+  <span class="kw">--statistic</span> Maximum <span class="cmt">`</span>
+  <span class="kw">--period</span> 21600 <span class="kw">--evaluation-periods</span> 1 <span class="cmt">`</span>
+  <span class="kw">--threshold</span> 20 <span class="kw">--comparison-operator</span> GreaterThanThreshold <span class="cmt">`</span>
+  <span class="kw">--alarm-actions</span> &lt;sns-arn&gt;</code></pre>
+
+<h3>5.8 Tag-based cost allocation</h3>
+<p>Tag mọi resource với <code>Project=myapp</code>, <code>Environment=production</code>, <code>Owner=longvhn</code>. Sau đó bật cost allocation tag → Cost Explorer phân tích theo tag.</p>
+
+<div class="tip">
+  <strong>💡 Quick wins cost</strong>
+  <ul>
+    <li>Daily lifecycle (đã có) — tiết kiệm 50% EC2</li>
+    <li>ECR lifecycle policy — giữ 10 image</li>
+    <li>CloudWatch logs retention 7-30 ngày</li>
+    <li>S3 Intelligent-Tiering cho mọi bucket</li>
+    <li>Xóa EBS snapshots cũ &gt; 30 ngày</li>
+    <li>Bill alarm $20 → email cảnh báo sớm</li>
+  </ul>
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-e">6. Module E — Multi-region Disaster Recovery</h2>
+
+<h3>4 mức DR (theo độ phức tạp tăng dần)</h3>
+<table>
+  <tr><th>Strategy</th><th>RTO (recover time)</th><th>RPO (data loss)</th><th>Cost</th><th>Cách làm</th></tr>
+  <tr><td><strong>Backup-Restore</strong></td><td>Hours</td><td>Hours</td><td>Thấp (chỉ trả backup)</td><td>S3 cross-region replication, RDS snapshot copy</td></tr>
+  <tr><td><strong>Pilot Light</strong></td><td>10s phút</td><td>Phút</td><td>~20% region chính</td><td>RDS Multi-AZ + RDS Read Replica region khác, EC2 AMI sẵn</td></tr>
+  <tr><td><strong>Warm Standby</strong></td><td>Phút</td><td>Giây</td><td>~50%</td><td>ASG capacity nhỏ ở region khác + RDS replica</td></tr>
+  <tr><td><strong>Active-Active</strong></td><td>0 (instant)</td><td>0</td><td>~×2</td><td>Cả 2 region nhận traffic qua Route 53 weighted/latency routing</td></tr>
+</table>
+
+<div class="info">
+  <strong>ℹ️ Demo project</strong>
+  Backup-Restore là đủ. Active-active = production thực sự ($60+/tháng).
+</div>
+
+<h3>6.1 S3 Cross-Region Replication (CRR)</h3>
+<p>Replicate object từ <code>ap-southeast-1</code> sang <code>ap-southeast-2</code> tự động:</p>
+<pre><code><span class="cmt"># 1. Tao bucket o region dich</span>
+aws s3api create-bucket <span class="kw">--bucket</span> vhnlong-images-dr <span class="kw">--region</span> ap-southeast-2 <span class="cmt">`</span>
+  <span class="kw">--create-bucket-configuration</span> LocationConstraint=ap-southeast-2
+
+<span class="cmt"># 2. Versioning bat buoc cho CRR</span>
+aws s3api put-bucket-versioning <span class="kw">--bucket</span> vhnlong-images <span class="kw">--versioning-configuration</span> Status=Enabled
+aws s3api put-bucket-versioning <span class="kw">--bucket</span> vhnlong-images-dr <span class="kw">--versioning-configuration</span> Status=Enabled
+
+<span class="cmt"># 3. Tao IAM role cho replication</span>
+<span class="cmt"># 4. Apply replication config (JSON)</span>
+aws s3api put-bucket-replication <span class="kw">--bucket</span> vhnlong-images <span class="kw">--replication-configuration</span> file://replication.json</code></pre>
+
+<h3>6.2 RDS cross-region read replica</h3>
+<pre><code>aws rds create-db-instance-read-replica <span class="cmt">`</span>
+  <span class="kw">--db-instance-identifier</span> myapp-prod-db-dr <span class="cmt">`</span>
+  <span class="kw">--source-db-instance-identifier</span> arn:aws:rds:ap-southeast-1:529568113348:db:myapp-prod-db <span class="cmt">`</span>
+  <span class="kw">--region</span> ap-southeast-2</code></pre>
+
+<p>Khi region chính chết → promote replica thành primary:</p>
+<pre><code>aws rds promote-read-replica <span class="kw">--db-instance-identifier</span> myapp-prod-db-dr <span class="kw">--region</span> ap-southeast-2</code></pre>
+
+<h3>6.3 Route 53 failover routing</h3>
+<p>Có 2 record cùng <code>vhnlong.store</code>:</p>
+<ul>
+  <li>Record PRIMARY: ALIAS → ALB ap-southeast-1, healthcheck đính kèm</li>
+  <li>Record SECONDARY: ALIAS → ALB ap-southeast-2, không healthcheck</li>
+</ul>
+<p>Khi ALB primary fail healthcheck → Route 53 tự trả về SECONDARY.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="checklist">7. Production readiness checklist</h1>
+
+<p>Sau Phase 1-6, dùng checklist này verify:</p>
+
+<table>
+  <tr><th>Hạng mục</th><th>Y/N</th><th>Module</th></tr>
+  <tr><td>HTTPS cert hợp lệ + auto renew</td><td></td><td>P3 (ACM via ALB)</td></tr>
+  <tr><td>Application có /api/health endpoint</td><td></td><td>P1</td></tr>
+  <tr><td>ALB health check active</td><td></td><td>P3</td></tr>
+  <tr><td>ASG hoặc ECS Service self-heal</td><td></td><td>P3 / P4</td></tr>
+  <tr><td>Multi-AZ (≥2 zone)</td><td></td><td>P3</td></tr>
+  <tr><td>Database backup tự động</td><td></td><td>RDS Multi-AZ (P3 Module D)</td></tr>
+  <tr><td>Logs centralized (không SSH grep file)</td><td></td><td>P4 Module B</td></tr>
+  <tr><td>Secrets không hardcode trong code/repo</td><td></td><td>SSM / Secrets Manager</td></tr>
+  <tr><td>WAF / rate limiting</td><td></td><td>P6 Module B</td></tr>
+  <tr><td>Cost monitoring + alerts</td><td></td><td>P6 Module D</td></tr>
+  <tr><td>Infra trong Git (Terraform)</td><td></td><td>P5</td></tr>
+  <tr><td>Deploy có rollback path</td><td></td><td>P4 Module F (Blue/Green)</td></tr>
+  <tr><td>Runbook cho oncall (ai chạy gì khi đau)</td><td></td><td>—</td></tr>
+  <tr><td>Disaster recovery tested</td><td></td><td>P6 Module E</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cleanup">8. Cleanup</h1>
+
+<p>Phase 6 tạo nhiều resource, cleanup theo từng module:</p>
+
+<pre><code><span class="cmt"># Module A -- CloudFront FE</span>
+<span class="cmt"># Theo S3_FRONTEND.md section cleanup</span>
+
+<span class="cmt"># Module B -- WAF</span>
+aws wafv2 disassociate-web-acl <span class="kw">--resource-arn</span> &lt;ALB_ARN&gt; <span class="kw">--region</span> ap-southeast-1
+aws wafv2 delete-web-acl <span class="kw">--name</span> myapp-waf <span class="kw">--scope</span> REGIONAL <span class="kw">--id</span> &lt;id&gt; <span class="kw">--lock-token</span> &lt;token&gt; <span class="kw">--region</span> ap-southeast-1
+
+<span class="cmt"># Module C -- Secrets Manager</span>
+aws secretsmanager delete-secret <span class="kw">--secret-id</span> myapp/production/db-credentials <span class="kw">--recovery-window-in-days</span> 7
+<span class="cmt"># Co the recover trong 7 ngay neu can</span>
+
+<span class="cmt"># Module D -- Cost</span>
+<span class="cmt"># Khong tao resource (chi config). Khong can cleanup.</span>
+
+<span class="cmt"># Module E -- Multi-region</span>
+<span class="cmt"># Xoa replication config, RDS replica, secondary ALB</span></code></pre>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="next">9. Sau Phase 6 — gì tiếp theo</h1>
+
+<p>Hết Phase 6 là đã cover hết roadmap. Tiếp theo có thể:</p>
+<ul>
+  <li><strong>Certification</strong>: AWS Solutions Architect Associate (SAA-C03) — toàn bộ Phase 1-6 là syllabus</li>
+  <li><strong>Job hunt</strong>: portfolio này đủ làm DevOps junior/middle</li>
+  <li><strong>Deep dive Kubernetes</strong>: học EKS hoặc local minikube</li>
+  <li><strong>Observability deep dive</strong>: Datadog / Prometheus / Grafana</li>
+  <li><strong>Security deep dive</strong>: AWS Config, GuardDuty, IAM Access Analyzer</li>
+  <li><strong>Cost optimization advanced</strong>: AWS Compute Optimizer, Trusted Advisor</li>
+</ul>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>Phase 6 — Advanced</strong></p>
+  <p>Production-grade hardening · Cost discipline · Multi-region DR</p>
+</div>
+
+</body>
+</html>

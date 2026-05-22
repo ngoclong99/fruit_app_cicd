@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giai đoạn 4 — Container Orchestration (ECS Fargate)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 32px; max-width: 1000px; margin: 0 auto; }
+    .cover { text-align: center; padding: 60px 0 40px; border-bottom: 3px solid #4338ca; margin-bottom: 48px; }
+    .cover h1 { font-size: 2.2rem; color: #4338ca; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge { display: inline-block; background: #e0e7ff; color: #3730a3; border-radius: 9999px; padding: 2px 12px; font-size: 0.8rem; margin: 4px 2px; }
+    .toc { background: #eef2ff; border-left: 4px solid #4338ca; padding: 20px 24px; margin-bottom: 48px; border-radius: 0 8px 8px 0; }
+    .toc h2 { font-size: 1rem; color: #4338ca; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #4338ca; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    h1 { font-size: 1.8rem; color: #3730a3; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #4338ca; margin: 32px 0 10px; border-bottom: 1px solid #c7d2fe; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #3730a3; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    pre { background: #1e1b4b; color: #e0e7ff; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 12px 0 20px; font-size: 0.82rem; line-height: 1.6; }
+    code { background: #e0e7ff; color: #3730a3; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    .cmt  { color: #94a3b8; }
+    .kw   { color: #a5b4fc; }
+    .str  { color: #86efac; }
+    .num  { color: #fca5a5; }
+    .var  { color: #fcd34d; }
+    .info, .warn, .tip, .danger { border-left: 4px solid; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+    .info   { border-color: #3b82f6; background: #eff6ff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong { display: block; margin-bottom: 4px; }
+    .info strong   { color: #1d4ed8; }
+    .warn strong   { color: #b45309; }
+    .tip strong    { color: #065f46; }
+    .danger strong { color: #b91c1c; }
+    .arch { border: 2px solid #c7d2fe; border-radius: 12px; padding: 20px; margin: 16px 0; background: #eef2ff; font-family: monospace; font-size: 0.82rem; line-height: 1.8; white-space: pre; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.88rem; }
+    th { background: #4338ca; color: #fff; padding: 8px 12px; text-align: left; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #eef2ff; }
+    tr:hover td { background: #e0e7ff; }
+    hr { border: none; border-top: 2px dashed #c7d2fe; margin: 40px 0; }
+    .module-card { border: 1px solid #c7d2fe; border-radius: 12px; padding: 20px 24px; margin: 24px 0; background: #eef2ff; }
+    .module-card > h2 { border-bottom: none; margin-top: 0; padding-bottom: 0; }
+    .module-card h3 { margin-top: 16px; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.03em; color: #4338ca; }
+    .step-num { display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: #4338ca; color: white; text-align: center; line-height: 28px; font-weight: bold; margin-right: 8px; font-size: 0.9rem; }
+    .ui-path { background: #fef3c7; color: #78350f; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+    .tabs { display: flex; gap: 4px; margin: 16px 0 0 0; border-bottom: 1px solid #c7d2fe; }
+    .tab-label { padding: 6px 14px; background: #4338ca; color: white; border-radius: 6px 6px 0 0; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.03em; }
+    .tab-label.cli { background: #1f2937; }
+    @media print { body { padding: 16px; font-size: 12px; } .cover { padding: 30px 0 20px; } h1 { font-size: 1.5rem; } h2 { font-size: 1.2rem; } pre { font-size: 0.75rem; } a { color: #4338ca; } }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>🚀 Giai đoạn 4 — Container Orchestration</h1>
+  <p>Master guide: ECS Fargate + ECR lifecycle + CloudWatch Logs + Blue/Green deployment<br/>
+  Bỏ EC2, AWS tự quản container scheduling.</p>
+  <br/>
+  <span class="badge">ECS Fargate</span>
+  <span class="badge">Task Definition</span>
+  <span class="badge">ECS Service</span>
+  <span class="badge">CodeDeploy</span>
+  <span class="badge">CloudWatch Logs</span>
+  <span class="badge">ECR Lifecycle</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">Phase 4 thay ASG (Phase 3) bằng ECS — pay-per-task, không quản EC2</p>
+</div>
+
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#why">Tại sao Container Orchestration</a></li>
+    <li><a href="#concepts">Khái niệm gốc (ECS / Task / Service / Cluster)</a></li>
+    <li><a href="#arch">Kiến trúc Fargate</a></li>
+    <li><a href="#cost">Chi phí</a></li>
+    <li><a href="#order">Thứ tự thực hiện</a></li>
+    <li><a href="#module-a">Module A — ECR Lifecycle Policy</a></li>
+    <li><a href="#module-b">Module B — CloudWatch Logs centralization</a></li>
+    <li><a href="#module-c">Module C — IAM roles cho ECS</a></li>
+    <li><a href="#module-d">Module D — Task Definition</a></li>
+    <li><a href="#module-e">Module E — ECS Cluster + Service</a></li>
+    <li><a href="#module-f">Module F — Blue/Green Deploy (CodeDeploy)</a></li>
+    <li><a href="#migration">Migration ASG → ECS (side-by-side)</a></li>
+    <li><a href="#verify">Verify end-to-end</a></li>
+    <li><a href="#cleanup">Cleanup</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+    <li><a href="#next">Sang Phase 5</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="why">1. Tại sao Container Orchestration</h1>
+
+<h3>Vấn đề với ASG (Phase 3)</h3>
+<ul>
+  <li>Vẫn phải nghĩ về "EC2" — AMI, instance type, user-data, ssh keys, security patches</li>
+  <li>Tốn tiền cho cả OS overhead (kernel, systemd, sshd...) — chiếm 20-30% RAM/CPU không liên quan app</li>
+  <li>Scale theo EC2 (whole-VM granularity) — muốn 1.5 EC2 → phải trả 2 EC2</li>
+  <li>Deploy là rolling SSH — phức tạp, dễ lỗi</li>
+</ul>
+
+<h3>Giải pháp: Orchestration</h3>
+<table>
+  <tr><th>Mô hình</th><th>Mô tả</th><th>Phù hợp</th></tr>
+  <tr><td><strong>ECS on EC2</strong></td><td>ECS quản container, nhưng EC2 vẫn của bạn</td><td>Workload lớn, cần control hạ tầng</td></tr>
+  <tr><td><strong>ECS Fargate</strong></td><td>AWS lo cả EC2 — bạn chỉ submit task definition</td><td>✅ Demo + production nhẹ-trung — phù hợp project này</td></tr>
+  <tr><td><strong>EKS (Kubernetes)</strong></td><td>K8s on AWS</td><td>Đa-cloud, đội DevOps mạnh</td></tr>
+  <tr><td><strong>App Runner</strong></td><td>"Heroku của AWS" — push image, AWS lo hết</td><td>Demo siêu nhanh, ít tùy biến</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Chọn Fargate</strong>
+  Lý do: bạn đã có Docker image trên ECR + ALB từ Phase 3. Fargate chạy thẳng image đó. Không có EC2 management. Pay-per-second.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="concepts">2. Khái niệm gốc</h1>
+
+<div class="arch">┌─────────────────────────────────────────────────────────┐
+│ CLUSTER (logical group)                                 │
+│  myapp-cluster                                          │
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ SERVICE (giu N task always running)             │    │
+│  │  myapp-backend-svc  desired=1                   │    │
+│  │  myapp-frontend-svc desired=1                   │    │
+│  │                                                 │    │
+│  │  ┌───────────────────────────────────────┐      │    │
+│  │  │ TASK (1 instance dang chay)           │      │    │
+│  │  │  = 1+ CONTAINER cung chia network/IAM │      │    │
+│  │  │                                       │      │    │
+│  │  │  ┌─────────────────────────────────┐  │      │    │
+│  │  │  │ TASK DEFINITION (template)      │  │      │    │
+│  │  │  │ image, CPU, RAM, env, port...   │  │      │    │
+│  │  │  └─────────────────────────────────┘  │      │    │
+│  │  └───────────────────────────────────────┘      │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘</div>
+
+<table>
+  <tr><th>Thuật ngữ</th><th>Tương đương K8s</th><th>Định nghĩa ngắn</th></tr>
+  <tr><td>Cluster</td><td>Cluster</td><td>Nhóm logical, không tốn tiền tự thân (Fargate)</td></tr>
+  <tr><td>Task Definition</td><td>Pod spec (template)</td><td>JSON mô tả container image + CPU/RAM + env vars + log config</td></tr>
+  <tr><td>Task</td><td>Pod (instance)</td><td>1 task chạy = 1 hoặc nhiều container cùng share network</td></tr>
+  <tr><td>Service</td><td>Deployment</td><td>"Tôi muốn N task chạy liên tục" — service tự thay khi task chết</td></tr>
+  <tr><td>Container</td><td>Container</td><td>Như Docker container, chạy 1 image</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="arch">3. Kiến trúc Fargate</h1>
+
+<div class="arch">                    ┌── User ──┐
+                          │
+                          ▼
+                  ┌────────────────┐
+                  │   Route 53     │
+                  │ ALIAS -> ALB   │ ◄── tu Phase 3, KHONG sua
+                  └────────┬───────┘
+                           │
+                           ▼
+                  ┌────────────────┐
+                  │      ALB       │ ◄── tu Phase 3, KHONG sua
+                  │  Target Group  │
+                  └────────┬───────┘
+                           │
+                           │ target type: IP (khong phai instance)
+                           ▼
+        ┌──────────────────────────────────────────┐
+        │ ECS Service (desired=1)                  │
+        │   ┌────────────────────────────────────┐ │
+        │   │ Task #1                            │ │
+        │   │  Container: backend (image:tag)    │ │
+        │   │  Container: nginx   (image:tag)    │ │
+        │   │  Network: awsvpc (private IP riêng)│ │
+        │   │  IAM: TaskRole                     │ │
+        │   │  Logs -> CloudWatch /ecs/myapp     │ │
+        │   └────────────────────────────────────┘ │
+        └──────────────────────────────────────────┘
+                           │
+                           ▼
+              ┌───────────────────────┐
+              │   RDS / SSM / S3      │ ◄── ket noi qua VPC endpoint hoac NAT
+              └───────────────────────┘</div>
+
+<h3>Khác biệt vs ASG (Phase 3)</h3>
+<table>
+  <tr><th>Phương diện</th><th>ASG (Phase 3)</th><th>Fargate (Phase 4)</th></tr>
+  <tr><td>Compute unit</td><td>EC2 instance</td><td>Task (= group containers)</td></tr>
+  <tr><td>OS quản lý</td><td>Bạn (Ubuntu patches, kernel...)</td><td>AWS</td></tr>
+  <tr><td>Billing</td><td>$/hour theo EC2 type</td><td>$/giây theo CPU+RAM phân bổ</td></tr>
+  <tr><td>Scaling unit</td><td>1 EC2 = ~$30/tháng</td><td>0.25 vCPU + 0.5GB = ~$10/tháng nếu chạy 24/7</td></tr>
+  <tr><td>Target Group target type</td><td>Instance</td><td><strong>IP</strong> (Fargate task có IP riêng trong VPC)</td></tr>
+  <tr><td>Deploy</td><td>SSH + docker compose</td><td>Update Service → ECS rolling</td></tr>
+</table>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cost">4. Chi phí</h1>
+
+<h3>Pricing Fargate (ap-southeast-1)</h3>
+<ul>
+  <li>vCPU: $0.05056/vCPU/hour</li>
+  <li>Memory: $0.005553/GB/hour</li>
+  <li>Storage 20GB miễn phí (mỗi task có 20GB ephemeral)</li>
+</ul>
+
+<h3>Demo project ước tính</h3>
+<table>
+  <tr><th>Cấu hình task</th><th>vCPU + RAM</th><th>Cost/giờ</th><th>Cost/tháng nếu 24/7</th></tr>
+  <tr><td>Nhẹ nhất</td><td>0.25 vCPU + 0.5 GB</td><td>$0.0153</td><td>~$11</td></tr>
+  <tr><td>Bằng t3.small hiện tại</td><td>0.5 vCPU + 2 GB</td><td>$0.0364</td><td>~$26</td></tr>
+  <tr><td>Production khá</td><td>1 vCPU + 4 GB</td><td>$0.0728</td><td>~$52</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Đổi sang Fargate có rẻ hơn không?</strong>
+  Với demo 12h/ngày: EC2 t3.small $0.0208/h × 12h × 30 = ~$7.5/tháng vs Fargate 0.5 vCPU+2GB $0.0364/h × 12h × 30 = ~$13/tháng → Fargate ĐẮT HƠN. Nhưng đổi lại không phải quản OS + có blue/green tốt hơn + scale tới 0 dễ.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="order">5. Thứ tự thực hiện</h1>
+
+<div class="arch">A. ECR Lifecycle    (10 phut — tao policy giu 5 image gan day)
+   │ ↓ doc lap, lam truoc khong bat buoc
+
+B. CloudWatch Logs  (15 phut — log group + retention)
+   │
+   ▼
+C. IAM Roles        (15 phut — Task Role + Task Execution Role)
+   │
+   ▼
+D. Task Definition  (30 phut — JSON spec cho container)
+   │
+   ▼
+E. ECS Cluster + Service  (45 phut — chay task that)
+   │
+   ▼
+F. Blue/Green       (30 phut — CodeDeploy + 2 target groups)
+   │
+   ▼
+Migration ASG -> ECS (chay song song roi switch)</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-a">6. Module A — ECR Lifecycle Policy</h2>
+
+<h3>Vấn đề</h3>
+<p>Mỗi lần CI build sẽ push 1 image mới vào ECR (vd <code>main-a1b2c3d</code>, <code>main-e4f5g6h</code>...). Sau N tháng có hàng trăm image cũ → tốn ~$0.10/GB/tháng.</p>
+
+<h3>Giải pháp</h3>
+<p>ECR lifecycle policy = rule tự xóa image cũ. Phổ biến nhất: <strong>giữ N image gần nhất, xóa hết còn lại</strong>.</p>
+
+<h3><span class="step-num">A1</span> Tạo lifecycle policy (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">ECR → Repositories → myapp-backend → Lifecycle Policy</span></li>
+  <li>Create rule:
+    <ul>
+      <li>Rule priority: <code>1</code></li>
+      <li>Description: <code>Keep last 10 images, delete rest</code></li>
+      <li>Image status: <strong>Any</strong></li>
+      <li>Match criteria: <strong>Image count more than</strong> = <code>10</code></li>
+      <li>Rule action: <strong>expire</strong></li>
+    </ul>
+  </li>
+  <li>Save</li>
+  <li>Test với <strong>Save and test</strong> — xem images nào sẽ bị xóa nếu rule chạy ngay</li>
+  <li>Lặp lại cho <code>myapp-frontend</code></li>
+</ol>
+
+<h3><span class="step-num">A2</span> Tạo lifecycle policy (CLI)</h3>
+<div class="tabs"><span class="tab-label cli">AWS CLI</span></div>
+<pre><code><span class="cmt"># Tao policy JSON</span>
+$policy = @{
+  rules = @(
+    @{
+      rulePriority = 1
+      description  = <span class="str">"Keep last 10 images"</span>
+      selection    = @{
+        tagStatus   = <span class="str">"any"</span>
+        countType   = <span class="str">"imageCountMoreThan"</span>
+        countNumber = 10
+      }
+      action = @{ type = <span class="str">"expire"</span> }
+    }
+  )
+} | ConvertTo-Json -Depth 10
+
+<span class="cmt"># Apply</span>
+$policy | Out-File -Encoding utf8 ecr-lifecycle.json
+aws ecr put-lifecycle-policy <span class="cmt">`</span>
+  <span class="kw">--repository-name</span> myapp-backend <span class="cmt">`</span>
+  <span class="kw">--lifecycle-policy-text</span> file://ecr-lifecycle.json <span class="cmt">`</span>
+  <span class="kw">--region</span> ap-southeast-1
+
+aws ecr put-lifecycle-policy <span class="cmt">`</span>
+  <span class="kw">--repository-name</span> myapp-frontend <span class="cmt">`</span>
+  <span class="kw">--lifecycle-policy-text</span> file://ecr-lifecycle.json <span class="cmt">`</span>
+  <span class="kw">--region</span> ap-southeast-1</code></pre>
+
+<div class="info">
+  <strong>ℹ️ Lifecycle chạy lúc nào</strong>
+  ECR chạy lifecycle policy <strong>không xác định</strong> (có thể vài giờ-1 ngày sau khi push). Không phải instant. Có thể trigger manual bằng <code>start-lifecycle-policy-preview</code>.
+</div>
+
+<h3>Rule phức tạp hơn (giữ tagged khác untagged)</h3>
+<pre><code>{
+  <span class="str">"rules"</span>: [
+    {
+      <span class="str">"rulePriority"</span>: 1,
+      <span class="str">"description"</span>: <span class="str">"Keep last 5 tagged main- images"</span>,
+      <span class="str">"selection"</span>: {
+        <span class="str">"tagStatus"</span>: <span class="str">"tagged"</span>,
+        <span class="str">"tagPrefixList"</span>: [<span class="str">"main-"</span>],
+        <span class="str">"countType"</span>: <span class="str">"imageCountMoreThan"</span>,
+        <span class="str">"countNumber"</span>: 5
+      },
+      <span class="str">"action"</span>: { <span class="str">"type"</span>: <span class="str">"expire"</span> }
+    },
+    {
+      <span class="str">"rulePriority"</span>: 2,
+      <span class="str">"description"</span>: <span class="str">"Expire untagged after 7 days"</span>,
+      <span class="str">"selection"</span>: {
+        <span class="str">"tagStatus"</span>: <span class="str">"untagged"</span>,
+        <span class="str">"countType"</span>: <span class="str">"sinceImagePushed"</span>,
+        <span class="str">"countUnit"</span>: <span class="str">"days"</span>,
+        <span class="str">"countNumber"</span>: 7
+      },
+      <span class="str">"action"</span>: { <span class="str">"type"</span>: <span class="str">"expire"</span> }
+    }
+  ]
+}</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-b">7. Module B — CloudWatch Logs centralization</h2>
+
+<h3>Tại sao</h3>
+<p>Hiện tại logs container ở trên EC2 (<code>docker logs</code>). Khi EC2 chết → mất log. Khi nhiều EC2 → khó tổng hợp.</p>
+
+<p>CloudWatch Logs:</p>
+<ul>
+  <li>Centralize log từ mọi container/instance/service</li>
+  <li>Search bằng CloudWatch Logs Insights (SQL-like)</li>
+  <li>Có retention (auto xóa log cũ)</li>
+  <li>Alarms based on log patterns (vd 5xx errors &gt; threshold)</li>
+</ul>
+
+<h3><span class="step-num">B1</span> Tạo Log Group (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">CloudWatch → Logs → Log groups → Create log group</span></li>
+  <li>Log group name: <code>/ecs/myapp</code></li>
+  <li>Retention setting: <strong>7 days</strong> (demo) hoặc 30 days (prod). Mặc định "Never expire" sẽ phình mãi.</li>
+  <li>Create</li>
+</ol>
+
+<h3><span class="step-num">B2</span> Tạo Log Group (CLI)</h3>
+<div class="tabs"><span class="tab-label cli">AWS CLI</span></div>
+<pre><code>aws logs create-log-group <span class="kw">--log-group-name</span> /ecs/myapp <span class="kw">--region</span> ap-southeast-1
+aws logs put-retention-policy <span class="kw">--log-group-name</span> /ecs/myapp <span class="kw">--retention-in-days</span> 7 <span class="kw">--region</span> ap-southeast-1</code></pre>
+
+<h3>Log driver cho ECS task</h3>
+<p>Sẽ cấu hình trong Task Definition (Module D):</p>
+<pre><code><span class="str">"logConfiguration"</span>: {
+  <span class="str">"logDriver"</span>: <span class="str">"awslogs"</span>,
+  <span class="str">"options"</span>: {
+    <span class="str">"awslogs-group"</span>:         <span class="str">"/ecs/myapp"</span>,
+    <span class="str">"awslogs-region"</span>:        <span class="str">"ap-southeast-1"</span>,
+    <span class="str">"awslogs-stream-prefix"</span>: <span class="str">"backend"</span>
+  }
+}</code></pre>
+
+<h3>Tip: CloudWatch Logs Insights query</h3>
+<p>Sau khi log đổ vào CW, vào <span class="ui-path">CloudWatch → Logs Insights</span> và query:</p>
+<pre><code><span class="cmt"># Tim tat ca error gan day</span>
+fields @timestamp, @message
+| filter @message like /ERROR/
+| sort @timestamp desc
+| limit 50
+
+<span class="cmt"># Dem 5xx response theo phut</span>
+fields @timestamp, @message
+| parse @message <span class="str">'"statusCode":*'</span> <span class="kw">as</span> statusCode
+| filter statusCode &gt;= 500
+| stats count() <span class="kw">by</span> <span class="kw">bin</span>(1m)</code></pre>
+
+<div class="tip">
+  <strong>💡 Cost CloudWatch Logs</strong>
+  $0.50/GB ingestion + $0.03/GB stored. Demo &lt;1GB/tháng → ~$0.50/tháng. Đặt retention 7 ngày để tránh phình.
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-c">8. Module C — IAM Roles cho ECS</h2>
+
+<p>ECS task cần 2 role:</p>
+
+<table>
+  <tr><th>Role</th><th>Tên gợi ý</th><th>Mục đích</th></tr>
+  <tr><td><strong>Task Execution Role</strong></td><td><code>ecsTaskExecutionRole</code></td><td>ECS dùng để pull image từ ECR + ghi log vào CloudWatch. Cần trước khi task start.</td></tr>
+  <tr><td><strong>Task Role</strong></td><td><code>myapp-ecs-task-role</code></td><td>Application code dùng — quyền vào SSM, S3, DynamoDB... (tương đương EC2 instance profile cũ).</td></tr>
+</table>
+
+<h3><span class="step-num">C1</span> Tạo Task Execution Role (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">IAM → Roles → Create role</span></li>
+  <li>Trusted entity: <strong>AWS service → Elastic Container Service → Elastic Container Service Task</strong></li>
+  <li>Attach policy: <code>AmazonECSTaskExecutionRolePolicy</code> (AWS managed)</li>
+  <li>Role name: <code>ecsTaskExecutionRole</code></li>
+  <li>Create</li>
+</ol>
+
+<h3><span class="step-num">C2</span> Tạo Task Role (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>IAM → Roles → Create role</li>
+  <li>Trusted entity: AWS service → ECS Task</li>
+  <li>Attach các policy giống <code>myapp-ec2-role</code> hiện tại:
+    <ul>
+      <li><code>AmazonSSMReadOnlyAccess</code> (đọc SSM params)</li>
+      <li><code>AmazonEC2ContainerRegistryReadOnly</code> (pull ECR)</li>
+      <li><code>myapp-s3-images-write</code> (đã tạo ở Phase S3)</li>
+    </ul>
+  </li>
+  <li>Role name: <code>myapp-ecs-task-role</code></li>
+  <li>Create</li>
+</ol>
+
+<h3><span class="step-num">C3</span> CLI version</h3>
+<div class="tabs"><span class="tab-label cli">AWS CLI</span></div>
+<pre><code><span class="cmt"># Trust policy cho ECS Task</span>
+$trust = @'
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Service": "ecs-tasks.amazonaws.com" },
+    "Action": "sts:AssumeRole"
+  }]
+}
+'@
+$trust | Out-File -Encoding utf8 trust-ecs-tasks.json
+
+<span class="cmt"># Task Execution Role</span>
+aws iam create-role <span class="kw">--role-name</span> ecsTaskExecutionRole <span class="kw">--assume-role-policy-document</span> file://trust-ecs-tasks.json
+aws iam attach-role-policy <span class="kw">--role-name</span> ecsTaskExecutionRole <span class="cmt">`</span>
+  <span class="kw">--policy-arn</span> arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+<span class="cmt"># Task Role (app)</span>
+aws iam create-role <span class="kw">--role-name</span> myapp-ecs-task-role <span class="kw">--assume-role-policy-document</span> file://trust-ecs-tasks.json
+aws iam attach-role-policy <span class="kw">--role-name</span> myapp-ecs-task-role <span class="kw">--policy-arn</span> arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+aws iam attach-role-policy <span class="kw">--role-name</span> myapp-ecs-task-role <span class="kw">--policy-arn</span> arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+aws iam attach-role-policy <span class="kw">--role-name</span> myapp-ecs-task-role <span class="kw">--policy-arn</span> arn:aws:iam::529568113348:policy/myapp-s3-images-write</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-d">9. Module D — Task Definition</h2>
+
+<h3>Task Definition là gì</h3>
+<p>JSON spec mô tả cách chạy 1 task:</p>
+<ul>
+  <li>Container nào (image, command, environment)</li>
+  <li>CPU + RAM phân bổ</li>
+  <li>Networking mode (Fargate bắt buộc <code>awsvpc</code>)</li>
+  <li>IAM role (task role + execution role)</li>
+  <li>Volume mounts (nếu có)</li>
+  <li>Log config</li>
+</ul>
+
+<h3><span class="step-num">D1</span> Viết Task Definition (file JSON)</h3>
+<p>Tạo file <code>ecs/task-definition.json</code>:</p>
+
+<pre><code>{
+  <span class="str">"family"</span>: <span class="str">"myapp-production"</span>,
+  <span class="str">"networkMode"</span>: <span class="str">"awsvpc"</span>,
+  <span class="str">"requiresCompatibilities"</span>: [<span class="str">"FARGATE"</span>],
+  <span class="str">"cpu"</span>:    <span class="str">"512"</span>,
+  <span class="str">"memory"</span>: <span class="str">"1024"</span>,
+  <span class="str">"executionRoleArn"</span>: <span class="str">"arn:aws:iam::529568113348:role/ecsTaskExecutionRole"</span>,
+  <span class="str">"taskRoleArn"</span>:      <span class="str">"arn:aws:iam::529568113348:role/myapp-ecs-task-role"</span>,
+  <span class="str">"containerDefinitions"</span>: [
+    {
+      <span class="str">"name"</span>: <span class="str">"backend"</span>,
+      <span class="str">"image"</span>: <span class="str">"&lt;ECR_REGISTRY&gt;/myapp-backend:main-latest"</span>,
+      <span class="str">"essential"</span>: <span class="kw">true</span>,
+      <span class="str">"portMappings"</span>: [{ <span class="str">"containerPort"</span>: 5000, <span class="str">"protocol"</span>: <span class="str">"tcp"</span> }],
+      <span class="str">"secrets"</span>: [
+        { <span class="str">"name"</span>: <span class="str">"DB_PASSWORD"</span>, <span class="str">"valueFrom"</span>: <span class="str">"arn:aws:ssm:ap-southeast-1:529568113348:parameter/myapp/production/DB_PASSWORD"</span> },
+        { <span class="str">"name"</span>: <span class="str">"JWT_SECRET"</span>,  <span class="str">"valueFrom"</span>: <span class="str">"arn:aws:ssm:ap-southeast-1:529568113348:parameter/myapp/production/JWT_SECRET"</span> }
+      ],
+      <span class="str">"environment"</span>: [
+        { <span class="str">"name"</span>: <span class="str">"NODE_ENV"</span>,  <span class="str">"value"</span>: <span class="str">"production"</span> },
+        { <span class="str">"name"</span>: <span class="str">"PORT"</span>,      <span class="str">"value"</span>: <span class="str">"5000"</span> },
+        { <span class="str">"name"</span>: <span class="str">"DB_HOST"</span>,   <span class="str">"value"</span>: <span class="str">"&lt;rds-endpoint&gt;"</span> }
+      ],
+      <span class="str">"logConfiguration"</span>: {
+        <span class="str">"logDriver"</span>: <span class="str">"awslogs"</span>,
+        <span class="str">"options"</span>: {
+          <span class="str">"awslogs-group"</span>:         <span class="str">"/ecs/myapp"</span>,
+          <span class="str">"awslogs-region"</span>:        <span class="str">"ap-southeast-1"</span>,
+          <span class="str">"awslogs-stream-prefix"</span>: <span class="str">"backend"</span>
+        }
+      },
+      <span class="str">"healthCheck"</span>: {
+        <span class="str">"command"</span>: [<span class="str">"CMD-SHELL"</span>, <span class="str">"curl -f http://localhost:5000/api/health || exit 1"</span>],
+        <span class="str">"interval"</span>: 30, <span class="str">"timeout"</span>: 5, <span class="str">"retries"</span>: 3, <span class="str">"startPeriod"</span>: 60
+      }
+    },
+    {
+      <span class="str">"name"</span>: <span class="str">"frontend"</span>,
+      <span class="str">"image"</span>: <span class="str">"&lt;ECR_REGISTRY&gt;/myapp-frontend:main-latest"</span>,
+      <span class="str">"essential"</span>: <span class="kw">true</span>,
+      <span class="str">"portMappings"</span>: [{ <span class="str">"containerPort"</span>: 80 }],
+      <span class="str">"logConfiguration"</span>: {
+        <span class="str">"logDriver"</span>: <span class="str">"awslogs"</span>,
+        <span class="str">"options"</span>: {
+          <span class="str">"awslogs-group"</span>:         <span class="str">"/ecs/myapp"</span>,
+          <span class="str">"awslogs-region"</span>:        <span class="str">"ap-southeast-1"</span>,
+          <span class="str">"awslogs-stream-prefix"</span>: <span class="str">"frontend"</span>
+        }
+      }
+    }
+  ]
+}</code></pre>
+
+<div class="info">
+  <strong>ℹ️ secrets vs environment</strong>
+  <code>environment</code>: hardcode value vào task def (ai có quyền đọc task def đều thấy). <br/>
+  <code>secrets</code>: ECS fetch từ SSM/Secrets Manager lúc start task, đưa vào ENV — không lộ trong task def.
+</div>
+
+<h3><span class="step-num">D2</span> Register Task Definition (CLI)</h3>
+<pre><code><span class="cmt"># Thay &lt;ECR_REGISTRY&gt; va &lt;rds-endpoint&gt; trong file truoc</span>
+aws ecs register-task-definition <span class="cmt">`</span>
+  <span class="kw">--cli-input-json</span> file://ecs/task-definition.json <span class="cmt">`</span>
+  <span class="kw">--region</span> ap-southeast-1
+<span class="cmt"># Tra ve revision number (myapp-production:1, sau khi update se la :2, :3...)</span></code></pre>
+
+<h3><span class="step-num">D3</span> Register Task Definition (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">ECS → Task definitions → Create new task definition → Create new with JSON</span></li>
+  <li>Paste JSON ở D1 → Create</li>
+</ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-e">10. Module E — ECS Cluster + Service</h2>
+
+<h3><span class="step-num">E1</span> Tạo Cluster (UI)</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>Console → <span class="ui-path">ECS → Clusters → Create cluster</span></li>
+  <li>Name: <code>myapp-cluster</code></li>
+  <li>Infrastructure: <strong>AWS Fargate (serverless)</strong> ✅</li>
+  <li>Monitoring: bật Container Insights nếu muốn (thêm $)</li>
+  <li>Create</li>
+</ol>
+
+<h3><span class="step-num">E2</span> Tạo Target Group cho Fargate</h3>
+<p><strong>Quan trọng:</strong> Fargate task có IP riêng (qua awsvpc), KHÔNG phải EC2 instance → target type khác.</p>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>EC2 → Target Groups → Create target group</li>
+  <li>Target type: <strong>IP addresses</strong> (KHÔNG phải Instances)</li>
+  <li>Name: <code>myapp-tg-ecs</code></li>
+  <li>Protocol HTTP, Port 80 (route đến frontend container — nó nội bộ proxy /api/* sang backend)</li>
+  <li>Health check path: <code>/</code> hoặc <code>/api/health</code></li>
+  <li>Next → KHÔNG register targets (Service sẽ tự đăng ký)</li>
+  <li>Create</li>
+</ol>
+
+<h3><span class="step-num">E3</span> Cập nhật ALB listener trỏ vào TG mới</h3>
+<p>Nếu muốn chạy song song với ASG cũ — bỏ qua. Khi cutover, sửa listener trỏ vào <code>myapp-tg-ecs</code>.</p>
+
+<h3><span class="step-num">E4</span> Tạo ECS Service</h3>
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>ECS → myapp-cluster → Services tab → Create</li>
+  <li>Compute configuration:
+    <ul>
+      <li>Launch type: <strong>FARGATE</strong></li>
+      <li>Platform version: LATEST</li>
+    </ul>
+  </li>
+  <li>Application type: Service</li>
+  <li>Task Definition family: <code>myapp-production</code>, Revision: latest</li>
+  <li>Service name: <code>myapp-svc</code></li>
+  <li>Desired tasks: <strong>1</strong></li>
+  <li>Networking:
+    <ul>
+      <li>VPC: default</li>
+      <li>Subnets: chọn 2-3 subnet ở các AZ khác nhau</li>
+      <li>Security group: tạo mới <code>myapp-ecs-sg</code> — inbound port 80 từ <code>myapp-alb-sg</code></li>
+      <li>Public IP: <strong>Turn off</strong> (task private, ALB là public)
+        <ul><li>Lưu ý: nếu task ở public subnet thì có thể bật public IP để pull ECR trực tiếp</li></ul>
+      </li>
+    </ul>
+  </li>
+  <li>Load balancing: <strong>Application Load Balancer</strong>
+    <ul>
+      <li>Choose existing load balancer: <code>myapp-alb</code></li>
+      <li>Container to load balance: <code>frontend</code> port 80</li>
+      <li>Target group: <strong>Use existing</strong> → <code>myapp-tg-ecs</code></li>
+    </ul>
+  </li>
+  <li>Service auto scaling: turn off (chưa cần)</li>
+  <li>Create</li>
+</ol>
+
+<h3><span class="step-num">E5</span> Verify</h3>
+<ol>
+  <li>ECS → Cluster → Service → Tasks tab: task "RUNNING"</li>
+  <li>Target group <code>myapp-tg-ecs</code>: target healthy</li>
+  <li>CloudWatch Logs <code>/ecs/myapp</code> có stream <code>backend/...</code> và <code>frontend/...</code></li>
+</ol>
+
+<div class="warn">
+  <strong>⚠️ Pull ECR fail — VPC config</strong>
+  Nếu task ở private subnet không có NAT: cần VPC endpoint cho ECR + S3 + CloudWatch Logs (Interface endpoint $7.30/mo mỗi cái). Demo: dùng public subnet + auto-assign public IP để khỏi tốn endpoint.
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-f">11. Module F — Blue/Green Deploy với CodeDeploy</h2>
+
+<h3>Blue/Green concept</h3>
+<div class="arch">Truoc khi deploy:
+  ALB Listener :443 ────► TG-Blue (current task v1) ────► task v1
+                          TG-Green (empty)
+
+Trong deploy:
+  ALB Listener :443 ────► TG-Blue (current task v1) ────► task v1
+                          TG-Green ────► task v2 (new revision)
+                                         (run "smoke test")
+
+Cutover:
+  ALB Listener :443 ────► TG-Green ◄── traffic shift 100%
+                          TG-Blue  ────► task v1 (waiting to drain)
+
+Done:
+  ALB Listener :443 ────► TG-Green ────► task v2
+                          TG-Blue (empty)
+                          [task v1 terminated]</div>
+
+<p>Lợi ích vs rolling:</p>
+<ul>
+  <li>Test version mới (smoke test) <strong>trước khi</strong> shift traffic</li>
+  <li>Rollback &lt;1 phút bằng cách shift về Blue</li>
+  <li>Không có thời gian "mixed" (rolling = vừa v1 vừa v2 cùng phục vụ)</li>
+</ul>
+
+<h3><span class="step-num">F1</span> Tạo TG-Green (TG thứ 2)</h3>
+<ol>
+  <li>EC2 → Target Groups → Create giống <code>myapp-tg-ecs</code> nhưng tên <code>myapp-tg-ecs-green</code></li>
+</ol>
+
+<h3><span class="step-num">F2</span> Đổi Service từ "Rolling update" sang "Blue/green"</h3>
+<p>Khi tạo Service ở E4, mặc định là rolling. Phải tạo lại Service với option Blue/Green, hoặc update Service.</p>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<ol>
+  <li>ECS → Service → Update (hoặc tạo Service mới)</li>
+  <li>Deployment configuration:
+    <ul>
+      <li>Deployment type: <strong>Blue/green deployment (powered by AWS CodeDeploy)</strong></li>
+      <li>Deployment configuration:
+        <ul>
+          <li>CodeDeployDefault.ECSAllAtOnce — shift 100% trong 1 phát</li>
+          <li>CodeDeployDefault.ECSLinear10PercentEvery1Minutes — gradual</li>
+          <li>CodeDeployDefault.ECSCanary10Percent5Minutes — canary 10% trước</li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>Load balancer:
+    <ul>
+      <li>Production listener: HTTPS:443</li>
+      <li>Test listener: HTTPS:8443 (optional — listener riêng để test green trước)</li>
+      <li>Target group 1: myapp-tg-ecs</li>
+      <li>Target group 2: myapp-tg-ecs-green</li>
+    </ul>
+  </li>
+  <li>Update</li>
+</ol>
+
+<h3><span class="step-num">F3</span> Trigger deploy (CLI)</h3>
+<pre><code><span class="cmt"># Register task definition revision moi</span>
+aws ecs register-task-definition <span class="kw">--cli-input-json</span> file://ecs/task-definition.json
+<span class="cmt"># revision so sau, vd :2</span>
+
+<span class="cmt"># Update service tro vao revision moi -- CodeDeploy se tu thuc thi blue/green</span>
+aws ecs update-service <span class="cmt">`</span>
+  <span class="kw">--cluster</span> myapp-cluster <span class="cmt">`</span>
+  <span class="kw">--service</span> myapp-svc <span class="cmt">`</span>
+  <span class="kw">--task-definition</span> myapp-production:2</code></pre>
+
+<h3><span class="step-num">F4</span> Monitor blue/green ở CodeDeploy</h3>
+<ol>
+  <li>Console → CodeDeploy → Applications → myapp-svc → Deployment in-progress</li>
+  <li>Xem traffic shift theo % theo thời gian</li>
+  <li>Test bằng Test listener nếu có</li>
+  <li>"Continue deployment" để shift 100% (nếu chọn manual approval)</li>
+  <li>Hoặc Stop deployment + rollback nếu phát hiện lỗi</li>
+</ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="migration">12. Migration ASG → ECS (side-by-side)</h1>
+
+<h3>Strategy</h3>
+<p>KHÔNG xóa ASG ngay. Chạy song song:</p>
+<ol>
+  <li>ASG vẫn chạy với ALB Listener :443 trỏ vào <code>myapp-tg</code> (instance type)</li>
+  <li>Setup ECS Service tạo task, đăng ký vào <code>myapp-tg-ecs</code> (IP type)</li>
+  <li>Tạo Listener Rule mới: HTTPS:443 với path <code>/canary/*</code> → forward <code>myapp-tg-ecs</code></li>
+  <li>Test ECS qua https://vhnlong.store/canary/*</li>
+  <li>OK rồi đổi default action: forward <code>myapp-tg-ecs</code></li>
+  <li>Scale ASG về 0 (vẫn giữ infra phòng rollback)</li>
+  <li>Sau 1 tuần ổn → delete ASG, Launch Template</li>
+</ol>
+
+<h3>Update CI/CD</h3>
+<p>Workflow <code>deploy.yml</code> cần thêm task: register task definition + update service. Bỏ phần SSH + docker compose.</p>
+
+<pre><code><span class="cmt"># deploy.yml -- thay buoc Deploy</span>
+- name: Render new task definition
+  run: |
+    aws ecs describe-task-definition --task-definition myapp-production \
+      --query <span class="str">'taskDefinition'</span> &gt; td.json
+    <span class="cmt"># thay image cu bang image moi vua build</span>
+    jq <span class="str">'.containerDefinitions[0].image = "'"$ECR/myapp-backend:$TAG"'"'</span> td.json &gt; td.new.json
+    jq <span class="str">'.containerDefinitions[1].image = "'"$ECR/myapp-frontend:$TAG"'"'</span> td.new.json &gt; td.final.json
+
+- name: Register new revision
+  id: register
+  run: |
+    NEW_REVISION=$(aws ecs register-task-definition --cli-input-json file://td.final.json \
+      --query <span class="str">'taskDefinition.taskDefinitionArn'</span> --output text)
+    echo <span class="str">"arn=$NEW_REVISION"</span> &gt;&gt; $GITHUB_OUTPUT
+
+- name: Update service
+  run: |
+    aws ecs update-service --cluster myapp-cluster --service myapp-svc \
+      --task-definition ${{ steps.register.outputs.arn }} \
+      --force-new-deployment
+
+- name: Wait for deployment to stabilize
+  run: |
+    aws ecs wait services-stable --cluster myapp-cluster --services myapp-svc</code></pre>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="verify">13. Verify end-to-end</h1>
+
+<pre><code><span class="cmt"># 1. Truy cap domain</span>
+curl https://vhnlong.store/api/health
+<span class="cmt"># Expect: 200 {"status":"ok"}</span>
+
+<span class="cmt"># 2. ECS Service tasks</span>
+aws ecs list-tasks --cluster myapp-cluster --service-name myapp-svc
+aws ecs describe-tasks --cluster myapp-cluster --tasks &lt;task-arn&gt; <span class="cmt">`</span>
+  --query <span class="str">"tasks[0].{Status:lastStatus,Started:startedAt,Health:healthStatus}"</span>
+
+<span class="cmt"># 3. Logs streaming</span>
+aws logs tail /ecs/myapp --follow --since 5m
+
+<span class="cmt"># 4. ALB target health</span>
+aws elbv2 describe-target-health --target-group-arn &lt;myapp-tg-ecs ARN&gt;
+
+<span class="cmt"># 5. ECR lifecycle preview (so anh se bi xoa)</span>
+aws ecr start-lifecycle-policy-preview --repository-name myapp-backend</code></pre>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cleanup">14. Cleanup</h1>
+
+<pre><code><span class="cmt"># 1. Scale service ve 0 truoc khi xoa</span>
+aws ecs update-service --cluster myapp-cluster --service myapp-svc --desired-count 0
+sleep 60
+
+<span class="cmt"># 2. Xoa service</span>
+aws ecs delete-service --cluster myapp-cluster --service myapp-svc --force
+
+<span class="cmt"># 3. Xoa cluster</span>
+aws ecs delete-cluster --cluster myapp-cluster
+
+<span class="cmt"># 4. Deregister task definitions (khong xoa duoc, chi inactive)</span>
+aws ecs list-task-definitions --family myapp-production --status ACTIVE --query <span class="str">"taskDefinitionArns[]"</span> --output text | <span class="cmt">`</span>
+  ForEach-Object { aws ecs deregister-task-definition --task-definition $_ }
+
+<span class="cmt"># 5. Xoa Target Group ECS</span>
+aws elbv2 delete-target-group --target-group-arn &lt;myapp-tg-ecs ARN&gt;
+aws elbv2 delete-target-group --target-group-arn &lt;myapp-tg-ecs-green ARN&gt;
+
+<span class="cmt"># 6. Xoa IAM roles</span>
+aws iam detach-role-policy --role-name ecsTaskExecutionRole --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+aws iam delete-role --role-name ecsTaskExecutionRole
+
+aws iam list-attached-role-policies --role-name myapp-ecs-task-role --query <span class="str">"AttachedPolicies[].PolicyArn"</span> --output text | <span class="cmt">`</span>
+  ForEach-Object { aws iam detach-role-policy --role-name myapp-ecs-task-role --policy-arn $_ }
+aws iam delete-role --role-name myapp-ecs-task-role
+
+<span class="cmt"># 7. CloudWatch Log group</span>
+aws logs delete-log-group --log-group-name /ecs/myapp
+
+<span class="cmt"># 8. ECR lifecycle (giu lai, khong tot kem gi)</span></code></pre>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="trouble">15. Troubleshooting</h1>
+
+<h3>Task không start (PENDING mãi)</h3>
+<ul>
+  <li>Subnet không có internet (cần NAT hoặc public IP để pull ECR)</li>
+  <li>Task Execution Role không có quyền pull ECR / ghi CloudWatch</li>
+  <li>Image tag không tồn tại trong ECR</li>
+  <li>Check CloudWatch event stream: <code>aws ecs describe-tasks ... --query "tasks[0].stoppedReason"</code></li>
+</ul>
+
+<h3>Target group target unhealthy</h3>
+<ul>
+  <li>Health check path sai (Fargate task không có nginx? hoặc port khác)</li>
+  <li>Security group: ECS SG chưa allow port từ ALB SG</li>
+  <li>Container chưa start xong → tăng health check grace period</li>
+</ul>
+
+<h3>Secrets từ SSM không inject</h3>
+<ul>
+  <li>Task Execution Role thiếu <code>ssm:GetParameters</code> + <code>kms:Decrypt</code> (nếu SecureString)</li>
+  <li>Parameter ARN sai region</li>
+</ul>
+
+<h3>Blue/Green deploy stuck</h3>
+<ul>
+  <li>CodeDeploy chờ approval (nếu chọn manual)</li>
+  <li>Test listener target unhealthy → traffic không shift</li>
+</ul>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="next">16. Sang Phase 5</h1>
+
+<p>Phase 5 — Infrastructure as Code (Terraform) sẽ <strong>codify</strong> tất cả những gì đã setup manual qua UI/CLI ở Phase 3-4:</p>
+<ul>
+  <li>1 file <code>main.tf</code> = tạo lại toàn bộ infra trong 5 phút</li>
+  <li>Code in Git = audit trail + review trước khi đổi prod</li>
+  <li>Reusable module — copy sang dự án khác</li>
+</ul>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>Phase 4 — Container Orchestration (ECS Fargate)</strong></p>
+  <p>Region: ap-southeast-1 · Cluster: myapp-cluster · Service: myapp-svc</p>
+</div>
+
+</body>
+</html>
