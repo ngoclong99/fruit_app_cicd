@@ -1,10 +1,19 @@
-import type { Request, Response, NextFunction, RequestHandler } from 'express';
+// Backward-compatible shim — re-exports new error classes/handlers with
+// the original `HttpError` API used by existing routes.
+//
+// New code should import from `shared/errors/AppError` and
+// `shared/middleware/errorHandler` directly.
+import { AppError } from '../shared/errors/AppError';
 
-export class HttpError extends Error {
-  status: number;
+export { asyncHandler, errorHandler } from '../shared/middleware/errorHandler';
+
+/**
+ * Legacy HttpError class — now extends AppError so the global error handler
+ * (which knows about AppError) can serialize it uniformly.
+ */
+export class HttpError extends AppError {
   constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
+    super(message, status, `HTTP_${status}`);
   }
 }
 
@@ -13,27 +22,3 @@ export const unauthorized = (msg = 'Unauthorized') => new HttpError(401, msg);
 export const forbidden = (msg = 'Forbidden') => new HttpError(403, msg);
 export const notFound = (msg = 'Not found') => new HttpError(404, msg);
 export const conflict = (msg: string) => new HttpError(409, msg);
-
-// Wrap async handlers to forward rejection to errorHandler.
-// Express 5 forwards async errors automatically, but explicit wrap keeps
-// behavior consistent if a sync throw happens inside a Promise chain.
-export const asyncHandler =
-  (fn: RequestHandler): RequestHandler =>
-  (req, res, next) =>
-    Promise.resolve(fn(req, res, next)).catch(next);
-
-export function errorHandler(
-  err: unknown,
-  _req: Request,
-  res: Response,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _next: NextFunction
-): void {
-  if (err instanceof HttpError) {
-    res.status(err.status).json({ message: err.message });
-    return;
-  }
-  console.error('Unhandled error:', err);
-  const message = err instanceof Error ? err.message : 'Internal Server Error';
-  res.status(500).json({ message });
-}

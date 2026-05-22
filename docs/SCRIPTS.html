@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PowerShell Scripts — Daily lifecycle AWS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 32px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-bottom: 3px solid #7c3aed;
+      margin-bottom: 48px;
+    }
+    .cover h1 { font-size: 2.2rem; color: #7c3aed; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge {
+      display: inline-block;
+      background: #ede9fe;
+      color: #5b21b6;
+      border-radius: 9999px;
+      padding: 2px 12px;
+      font-size: 0.8rem;
+      margin: 4px 2px;
+    }
+
+    /* ── TOC ── */
+    .toc {
+      background: #faf5ff;
+      border-left: 4px solid #7c3aed;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+      border-radius: 0 8px 8px 0;
+    }
+    .toc h2 { font-size: 1rem; color: #7c3aed; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #7c3aed; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    /* ── Headings ── */
+    h1 { font-size: 1.8rem; color: #5b21b6; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #6d28d9; margin: 32px 0 10px; border-bottom: 1px solid #ddd6fe; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #5b21b6; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+
+    /* ── Code blocks ── */
+    pre {
+      background: #1e1b4b;
+      color: #e0e7ff;
+      padding: 16px 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+    code {
+      background: #ede9fe;
+      color: #5b21b6;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    pre code { background: transparent; color: inherit; padding: 0; }
+
+    .cmt  { color: #94a3b8; }
+    .kw   { color: #c4b5fd; }
+    .str  { color: #86efac; }
+    .num  { color: #fca5a5; }
+    .var  { color: #fcd34d; }
+
+    /* ── Callout boxes ── */
+    .info, .warn, .tip, .danger {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .info   { border-color: #3b82f6; background: #eff6ff; }
+    .warn   { border-color: #f59e0b; background: #fffbeb; }
+    .tip    { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong {
+      display: block; margin-bottom: 4px;
+    }
+    .info strong   { color: #1d4ed8; }
+    .warn strong   { color: #b45309; }
+    .tip strong    { color: #065f46; }
+    .danger strong { color: #b91c1c; }
+
+    /* ── Architecture diagram ── */
+    .arch {
+      border: 2px solid #ddd6fe;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      background: #faf5ff;
+      font-family: monospace;
+      font-size: 0.82rem;
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    /* ── Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.88rem;
+    }
+    th {
+      background: #6d28d9;
+      color: #fff;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+    tr:nth-child(even) td { background: #faf5ff; }
+    tr:hover td { background: #ede9fe; }
+
+    hr { border: none; border-top: 2px dashed #ddd6fe; margin: 40px 0; }
+
+    /* ── Script card ── */
+    .script-card {
+      border: 1px solid #ddd6fe;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 24px 0;
+      background: #faf5ff;
+    }
+    .script-card > h2 {
+      border-bottom: none;
+      margin-top: 0;
+      padding-bottom: 0;
+    }
+    .script-card h3 {
+      margin-top: 16px;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #6d28d9;
+    }
+
+    @media print {
+      body { padding: 16px; font-size: 12px; }
+      .cover { padding: 30px 0 20px; }
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.2rem; }
+      pre { font-size: 0.75rem; }
+      a { color: #6d28d9; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>PowerShell Scripts</h1>
+  <p>Daily lifecycle scripts cho việc tạo / huỷ EC2 mỗi ngày — tiết kiệm chi phí khi học AWS</p>
+  <br/>
+  <span class="badge">PowerShell 5.1+</span>
+  <span class="badge">AWS CLI v2</span>
+  <span class="badge">GitHub CLI</span>
+  <span class="badge">EC2 / ECR / Route 53</span>
+  <span class="badge">SSH / Certbot</span>
+  <br/><br/>
+  <p style="color:#888; font-size:0.85rem;">4 scripts trong <code>scripts/</code> phục vụ workflow morning / evening / setup / audit</p>
+</div>
+
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#flow">Quy trình tổng thể</a></li>
+    <li><a href="#s1">morning.ps1 — Khởi động hệ thống hàng ngày</a></li>
+    <li><a href="#s2">evening.ps1 — Tắt hệ thống cuối ngày</a></li>
+    <li><a href="#s3">setup-ec2.ps1 — Khởi tạo EC2 (one-time / retry)</a></li>
+    <li><a href="#s4">cost-check.ps1 — Audit chi phí &amp; dọn resources</a></li>
+    <li><a href="#summary">Bảng tóm tắt nhanh</a></li>
+    <li><a href="#hardcode">Khi nào cần update các giá trị hardcode</a></li>
+    <li><a href="#tips">Tip &amp; Best practices</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     QUY TRÌNH TỔNG THỂ
+═════════════════════════════════════════════════ -->
+<h1 id="flow">Quy trình tổng thể</h1>
+
+<p>Project dùng chiến lược <strong>tạo EC2 mỗi sáng / huỷ mỗi tối</strong> để tiết kiệm chi phí. 4 scripts phối hợp:</p>
+
+<div class="arch">┌──────────────────┐
+│ setup-ec2.ps1    │  1 lần / khi morning.ps1 fail ở bước SSH-setup
+│ (one-time)       │  → cài Docker, Certbot, SSL trên EC2 đã có sẵn
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│ morning.ps1      │ ──► │ Làm việc cả ngày │ ──► │ evening.ps1      │
+│ (mỗi sáng)       │     │ (push code →     │     │ (mỗi tối)        │
+│ Tạo EC2 + deploy │     │  Actions deploy) │     │ Terminate all    │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+
+                  cost-check.ps1  ◄── chạy bất kỳ lúc nào để audit</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     1. MORNING.PS1
+═════════════════════════════════════════════════ -->
+<div class="script-card">
+<h2 id="s1">🌅 1. morning.ps1 — Khởi động hệ thống hàng ngày</h2>
+
+<h3>Mục đích</h3>
+<p>Tạo EC2 mới + cài đặt + deploy app trong 1 lệnh duy nhất. Sau ~8 phút app đã chạy tại <code>https://vhnlong.store</code>.</p>
+
+<h3>Prerequisites</h3>
+<ul>
+  <li>AWS CLI v2 đã cấu hình (<code>aws configure</code>) với quyền: EC2, ECR, Route 53</li>
+  <li>GitHub CLI đã login (<code>gh auth login</code>) với scope <code>repo</code> để set environment secrets</li>
+  <li>PEM key tại <code>E:\AWS\deploy-ec2.pem</code></li>
+  <li>Các AWS resource sau <strong>đã tồn tại</strong> (không tự tạo): key pair <code>deploy-ec2</code>, Security Group <code>sg-039475caacad36625</code>, Subnet <code>subnet-046de50c5c6c52006</code>, IAM instance profile <code>myapp-ec2-role</code>, Route 53 hosted zone <code>Z0999500HD1JE8VHHDN2</code></li>
+  <li>SSM Parameters <code>/myapp/production/*</code> đã được tạo sẵn</li>
+</ul>
+
+<h3>Hardcoded values</h3>
+<table>
+  <tr><th>Biến</th><th>Giá trị</th><th>Sửa khi</th></tr>
+  <tr><td><code>$REGION</code></td><td><code>ap-southeast-1</code></td><td>Đổi region</td></tr>
+  <tr><td><code>$AMI</code></td><td><code>ami-02dd44faa40720bb8</code> (Ubuntu 22.04 LTS)</td><td>AMI deprecated / đổi OS</td></tr>
+  <tr><td><code>$INSTANCE_TYPE</code></td><td><code>t3.small</code></td><td>Đổi size (lưu ý chi phí)</td></tr>
+  <tr><td><code>$KEY_NAME</code></td><td><code>deploy-ec2</code></td><td>Đổi key pair</td></tr>
+  <tr><td><code>$SECURITY_GROUP</code></td><td><code>sg-039475caacad36625</code></td><td>Xoá nhầm SG / đổi VPC</td></tr>
+  <tr><td><code>$SUBNET_ID</code></td><td><code>subnet-046de50c5c6c52006</code></td><td>Đổi VPC</td></tr>
+  <tr><td><code>$IAM_PROFILE</code></td><td><code>myapp-ec2-role</code></td><td>Đổi tên role</td></tr>
+  <tr><td><code>$HOSTED_ZONE_ID</code></td><td><code>Z0999500HD1JE8VHHDN2</code></td><td>Tạo lại hosted zone</td></tr>
+  <tr><td><code>$DOMAIN</code></td><td><code>vhnlong.store</code></td><td>Đổi domain</td></tr>
+  <tr><td><code>$GITHUB_REPO</code></td><td><code>ngoclong99/start</code></td><td>Đổi repo</td></tr>
+  <tr><td><code>$KEY_PATH</code></td><td><code>E:\AWS\deploy-ec2.pem</code></td><td>Đổi vị trí key</td></tr>
+  <tr><td><code>$EMAIL</code></td><td><code>longvhn1999@gmail.com</code></td><td>Email đăng ký Let's Encrypt</td></tr>
+</table>
+
+<h3>Cách chạy</h3>
+<pre><code>.\scripts\morning.ps1</code></pre>
+<p>Không có tham số. Tổng thời gian ~8 phút (60s đợi EC2 boot + 60s đợi SSH + 60s đợi DNS propagate + ~3 phút Certbot + ~3 phút GitHub Actions deploy).</p>
+
+<h3>Bên trong làm gì (6 bước)</h3>
+<ol>
+  <li><strong>Tạo ECR repos</strong> <code>myapp-backend</code>, <code>myapp-frontend</code> (idempotent — bỏ qua nếu đã tồn tại)</li>
+  <li><strong>Launch EC2</strong> với AMI/SG/subnet/IAM đã hardcode, tag <code>Name=myapp-ec2</code>, đợi <code>instance-running</code></li>
+  <li><strong>Update Route 53</strong> A record <code>vhnlong.store</code> và <code>www.vhnlong.store</code> → IP mới (TTL=60) + set GitHub environment secret <code>EC2_HOST</code> cho cả <code>production</code> và <code>staging</code></li>
+  <li><strong>Đợi 60s</strong> cho SSH daemon khởi động xong</li>
+  <li><strong>SSH vào EC2</strong> cài: Docker + AWS CLI v2 + Certbot + lấy SSL cert từ Let's Encrypt + tạo <code>~/app/production</code> và <code>~/app/staging</code></li>
+  <li><strong>Trigger workflow</strong> <code>gh workflow run deploy.yml --ref main --field environment=production</code></li>
+</ol>
+
+<h3>Side effects</h3>
+<div class="warn">
+  <strong>⚠️ TẠO RESOURCES TỐN TIỀN</strong>
+  EC2 (~$0.0208/hr), EBS root volume (~$0.001/hr), băng thông ECR pull lần đầu. Update GitHub environment secrets + Route 53 A record (override giá trị cũ).
+</div>
+
+<h3>Troubleshooting</h3>
+<table>
+  <tr><th>Lỗi</th><th>Nguyên nhân &amp; Fix</th></tr>
+  <tr>
+    <td><code>InvalidAMIID.NotFound</code></td>
+    <td>AMI ID đã đổi/deprecated trên region. Lookup AMI Ubuntu 22.04 mới:
+    <pre style="margin-top:4px;"><code>aws ec2 describe-images --owners 099720109477 \
+  --filters <span class="str">"Name=name,Values=*ubuntu-jammy-22.04-amd64-server*"</span> \
+  --query <span class="str">"sort_by(Images, &amp;CreationDate)[-1].ImageId"</span> \
+  --output text --region ap-southeast-1</code></pre></td>
+  </tr>
+  <tr><td><code>NoSuchHostedZone</code></td><td>Hosted zone đã xoá. Tạo lại trong Route 53 Console, copy zone ID mới vào <code>$HOSTED_ZONE_ID</code></td></tr>
+  <tr><td><code>Route 53 update that bai</code></td><td>Thường do JSON encoding. Script đã workaround bằng temp file + UTF-8 no BOM. Nếu vẫn fail: kiểm tra <code>aws sts get-caller-identity</code></td></tr>
+  <tr><td><code>gh: command not found</code> (sau khi đã cài)</td><td>PATH chưa refresh. Script đã có lệnh refresh PATH ở dòng 95 — nếu vẫn fail: mở PowerShell mới</td></tr>
+  <tr><td><code>gh secret set ... permission denied</code></td><td>Token thiếu scope. Chạy <code>gh auth refresh -s repo</code></td></tr>
+  <tr><td><code>Certbot fail: NXDOMAIN</code></td><td>DNS chưa propagate đủ. Script đã đợi 60s — nếu vẫn fail: SSH vào EC2, chạy lại <code>sudo certbot certonly --standalone -d vhnlong.store -d www.vhnlong.store --non-interactive --agree-tos --email longvhn1999@gmail.com</code></td></tr>
+  <tr><td><code>LOI: Setup EC2 that bai</code></td><td>Script fail ở bước SSH-setup. SSH vào EC2 chạy tay từng lệnh để debug, hoặc dùng <code>setup-ec2.ps1 -IP &lt;ip&gt;</code> để retry chỉ phần setup</td></tr>
+</table>
+
+</div>
+
+<!-- ════════════════════════════════════════════════
+     2. EVENING.PS1
+═════════════════════════════════════════════════ -->
+<div class="script-card">
+<h2 id="s2">🌙 2. evening.ps1 — Tắt hệ thống cuối ngày</h2>
+
+<h3>Mục đích</h3>
+<p>Huỷ toàn bộ resource tốn tiền cuối ngày. Mục tiêu: chi phí EC2 = $0 khi không học.</p>
+
+<h3>Prerequisites</h3>
+<ul>
+  <li>AWS CLI đã cấu hình với quyền: EC2 terminate-instances + release-address, ECR delete-repository</li>
+</ul>
+
+<h3>Hardcoded values</h3>
+<table>
+  <tr><th>Biến</th><th>Giá trị</th><th>Ghi chú</th></tr>
+  <tr><td><code>$REGION</code></td><td><code>ap-southeast-1</code></td><td></td></tr>
+  <tr><td>EC2 tag filter</td><td><code>Name=myapp-ec2</code></td><td>Chỉ tìm/xoá EC2 có tag này</td></tr>
+  <tr><td>ECR repos xoá</td><td><code>myapp-backend</code>, <code>myapp-frontend</code></td><td>Khớp với tên dùng trong <code>deploy.yml</code></td></tr>
+</table>
+
+<h3>Cách chạy</h3>
+<pre><code><span class="cmt"># Interactive (hỏi xác nhận trước khi terminate EC2)</span>
+.\scripts\evening.ps1
+
+<span class="cmt"># Auto-confirm (dùng cho automation/scheduled task)</span>
+.\scripts\evening.ps1 -Force</code></pre>
+
+<h3>Bên trong làm gì (3 bước)</h3>
+<ol>
+  <li><strong>Terminate EC2</strong> có tag <code>Name=myapp-ec2</code> ở trạng thái <code>running</code> hoặc <code>stopped</code> (EBS gắn kèm tự xoá theo "Delete on Termination" mặc định)</li>
+  <li><strong>Xoá ECR repos</strong> <code>myapp-backend</code> và <code>myapp-frontend</code> cùng tất cả images bên trong (<code>--force</code>)</li>
+  <li><strong>Release Elastic IPs</strong> chưa gắn vào instance nào (Elastic IP đã gắn vào EC2 đang chạy thì miễn phí)</li>
+</ol>
+
+<h3>Side effects</h3>
+<div class="danger">
+  <strong>🚨 DESTRUCTIVE</strong>
+  <ul style="margin: 8px 0 0; padding-left: 20px;">
+    <li><strong>Terminate EC2 vĩnh viễn</strong> + xoá EBS volumes (mất data Docker <code>postgres_data</code> nếu chưa backup)</li>
+    <li><strong>Xoá ECR repos + images</strong> (morning.ps1 sẽ tạo lại cùng tên → ECR_REGISTRY URI không đổi)</li>
+    <li>Release Elastic IP</li>
+  </ul>
+</div>
+
+<h3>KHÔNG xoá gì</h3>
+<ul>
+  <li><strong>Route 53 hosted zone</strong> (~$0.50/tháng, giữ lại để sáng mai update IP mới)</li>
+  <li><strong>GitHub Secrets</strong> (<code>morning.ps1</code> sẽ override sang IP mới)</li>
+  <li><strong>SSM Parameters</strong> (giữ vĩnh viễn để app dùng)</li>
+  <li><strong>IAM role, Security Group, key pair, Subnet</strong> (giữ để tái sử dụng)</li>
+</ul>
+
+<h3>Troubleshooting</h3>
+<table>
+  <tr><th>Lỗi</th><th>Nguyên nhân &amp; Fix</th></tr>
+  <tr><td><code>Khong co EC2 nao dang chay</code></td><td>Bình thường nếu đã chạy evening trước đó. Script vẫn tiếp tục xoá ECR + Elastic IP</td></tr>
+  <tr><td><code>RepositoryNotFoundException</code></td><td>Bình thường — repo đã không tồn tại, script in "khong ton tai, bo qua"</td></tr>
+  <tr><td>Elastic IP không release được</td><td>Elastic IP đang associated với EC2 chưa terminate xong. Đợi EC2 terminate hoàn tất (1-2 phút) rồi chạy lại <code>evening.ps1</code></td></tr>
+  <tr><td>Chi phí vẫn còn sau khi chạy</td><td>Chạy <code>.\scripts\cost-check.ps1</code> để audit — có thể còn RDS / NAT / ALB / EBS detached</td></tr>
+</table>
+
+</div>
+
+<!-- ════════════════════════════════════════════════
+     3. SETUP-EC2.PS1
+═════════════════════════════════════════════════ -->
+<div class="script-card">
+<h2 id="s3">🔧 3. setup-ec2.ps1 — Khởi tạo EC2 (one-time / retry)</h2>
+
+<h3>Mục đích</h3>
+<p>Cài Docker + Certbot + SSL trên 1 EC2 đã có sẵn. Tách rời với <code>morning.ps1</code> để có thể retry chỉ phần setup mà không cần tạo lại EC2.</p>
+
+<h3>Khi nào dùng</h3>
+<ul>
+  <li>Khi <code>morning.ps1</code> fail ở bước 5 (SSH-setup) và muốn retry không tạo EC2 mới</li>
+  <li>Khi tạo EC2 thủ công qua Console và muốn cài nhanh</li>
+</ul>
+
+<h3>Prerequisites</h3>
+<ul>
+  <li>EC2 đã <code>running</code> và accept SSH (port 22 trong SG)</li>
+  <li>DNS <code>vhnlong.store</code> đã trỏ đến IP truyền vào (cho Certbot validate)</li>
+  <li>PEM key tại <code>$env:USERPROFILE\.ssh\deploy-ec2.pem</code></li>
+</ul>
+
+<h3>Hardcoded values</h3>
+<table>
+  <tr><th>Biến</th><th>Giá trị</th></tr>
+  <tr><td><code>$KEY_PATH</code></td><td><code>$env:USERPROFILE\.ssh\deploy-ec2.pem</code></td></tr>
+  <tr><td><code>$DOMAIN</code></td><td><code>vhnlong.store</code></td></tr>
+  <tr><td><code>$EMAIL</code></td><td><code>longvhn1999@gmail.com</code></td></tr>
+</table>
+
+<div class="warn">
+  <strong>⚠️ PEM path KHÁC với morning.ps1</strong>
+  <code>setup-ec2.ps1</code> dùng <code>$env:USERPROFILE\.ssh\deploy-ec2.pem</code>, <code>morning.ps1</code> dùng <code>E:\AWS\deploy-ec2.pem</code>. Nếu chỉ có 1 chỗ lưu key thì thống nhất 2 file lại.
+</div>
+
+<h3>Cách chạy</h3>
+<pre><code>.\scripts\setup-ec2.ps1 -IP 13.251.123.45</code></pre>
+<p>Bắt buộc tham số <code>-IP</code>. Script đợi 30s trước khi SSH (cho instance hoàn tất boot).</p>
+
+<h3>Cài gì lên EC2</h3>
+<ul>
+  <li>Docker (qua <code>get.docker.com</code>) + add user <code>ubuntu</code> vào nhóm docker + enable autostart</li>
+  <li>AWS CLI v2</li>
+  <li>Certbot + lấy SSL cert cho <code>vhnlong.store</code> + <code>www.vhnlong.store</code></li>
+  <li>Tạo <code>~/app/production</code> và <code>~/app/staging</code></li>
+</ul>
+
+<h3>Side effects</h3>
+<ul>
+  <li>Non-destructive trên local</li>
+  <li>Trên EC2: cài packages, tạo SSL cert (cert lưu tại <code>/etc/letsencrypt/live/vhnlong.store/</code>)</li>
+</ul>
+
+<h3>Troubleshooting</h3>
+<table>
+  <tr><th>Lỗi</th><th>Nguyên nhân &amp; Fix</th></tr>
+  <tr><td><code>ssh: connect to host ... port 22: Connection refused</code></td><td>Instance chưa ready. Đợi 30-60s nữa rồi chạy lại</td></tr>
+  <tr><td><code>Permission denied (publickey)</code></td><td>Sai PEM key hoặc key permission. Trên Windows: <code>icacls $env:USERPROFILE\.ssh\deploy-ec2.pem /inheritance:r /grant:r $env:USERNAME:R</code></td></tr>
+  <tr><td><code>Certbot: NXDOMAIN looking up A for vhnlong.store</code></td><td>DNS chưa trỏ về IP. Check Route 53 A record có khớp <code>-IP</code> không</td></tr>
+  <tr><td><code>Certbot: rate limit reached</code></td><td>Let's Encrypt limit 5 cert/tuần/domain. Đợi reset hoặc dùng staging cert (<code>--staging</code>)</td></tr>
+  <tr><td>Script chỉ in 1 dòng comment rồi exit 0</td><td>Bug PowerShell 5.1 strip newlines. Script đã workaround bằng pipe qua STDIN — nếu user sửa script: giữ nguyên cú pháp <code>$REMOTE_SCRIPT | ssh ... "bash -s"</code></td></tr>
+</table>
+
+</div>
+
+<!-- ════════════════════════════════════════════════
+     4. COST-CHECK.PS1
+═════════════════════════════════════════════════ -->
+<div class="script-card">
+<h2 id="s4">💰 4. cost-check.ps1 — Audit chi phí &amp; dọn resources</h2>
+
+<h3>Mục đích</h3>
+<p>Interactive menu liệt kê toàn bộ AWS resources đang tốn tiền, kèm ước tính giá. Cho phép xoá thủ công từng resource.</p>
+
+<h3>Prerequisites</h3>
+<ul>
+  <li>AWS CLI cấu hình với quyền <code>describe-*</code> (tối thiểu để liệt kê) + quyền xoá (nếu muốn dùng menu xoá)</li>
+</ul>
+
+<h3>Resources được scan</h3>
+<table>
+  <tr><th>Type</th><th>Cost estimate</th></tr>
+  <tr><td>EC2 (t3.micro / t3.small / t3.medium)</td><td>~$0.0104 / $0.0208 / $0.0416 / hr</td></tr>
+  <tr><td>EBS Volume (gp2/gp3)</td><td>~$0.10/GB/tháng</td></tr>
+  <tr><td>RDS instance</td><td>~$0.021/hr (db.t3.micro)</td></tr>
+  <tr><td>Elastic IP — associated</td><td>Free</td></tr>
+  <tr><td>Elastic IP — unassociated</td><td>~$0.005/hr</td></tr>
+  <tr><td>NAT Gateway</td><td>~$0.045/hr ⚠️ đắt nhất</td></tr>
+  <tr><td>Load Balancer (ALB/NLB)</td><td>~$0.008/hr</td></tr>
+  <tr><td>ECR Repo</td><td>~$0.10/GB/tháng</td></tr>
+  <tr><td>Route 53 Hosted Zone</td><td>~$0.50/tháng</td></tr>
+</table>
+
+<h3>Cách chạy</h3>
+<pre><code>.\scripts\cost-check.ps1</code></pre>
+<p>Không có tham số. Sau khi liệt kê, nhập số <code>[No]</code> để chọn resource, sau đó chọn action (Stop / Terminate / Delete / Release). Nhập <code>q</code> để thoát.</p>
+
+<h3>Side effects</h3>
+<ul>
+  <li>Đọc-only khi chỉ liệt kê (nhập <code>q</code> ngay)</li>
+  <li><strong>DESTRUCTIVE</strong> khi chọn action — luôn có prompt <code>Xac nhan? (y/n)</code> trước khi xoá thật</li>
+</ul>
+
+<h3>Use cases điển hình</h3>
+<div class="tip">
+  <strong>✅ Khi nào nên chạy</strong>
+  <ul style="margin: 8px 0 0; padding-left: 20px;">
+    <li>Sáng vừa chạy <code>morning.ps1</code> xong → audit xem có resource nào "rò rỉ" từ hôm trước</li>
+    <li>Sau khi học RDS → dùng menu để delete instance + EBS detached</li>
+    <li>Cuối tuần → audit toàn bộ, đảm bảo về $0</li>
+  </ul>
+</div>
+
+<h3>Troubleshooting</h3>
+<table>
+  <tr><th>Lỗi</th><th>Nguyên nhân &amp; Fix</th></tr>
+  <tr><td>Bảng trống (<code>Khong co resource nao dang chay</code>)</td><td>Tốt — không tốn tiền. Hoặc check region: script chỉ scan <code>ap-southeast-1</code></td></tr>
+  <tr><td>Route 53: chọn số rồi báo "xoa tren AWS Console"</td><td>Đúng hành vi — script không xoá zone vì còn DNS records. Vào Console xoá records trước, rồi xoá zone</td></tr>
+  <tr><td><code>DBInstance ... can't be deleted because deletion protection is enabled</code></td><td>Bật deletion protection. Vào RDS Console → Modify → Disable deletion protection → Apply immediately → chạy lại</td></tr>
+  <tr><td>EBS detached không xoá được</td><td>Snapshot/AMI tham chiếu volume. Xoá AMI/snapshot trước, hoặc dùng AWS Console</td></tr>
+  <tr><td><code>LoadBalancer ... has dependencies</code></td><td>ALB có Target Group/Listener. Xoá Target Group trước qua Console</td></tr>
+</table>
+
+</div>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     BẢNG TÓM TẮT
+═════════════════════════════════════════════════ -->
+<h1 id="summary">Bảng tóm tắt nhanh</h1>
+
+<table>
+  <tr><th>Script</th><th>Khi nào dùng</th><th>Destructive?</th><th>Tham số</th></tr>
+  <tr><td><code>morning.ps1</code></td><td>Mỗi sáng bắt đầu học</td><td>Tạo resources (tốn tiền)</td><td><em>(không)</em></td></tr>
+  <tr><td><code>evening.ps1</code></td><td>Mỗi tối kết thúc</td><td><strong>Có</strong> — terminate EC2, xoá ECR, release EIP</td><td><code>-Force</code> (skip confirm)</td></tr>
+  <tr><td><code>setup-ec2.ps1</code></td><td>Retry khi <code>morning.ps1</code> fail SSH-setup</td><td>Không (chỉ cài lên EC2)</td><td><code>-IP &lt;ec2-ip&gt;</code> <em>(bắt buộc)</em></td></tr>
+  <tr><td><code>cost-check.ps1</code></td><td>Audit bất kỳ lúc nào</td><td>Có (qua menu, luôn confirm)</td><td><em>(không)</em></td></tr>
+</table>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     HARDCODE UPDATE
+═════════════════════════════════════════════════ -->
+<h1 id="hardcode">Khi nào cần update các giá trị hardcode</h1>
+
+<p>Khi đổi domain / region / VPC / repo / key location, sửa các chỗ sau:</p>
+
+<table>
+  <tr><th>Thay đổi</th><th>File cần sửa</th></tr>
+  <tr><td>Đổi region</td><td><code>morning.ps1</code>, <code>evening.ps1</code>, <code>cost-check.ps1</code> (<code>$REGION</code>)</td></tr>
+  <tr><td>Đổi domain</td><td><code>morning.ps1</code> (<code>$DOMAIN</code>), <code>setup-ec2.ps1</code> (<code>$DOMAIN</code>), <code>nginx/default.conf</code>, SSM <code>/myapp/*/VITE_API_URL</code></td></tr>
+  <tr><td>Đổi email Let's Encrypt</td><td><code>morning.ps1</code> (<code>$EMAIL</code>), <code>setup-ec2.ps1</code> (<code>$EMAIL</code>)</td></tr>
+  <tr><td>Đổi VPC / Subnet / SG</td><td><code>morning.ps1</code> (<code>$SECURITY_GROUP</code>, <code>$SUBNET_ID</code>)</td></tr>
+  <tr><td>Đổi IAM role</td><td><code>morning.ps1</code> (<code>$IAM_PROFILE</code>)</td></tr>
+  <tr><td>Đổi Route 53 zone</td><td><code>morning.ps1</code> (<code>$HOSTED_ZONE_ID</code>)</td></tr>
+  <tr><td>Đổi GitHub repo</td><td><code>morning.ps1</code> (<code>$GITHUB_REPO</code>)</td></tr>
+  <tr><td>Đổi vị trí PEM key</td><td><code>morning.ps1</code> (<code>$KEY_PATH</code>), <code>setup-ec2.ps1</code> (<code>$KEY_PATH</code>)</td></tr>
+  <tr><td>Đổi tên ECR repos</td><td><code>evening.ps1</code> (mảng <code>@("myapp-backend", "myapp-frontend")</code>), <code>deploy.yml</code>, <code>docker-compose.prod.yml</code></td></tr>
+  <tr><td>Đổi tag EC2</td><td><code>evening.ps1</code> (filter <code>Name=tag:Name,Values=myapp-ec2</code>), <code>morning.ps1</code> (<code>--tag-specifications</code>)</td></tr>
+</table>
+
+<hr/>
+
+<!-- ════════════════════════════════════════════════
+     TIPS
+═════════════════════════════════════════════════ -->
+<h1 id="tips">Tip &amp; Best practices</h1>
+
+<div class="tip">
+  <strong>✅ Trước khi chạy <code>morning.ps1</code></strong>
+  Đảm bảo <code>evening.ps1</code> đã chạy thành công hôm trước (không có EC2/ECR cũ leftover).
+</div>
+
+<div class="tip">
+  <strong>✅ Sau khi chạy <code>evening.ps1</code></strong>
+  Chạy <code>cost-check.ps1</code> để confirm bảng trống → chắc chắn $0 qua đêm.
+</div>
+
+<div class="warn">
+  <strong>⚠️ Backup data trước khi <code>evening.ps1</code></strong>
+  Docker <code>postgres_data</code> volume bị xoá theo EC2 — nếu cần giữ data học, dump trước:
+  <pre style="margin-top:8px;"><code>ssh ... <span class="str">'docker exec myapp-production-db-1 pg_dump -U userPostgres todos_db'</span> &gt; backup.sql</code></pre>
+</div>
+
+<div class="danger">
+  <strong>🚨 Đừng chạy <code>morning.ps1</code> 2 lần liên tiếp</strong>
+  Sẽ có 2 EC2 cùng tag, không xác định được cái nào để xoá. Nếu lỡ: dùng <code>cost-check.ps1</code> chọn từng cái terminate.
+</div>
+
+<div class="info">
+  <strong>💡 PowerShell version</strong>
+  2 scripts <code>morning.ps1</code> và <code>setup-ec2.ps1</code> đã workaround bug PowerShell 5.1 strip newlines (pipe qua STDIN). Không sửa cú pháp này, kể cả khi refactor.
+</div>
+
+<hr/>
+
+<div style="text-align:center; padding:40px 0; color:#888; font-size:0.85rem; border-top: 1px solid #e5e7eb;">
+  <p>Để xem hướng dẫn deploy full-stack, tham khảo <a href="huong-dan-docker-aws-cicd.html" style="color:#6d28d9;">huong-dan-docker-aws-cicd.html</a>.</p>
+  <p>Để xem hướng dẫn S3 + CloudFront cho FE, xem <a href="huong-dan-docker-aws-cicd-s3.html" style="color:#6d28d9;">huong-dan-docker-aws-cicd-s3.html</a>.</p>
+  <p>Để xem hướng dẫn RDS, xem <a href="RDS_GUIDE.html" style="color:#6d28d9;">RDS_GUIDE.html</a>.</p>
+</div>
+
+</body>
+</html>
