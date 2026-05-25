@@ -181,10 +181,11 @@ Mở [docs/S3_FRONTEND.md](S3_FRONTEND.md) để xem hướng dẫn từng bư�
 > Mục tiêu: Data không mất, app an toàn hơn
 
 - [x] **RDS** — học xong, hiểu migrate Docker DB → RDS. Hiện revert về Docker DB để tiết kiệm chi phí demo. Xem [RDS_GUIDE.md](RDS_GUIDE.md)
-- [x] **S3** — lưu file upload (ảnh, documents)
+- [x] **S3** — lưu file upload (ảnh, documents). Xem [S3_IMAGES.html](S3_IMAGES.html)
 - [x] **HTTPS** — `https://vhnlong.store` với Let's Encrypt + Certbot
 - [x] **Security Group** — mở đúng port: 22, 80, 443, 5050, 5051, 8080
 - [x] **IAM** — EC2 Instance Role `myapp-ec2-role`, least privilege (ECR read, SSM read)
+- [x] **Cost monitoring** — AWS Budgets alert email khi vượt $2 / $5 / $10. Xem [scripts/cost-budget/](../scripts/cost-budget/)
 
 ---
 
@@ -200,33 +201,86 @@ Mở [docs/S3_FRONTEND.md](S3_FRONTEND.md) để xem hướng dẫn từng bư�
 
 ---
 
-## Giai đoạn 4 — Container Orchestration
-> Mục tiêu: Không cần quản lý EC2 thủ công
+## Giai đoạn 4 — Container & Serverless
+> Mục tiêu: Compute beyond EC2 — container orchestration + serverless functions
+> **Master guide:** [PHASE_4_ORCHESTRATION.html](PHASE_4_ORCHESTRATION.html)
 
+**Containers (ECS Fargate):**
 - [ ] **ECS Fargate** — chạy container không cần quản lý server
 - [ ] **ECR lifecycle policy** — tự xoá images cũ tiết kiệm chi phí
-- [ ] **CloudWatch** — monitoring, alerts, logs tập trung
+- [ ] **CloudWatch Logs centralization** — log từ container tập trung 1 chỗ
 - [ ] **Blue/Green deployment** — deploy an toàn, rollback trong 1 phút
+
+**Serverless (Lambda + API Gateway + EventBridge):**
+- [ ] **Lambda fundamentals** — function as a service, cold start, runtime, event sources
+- [ ] **API Gateway** — REST/HTTP API trước Lambda, no EC2 backend
+- [ ] **EventBridge schedule** — replace cron — vd auto-terminate EC2 mỗi tối thay `evening.ps1`
+- [ ] **Lambda + S3 trigger** — image resize khi user upload sản phẩm
+- [ ] **Lambda destinations / Dead Letter Queue** — error handling cho async invocation
 
 ---
 
-## Giai đoạn 5 — Infrastructure as Code
+## Giai đoạn 5 — NoSQL & Async Messaging
+> Mục tiêu: Database paradigm khác RDS + decouple service bằng queue/event
+> **Master guide:** [PHASE_5_NOSQL.html](PHASE_5_NOSQL.html)
+
+- [ ] **DynamoDB basics** — partition key, sort key, GSI/LSI, on-demand vs provisioned
+- [ ] **DynamoDB Streams** — trigger Lambda khi data đổi (event-driven)
+- [ ] **DynamoDB use cases** — khi nào dùng DynamoDB vs RDS
+- [ ] **SQS (Simple Queue Service)** — async queue, decouple producer/consumer
+- [ ] **SNS (Simple Notification Service)** — pub/sub, multi-subscriber
+- [ ] **EventBridge custom events** — application bus, event pattern matching
+- [ ] **ElastiCache (Redis)** — caching layer, session store
+
+---
+
+## Giai đoạn 6 — Infrastructure as Code
 > Mục tiêu: Tạo/xoá toàn bộ hạ tầng bằng code, tái tạo môi trường chỉ 1 lệnh
+> **Master guide:** [PHASE_5_IAC.html](PHASE_5_IAC.html) _(file name cũ, content mới)_
 
 - [ ] **Terraform** — viết code để tạo EC2, RDS, ALB, VPC
 - [ ] **Modules** — tái sử dụng infrastructure code
-- [ ] **Remote state** — lưu Terraform state trên S3
+- [ ] **Remote state** — lưu Terraform state trên S3 + DynamoDB lock
+- [ ] **Workspaces** — tách prod/staging trong cùng codebase
+- [ ] **Import existing** — codify resource đã tạo manual
 
 ---
 
-## Giai đoạn 6 — Advanced
-> Mục tiêu: Vận hành production như công ty thật
+## Giai đoạn 7 — Observability
+> Mục tiêu: Biết app đang chạy gì, xảy ra lỗi ở đâu — production-grade monitoring
+> **Master guide:** [PHASE_7_OBSERVABILITY.html](PHASE_7_OBSERVABILITY.html)
 
-- [ ] **CloudFront + S3** — CDN serve FE từ S3 — _Docs done, chờ thực thi:_ [S3_FRONTEND.md](S3_FRONTEND.md)
-- [ ] **WAF** — chặn tấn công DDoS, SQL injection
-- [ ] **Secrets Manager** — rotate secrets tự động, audit trail
-- [ ] **Cost optimization** — Spot instances, Reserved instances
-- [ ] **Multi-region** — deploy nhiều khu vực
+- [ ] **CloudTrail** — audit log toàn bộ API call AWS (ai làm gì lúc nào)
+- [ ] **CloudWatch Logs Insights** — query log với SQL-like syntax
+- [ ] **CloudWatch Dashboards** — custom dashboard với widget
+- [ ] **X-Ray distributed tracing** — debug latency giữa nhiều service
+- [ ] **CloudWatch Synthetics** — uptime monitoring từ ngoài
+- [ ] **Structured logs (Pino JSON)** — log dạng JSON để query dễ
+- [ ] **Alert routing** — SNS multi-channel (email, Slack, PagerDuty)
+
+---
+
+## Giai đoạn 8 — Production Hardening (Advanced)
+> Mục tiêu: Vận hành production như công ty thật — security + scale + DR
+> **Master guide:** [PHASE_6_ADVANCED.html](PHASE_6_ADVANCED.html) _(file name cũ)_
+
+**Performance & CDN:**
+- [ ] **CloudFront + S3 frontend** — CDN serve FE từ S3, FE 24/7 độc lập EC2. Docs: [S3_FRONTEND.md](S3_FRONTEND.md)
+
+**Security:**
+- [ ] **WAF** — chặn DDoS, SQL injection, rate limit
+- [ ] **KMS** — encryption key management (alternative to AWS-managed keys)
+- [ ] **Secrets Manager + rotation** — auto rotate password DB / API key
+- [ ] **Cognito** — user authentication as service (alternative to JWT tự build)
+- [ ] **VPC deep** — private subnet, NAT Gateway, VPC endpoints (backend ẩn khỏi internet)
+
+**Reliability & Cost:**
+- [ ] **Cost optimization** — Spot, Reserved Instance, Savings Plans, S3 storage class lifecycle
+- [ ] **Multi-region DR** — backup-restore, pilot light, warm standby, active-active
+
+**Compliance:**
+- [ ] **AWS Config** — compliance rules, drift detection
+- [ ] **GuardDuty** — threat detection ML-based
 
 ---
 
