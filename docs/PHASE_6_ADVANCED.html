@@ -63,31 +63,37 @@
 <body>
 
 <div class="cover">
-  <h1>🛡️ Giai đoạn 6 — Advanced</h1>
-  <p>Master guide: CloudFront + WAF + Secrets Manager + Cost optimization + Multi-region<br/>
-  Production-grade hardening + cost discipline.</p>
+  <h1>🛡️ Giai đoạn 8 — Production Hardening</h1>
+  <p>Master guide: CloudFront + WAF + KMS + Secrets Manager + Cognito + VPC deep + Cost + Multi-region<br/>
+  Production-grade security + reliability + cost discipline.</p>
   <br/>
   <span class="badge">CloudFront FE</span>
   <span class="badge">WAF</span>
+  <span class="badge">KMS</span>
   <span class="badge">Secrets Manager</span>
+  <span class="badge">Cognito</span>
+  <span class="badge">VPC private</span>
   <span class="badge">Spot/Reserved/Savings</span>
   <span class="badge">Multi-region DR</span>
   <br/><br/>
-  <p style="color:#888; font-size:0.85rem;">Phase 6 là collection các best-practice — không phải tất cả đều cần cho demo</p>
+  <p style="color:#888; font-size:0.85rem;">Phase 8 (filename cũ <code>PHASE_6_ADVANCED.html</code>) — collection các best-practice production</p>
 </div>
 
 <div class="toc">
   <h2>📋 Mục lục</h2>
   <ol>
-    <li><a href="#overview">Tổng quan Phase 6</a></li>
+    <li><a href="#overview">Tổng quan Phase 8</a></li>
     <li><a href="#module-a">Module A — CloudFront serve Frontend (S3 static hosting)</a></li>
     <li><a href="#module-b">Module B — WAF (Web Application Firewall)</a></li>
     <li><a href="#module-c">Module C — Secrets Manager + rotation</a></li>
+    <li><a href="#module-kms">Module C2 — KMS (encryption keys)</a></li>
+    <li><a href="#module-cognito">Module C3 — Cognito (managed user auth)</a></li>
+    <li><a href="#module-vpc">Module C4 — VPC deep (private subnets + NAT + endpoints)</a></li>
     <li><a href="#module-d">Module D — Cost Optimization</a></li>
     <li><a href="#module-e">Module E — Multi-region Disaster Recovery</a></li>
     <li><a href="#checklist">Production readiness checklist</a></li>
     <li><a href="#cleanup">Cleanup</a></li>
-    <li><a href="#next">Sau Phase 6 — gì tiếp theo</a></li>
+    <li><a href="#next">Sau Phase 8 — gì tiếp theo</a></li>
   </ol>
 </div>
 
@@ -407,9 +413,283 @@ aws cloudwatch get-metric-statistics <span class="cmt">`</span>
 
 <!-- ════════════════════════════════════════════════════════════ -->
 <div class="module-card">
-<h2 id="module-d">5. Module D — Cost Optimization</h2>
+<h2 id="module-kms">5. Module C2 — KMS (Key Management Service)</h2>
 
-<p>Đây là module <strong>có giá trị thực tế nhất</strong> trong Phase 6 cho demo project.</p>
+<h3>KMS là gì</h3>
+<p><strong>Encryption key management</strong>: tạo/lưu trữ/quản lý keys, AWS sẽ encrypt/decrypt data thay bạn. Bạn không bao giờ thấy key thô (lưu trong HSM).</p>
+
+<h3>3 loại key</h3>
+<table>
+  <tr><th>Loại</th><th>Cost</th><th>Use case</th></tr>
+  <tr><td><strong>AWS-owned keys</strong></td><td>FREE</td><td>Default cho 1 số service (vd S3 SSE-S3). AWS quản hoàn toàn, không thấy</td></tr>
+  <tr><td><strong>AWS-managed keys</strong> (vd <code>aws/s3</code>, <code>aws/rds</code>)</td><td>FREE</td><td>1 key/service/region. AWS rotate annual</td></tr>
+  <tr><td><strong>Customer-managed keys (CMK)</strong></td><td>$1/key/tháng + $0.03/10k requests</td><td>Khi cần audit access ai dùng key, cross-account share, manual rotation</td></tr>
+</table>
+
+<h3>Tạo CMK</h3>
+<pre><code><span class="cmt"># 1. Tao key</span>
+$keyArn = aws kms create-key --region ap-southeast-1 <span class="cmt">`</span>
+  --description <span class="str">"myapp encryption key"</span> <span class="cmt">`</span>
+  --key-usage ENCRYPT_DECRYPT <span class="cmt">`</span>
+  --query <span class="str">"KeyMetadata.Arn"</span> --output text
+
+<span class="cmt"># 2. Tao alias (friendly name)</span>
+aws kms create-alias --alias-name alias/myapp-key --target-key-id $keyArn
+
+<span class="cmt"># 3. Bat key rotation (tu dong moi nam)</span>
+aws kms enable-key-rotation --key-id $keyArn
+
+<span class="cmt"># 4. Encrypt data tu CLI</span>
+$plaintext = <span class="str">"super-secret-password"</span>
+$ciphertext = aws kms encrypt --key-id alias/myapp-key <span class="cmt">`</span>
+  --plaintext (-join ([byte[]][char[]]$plaintext | ForEach-Object { $_.ToString(<span class="str">"X2"</span>) })) <span class="cmt">`</span>
+  --query <span class="str">"CiphertextBlob"</span> --output text
+
+<span class="cmt"># 5. Decrypt</span>
+aws kms decrypt --ciphertext-blob fileb://&lt;...&gt; --query <span class="str">"Plaintext"</span> --output text</code></pre>
+
+<h3>Use KMS với S3</h3>
+<pre><code><span class="cmt"># Upload object voi SSE-KMS</span>
+aws s3 cp file.txt s3://my-bucket/file.txt <span class="cmt">`</span>
+  --sse aws:kms --sse-kms-key-id alias/myapp-key
+
+<span class="cmt"># Default encryption cho ca bucket</span>
+aws s3api put-bucket-encryption --bucket my-bucket --server-side-encryption-configuration '{
+  <span class="str">"Rules"</span>: [{
+    <span class="str">"ApplyServerSideEncryptionByDefault"</span>: {
+      <span class="str">"SSEAlgorithm"</span>: <span class="str">"aws:kms"</span>,
+      <span class="str">"KMSMasterKeyID"</span>: <span class="str">"alias/myapp-key"</span>
+    }
+  }]
+}'</code></pre>
+
+<h3>Use KMS với RDS / EBS</h3>
+<pre><code><span class="cmt"># RDS: chi luc tao instance moi co option storage-encrypted + kms-key-id</span>
+aws rds create-db-instance ... --storage-encrypted --kms-key-id alias/myapp-key
+
+<span class="cmt"># EBS: tao volume voi encryption</span>
+aws ec2 create-volume --size 10 --availability-zone ap-southeast-1a <span class="cmt">`</span>
+  --encrypted --kms-key-id alias/myapp-key</code></pre>
+
+<h3>Envelope encryption — pattern khi encrypt data lớn</h3>
+<p>KMS encrypt được tối đa 4KB. Cho data lớn (file, DB column):</p>
+<ol>
+  <li>App gọi <code>kms.GenerateDataKey</code> → trả về plaintext data key + encrypted data key</li>
+  <li>App dùng plaintext data key encrypt data (local, AES-256)</li>
+  <li>App lưu: encrypted data + encrypted data key</li>
+  <li>Khi decrypt: app gọi <code>kms.Decrypt</code> data key → decrypt data với plaintext key</li>
+</ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-cognito">6. Module C3 — Cognito (Managed User Auth)</h2>
+
+<h3>Cognito là gì</h3>
+<p>Quản lý <strong>user signup/signin</strong> + JWT generation. Thay vì viết auth từ đầu (như project hiện tại với JWT_SECRET), Cognito lo:</p>
+<ul>
+  <li>Signup / signin flows + email verification</li>
+  <li>JWT token generation + validation</li>
+  <li>MFA (SMS, TOTP)</li>
+  <li>Social login (Google, Facebook, Apple)</li>
+  <li>Password policy + reset</li>
+  <li>User pool quản lý hàng triệu user</li>
+</ul>
+
+<h3>Architecture</h3>
+<div class="arch">User browser
+     │
+     │  1. POST /signup {email, password}
+     ▼
+Frontend ──► Cognito User Pool ──► Email verification
+     │              │
+     │              │  2. POST /signin
+     │              ▼
+     │       Issue JWT (id_token + access_token)
+     │              │
+     │       3. Send token in Authorization header
+     ▼
+Backend / API Gateway
+     │
+     │  4. Verify JWT signature with Cognito public keys (JWKS)
+     │       (Free, no Cognito API call needed)
+     │
+     ▼
+Process request</div>
+
+<h3>Tạo User Pool</h3>
+<pre><code><span class="cmt"># Tao user pool</span>
+$pool = aws cognito-idp create-user-pool --region ap-southeast-1 <span class="cmt">`</span>
+  --pool-name myapp-users <span class="cmt">`</span>
+  --policies <span class="str">"PasswordPolicy={MinimumLength=8,RequireUppercase=true,RequireNumbers=true}"</span> <span class="cmt">`</span>
+  --auto-verified-attributes email <span class="cmt">`</span>
+  --username-attributes email <span class="cmt">`</span>
+  --query <span class="str">"UserPool.{Id:Id,Arn:Arn}"</span> --output json | ConvertFrom-Json
+
+<span class="cmt"># Tao app client (cho frontend dung)</span>
+aws cognito-idp create-user-pool-client --user-pool-id $pool.Id <span class="cmt">`</span>
+  --client-name myapp-web <span class="cmt">`</span>
+  --no-generate-secret <span class="cmt"># SPA khong dung client secret</span> <span class="cmt">`</span>
+  --explicit-auth-flows ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH</code></pre>
+
+<h3>Frontend sign up + sign in (AWS Amplify Auth)</h3>
+<pre><code><span class="kw">import</span> { Amplify } <span class="kw">from</span> <span class="str">"aws-amplify"</span>;
+<span class="kw">import</span> { signUp, signIn, signOut, getCurrentUser } <span class="kw">from</span> <span class="str">"aws-amplify/auth"</span>;
+
+Amplify.configure({
+  Auth: { Cognito: {
+    userPoolId: <span class="str">"ap-southeast-1_xxx"</span>,
+    userPoolClientId: <span class="str">"xxxxxxx"</span>
+  }}
+});
+
+<span class="cmt">// Sign up</span>
+<span class="kw">await</span> signUp({
+  username: <span class="str">"user@example.com"</span>,
+  password: <span class="str">"Secret123"</span>,
+  options: { userAttributes: { email: <span class="str">"user@example.com"</span> }}
+});
+
+<span class="cmt">// Sign in (sau khi confirm email)</span>
+<span class="kw">await</span> signIn({ username: <span class="str">"user@example.com"</span>, password: <span class="str">"Secret123"</span> });
+
+<span class="cmt">// Get current user + JWT</span>
+<span class="kw">const</span> user = <span class="kw">await</span> getCurrentUser();
+<span class="cmt">// user.signInDetails.loginId, etc</span></code></pre>
+
+<h3>Backend verify JWT (no API call)</h3>
+<pre><code><span class="kw">import</span> { CognitoJwtVerifier } <span class="kw">from</span> <span class="str">"aws-jwt-verify"</span>;
+
+<span class="kw">const</span> verifier = CognitoJwtVerifier.create({
+  userPoolId: <span class="str">"ap-southeast-1_xxx"</span>,
+  tokenUse: <span class="str">"access"</span>,
+  clientId: <span class="str">"xxxxxxx"</span>
+});
+
+<span class="cmt">// Trong middleware</span>
+<span class="kw">try</span> {
+  <span class="kw">const</span> payload = <span class="kw">await</span> verifier.verify(jwtFromHeader);
+  req.userId = payload.sub;
+  next();
+} <span class="kw">catch</span> {
+  res.status(401).send(<span class="str">"Invalid token"</span>);
+}</code></pre>
+
+<h3>So sánh Cognito vs custom JWT (project hiện tại)</h3>
+<table>
+  <tr><th>—</th><th>Custom JWT (hiện tại)</th><th>Cognito</th></tr>
+  <tr><td>Implement</td><td>Phải code signup, signin, hash password, email verify, password reset, ... ~500 dòng</td><td>SDK Amplify, ~20 dòng</td></tr>
+  <tr><td>Email verify</td><td>Phải tự gửi (SES + template)</td><td>Built-in</td></tr>
+  <tr><td>Social login (Google, FB)</td><td>Phải implement OAuth flow</td><td>Click checkbox</td></tr>
+  <tr><td>MFA</td><td>Tự code TOTP</td><td>Built-in (SMS/TOTP)</td></tr>
+  <tr><td>Scale</td><td>Phụ thuộc DB</td><td>Tới triệu user</td></tr>
+  <tr><td>Cost</td><td>FREE (chỉ DB cost)</td><td>50k MAU free, sau đó $0.0055/MAU</td></tr>
+  <tr><td>Vendor lock-in</td><td>Không</td><td>Có — migration ra ngoài khó</td></tr>
+</table>
+
+<h3>Khi nào dùng Cognito vs custom JWT</h3>
+<ul>
+  <li><strong>Dùng Cognito</strong>: app mới, cần đa tính năng (MFA, social, password reset, email verify) → save time massive</li>
+  <li><strong>Custom JWT</strong>: project cũ đã có hệ thống user riêng, cần control hoàn toàn, hoặc không trust vendor</li>
+</ul>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-vpc">7. Module C4 — VPC deep (private subnets + NAT + endpoints)</h2>
+
+<h3>Tại sao VPC deep</h3>
+<p>Mặc định default VPC có 3 subnet PUBLIC — EC2 lấy public IP, accessible từ internet. Production thực sự: backend nên ở <strong>private subnet</strong>, chỉ ALB ở public.</p>
+
+<div class="arch">┌─────────── VPC ───────────────────────────────────────────┐
+│                                                           │
+│  PUBLIC SUBNET (ap-southeast-1a)                          │
+│  ┌──────────────────────────────┐                         │
+│  │  ALB (public IP)             │ ◄── User from internet │
+│  │  NAT Gateway (public IP)     │                         │
+│  └──────────────────────────────┘                         │
+│           │                                               │
+│           ▼ Forward to private subnet                     │
+│                                                           │
+│  PRIVATE SUBNET (ap-southeast-1a)                         │
+│  ┌──────────────────────────────┐                         │
+│  │  EC2 / ECS (NO public IP)    │                         │
+│  │  RDS (NO public IP)          │                         │
+│  │  ElastiCache                 │                         │
+│  └────────┬─────────────────────┘                         │
+│           │ Outbound internet (npm install, AWS API)      │
+│           ▼ via NAT Gateway (public)                      │
+│                                                           │
+│  PRIVATE SUBNET (ap-southeast-1b) -- duplicate for HA     │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+            │
+            ▼
+   Internet Gateway (IGW)</div>
+
+<h3>4 thành phần VPC quan trọng</h3>
+<table>
+  <tr><th>Component</th><th>Mục đích</th><th>Cost</th></tr>
+  <tr><td>VPC</td><td>Network isolation, CIDR riêng (vd 10.0.0.0/16)</td><td>FREE</td></tr>
+  <tr><td>Subnet (public)</td><td>Có route đến IGW. Resource trong này có thể public IP</td><td>FREE</td></tr>
+  <tr><td>Subnet (private)</td><td>Không có route IGW. Outbound qua NAT</td><td>FREE</td></tr>
+  <tr><td>Internet Gateway (IGW)</td><td>Route VPC ↔ internet</td><td>FREE</td></tr>
+  <tr><td>NAT Gateway</td><td>Private subnet outbound internet (1 chiều)</td><td>$0.045/h + $0.045/GB processed = ~$32/tháng/AZ</td></tr>
+  <tr><td>VPC Endpoint (Gateway)</td><td>Private access đến S3/DynamoDB không qua internet</td><td>FREE</td></tr>
+  <tr><td>VPC Endpoint (Interface)</td><td>Private access đến ECR/Secrets Manager/etc</td><td>~$7.30/mỗi endpoint/tháng + $0.01/GB</td></tr>
+</table>
+
+<div class="warn">
+  <strong>⚠️ NAT Gateway DỄ TỐN TIỀN</strong>
+  Production HA cần 1 NAT/AZ → 3 NAT = ~$96/tháng. Cho demo, dùng <strong>1 NAT chung</strong> hoặc <strong>NAT Instance</strong> (EC2 + SourceDestCheck=false, rẻ hơn).
+</div>
+
+<h3>Setup architecture đề xuất cho project</h3>
+<ol>
+  <li><strong>VPC mới</strong> 10.0.0.0/16</li>
+  <li><strong>2 subnet public</strong> 10.0.1.0/24 + 10.0.2.0/24 — cho ALB</li>
+  <li><strong>2 subnet private</strong> 10.0.11.0/24 + 10.0.12.0/24 — cho EC2/ECS + RDS</li>
+  <li><strong>1 IGW</strong> attach vào VPC</li>
+  <li><strong>1 NAT Gateway</strong> trong subnet public (cho demo — không HA NAT)</li>
+  <li><strong>Route table public</strong>: 0.0.0.0/0 → IGW</li>
+  <li><strong>Route table private</strong>: 0.0.0.0/0 → NAT</li>
+  <li><strong>VPC Endpoint Gateway</strong> cho S3 + DynamoDB (FREE — tiết kiệm NAT cost)</li>
+</ol>
+
+<h3>Migrate project hiện tại sang VPC private</h3>
+<p>Hiện EC2 ở default VPC public subnet. Để migrate:</p>
+<ol>
+  <li>Tạo VPC + subnets như trên</li>
+  <li>Move/recreate EC2 vào private subnet (instance không có public IP)</li>
+  <li>SSH vào EC2: phải qua bastion host (EC2 ở public subnet) hoặc dùng <strong>SSM Session Manager</strong> (không cần SSH port, không cần bastion)</li>
+  <li>ALB ở public subnet → forward đến EC2 ở private</li>
+  <li>EC2 outbound (pull ECR, gọi SSM): qua NAT Gateway hoặc qua VPC Endpoints</li>
+</ol>
+
+<h3>SSM Session Manager — replace SSH</h3>
+<pre><code><span class="cmt"># Cho phep SSM agent tren EC2 (mac dinh co o Amazon Linux 2)</span>
+<span class="cmt"># Ubuntu can cai:</span>
+sudo snap install amazon-ssm-agent --classic
+
+<span class="cmt"># IAM role EC2 can policy AmazonSSMManagedInstanceCore</span>
+aws iam attach-role-policy --role-name myapp-ec2-role <span class="cmt">`</span>
+  --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+<span class="cmt"># Tu local machine, connect WITHOUT SSH key, WITHOUT public IP</span>
+aws ssm start-session --target i-07ae54bab8b26a7da
+<span class="cmt"># Mo shell -- nhu SSH nhung qua AWS API tunneling</span></code></pre>
+
+<div class="real">
+  <strong>🎯 SSM Session Manager — game changer cho security</strong>
+  Không cần mở port 22 cho 0.0.0.0/0. Không cần manage SSH keys. Audit log mọi session vào CloudTrail. Có thể restrict per-user IAM policy.
+</div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="module-card">
+<h2 id="module-d">8. Module D — Cost Optimization</h2>
+
+<p>Đây là module <strong>có giá trị thực tế nhất</strong> trong Phase 8 cho demo project.</p>
 
 <h3>5.1 Compute pricing models (EC2 / Fargate)</h3>
 <table>
