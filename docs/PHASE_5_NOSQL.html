@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giai đoạn 5 — NoSQL &amp; Async Messaging</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 32px; max-width: 1000px; margin: 0 auto; }
+    .cover { text-align: center; padding: 60px 0 40px; border-bottom: 3px solid #d97706; margin-bottom: 48px; }
+    .cover h1 { font-size: 2.2rem; color: #d97706; margin-bottom: 8px; }
+    .cover p  { color: #555; font-size: 1rem; }
+    .badge { display: inline-block; background: #fef3c7; color: #92400e; border-radius: 9999px; padding: 2px 12px; font-size: 0.8rem; margin: 4px 2px; }
+    .toc { background: #fffbeb; border-left: 4px solid #d97706; padding: 20px 24px; margin-bottom: 48px; border-radius: 0 8px 8px 0; }
+    .toc h2 { font-size: 1rem; color: #d97706; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a  { color: #d97706; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    h1 { font-size: 1.8rem; color: #92400e; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #b45309; margin: 32px 0 10px; border-bottom: 1px solid #fde68a; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #92400e; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+    p  { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    pre { background: #451a03; color: #fef3c7; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 12px 0 20px; font-size: 0.82rem; line-height: 1.6; }
+    code { background: #fef3c7; color: #92400e; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    .cmt { color: #94a3b8; } .kw { color: #fcd34d; } .str { color: #86efac; } .num { color: #fca5a5; } .var { color: #fcd34d; }
+    .info, .warn, .tip, .danger { border-left: 4px solid; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+    .info { border-color: #3b82f6; background: #eff6ff; }
+    .warn { border-color: #f59e0b; background: #fffbeb; }
+    .tip { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong { display: block; margin-bottom: 4px; }
+    .info strong { color: #1d4ed8; } .warn strong { color: #b45309; } .tip strong { color: #065f46; } .danger strong { color: #b91c1c; }
+    .arch { border: 2px solid #fde68a; border-radius: 12px; padding: 20px; margin: 16px 0; background: #fffbeb; font-family: monospace; font-size: 0.82rem; line-height: 1.8; white-space: pre; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.88rem; }
+    th { background: #b45309; color: #fff; padding: 8px 12px; text-align: left; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #fffbeb; }
+    tr:hover td { background: #fef3c7; }
+    hr { border: none; border-top: 2px dashed #fde68a; margin: 40px 0; }
+    .section-card { border: 1px solid #fde68a; border-radius: 12px; padding: 20px 24px; margin: 24px 0; background: #fffbeb; }
+    .section-card > h2 { border-bottom: none; margin-top: 0; padding-bottom: 0; }
+    .step-num { display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: #b45309; color: white; text-align: center; line-height: 28px; font-weight: bold; margin-right: 8px; font-size: 0.9rem; }
+    @media print { body { padding: 16px; font-size: 12px; } a { color: #b45309; } }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>🗃️ Giai đoạn 5 — NoSQL &amp; Async Messaging</h1>
+  <p>DynamoDB · SQS · SNS · EventBridge custom · ElastiCache<br/>
+  Database paradigm khác RDS + decouple service bằng queue/event</p>
+  <br/>
+  <span class="badge">DynamoDB</span>
+  <span class="badge">SQS</span>
+  <span class="badge">SNS</span>
+  <span class="badge">EventBridge</span>
+  <span class="badge">ElastiCache</span>
+  <span class="badge">Event-driven</span>
+</div>
+
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#why">Tại sao cần NoSQL + async messaging</a></li>
+    <li><a href="#nosql-vs-sql">NoSQL vs SQL — khi nào dùng cái nào</a></li>
+    <li><a href="#dynamodb">Part 1 — DynamoDB</a>
+      <ol style="list-style-type: lower-alpha;">
+        <li><a href="#dynamodb-concepts">Khái niệm: partition key, sort key, GSI, LSI</a></li>
+        <li><a href="#dynamodb-create">Tạo table</a></li>
+        <li><a href="#dynamodb-crud">CRUD operations</a></li>
+        <li><a href="#dynamodb-query">Query vs Scan — KHÁC BIỆT lớn</a></li>
+        <li><a href="#dynamodb-streams">DynamoDB Streams</a></li>
+        <li><a href="#dynamodb-cleanup">Cleanup</a></li>
+      </ol>
+    </li>
+    <li><a href="#sqs">Part 2 — SQS (Simple Queue Service)</a></li>
+    <li><a href="#sns">Part 3 — SNS (Simple Notification Service)</a></li>
+    <li><a href="#eventbridge-custom">Part 4 — EventBridge custom events</a></li>
+    <li><a href="#elasticache">Part 5 — ElastiCache (Redis)</a></li>
+    <li><a href="#patterns">6 pattern event-driven phổ biến</a></li>
+    <li><a href="#cleanup">Cleanup tất cả</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="why">1. Tại sao cần NoSQL + async messaging</h1>
+
+<p>Phase 1-4 đã đủ build 1 web app monolith. Để scale lên + handle traffic biến động, cần 2 paradigm:</p>
+
+<table>
+  <tr><th>Pattern</th><th>Vấn đề giải quyết</th><th>Service AWS</th></tr>
+  <tr><td><strong>NoSQL</strong></td><td>RDS schema rigid, scale ngang khó. NoSQL key-value scale unlimited, latency mili-second</td><td>DynamoDB, DocumentDB</td></tr>
+  <tr><td><strong>Queue</strong></td><td>Sync API blocking — user phải đợi. Queue cho phép producer publish + consumer xử lý sau</td><td>SQS, Kinesis</td></tr>
+  <tr><td><strong>Pub/Sub</strong></td><td>1 event → nhiều subscriber (gửi email + log + analytics)</td><td>SNS, EventBridge</td></tr>
+  <tr><td><strong>Cache</strong></td><td>Query DB chậm, lặp lại → cache lưu RAM, milli-second response</td><td>ElastiCache (Redis), DAX cho DynamoDB</td></tr>
+</table>
+
+<h2 id="nosql-vs-sql">2. NoSQL vs SQL — khi nào dùng cái nào</h2>
+
+<table>
+  <tr><th>Tiêu chí</th><th>RDS (PostgreSQL/MySQL)</th><th>DynamoDB</th></tr>
+  <tr><td>Schema</td><td>Strict — cần migration mỗi lần đổi column</td><td>Flexible — mỗi row có field khác nhau OK</td></tr>
+  <tr><td>Query phức tạp (JOIN, GROUP BY)</td><td>✅ Mạnh</td><td>❌ Không có JOIN. Phải denormalize</td></tr>
+  <tr><td>Transaction (ACID)</td><td>✅ Full ACID multi-row</td><td>⚠️ Transaction giới hạn (max 100 item, 1 region)</td></tr>
+  <tr><td>Scale</td><td>Vertical scale (instance lớn hơn). Horizontal scale phức tạp (sharding)</td><td>✅ Horizontal native — partition tự động, unlimited scale</td></tr>
+  <tr><td>Latency</td><td>1-10ms (small queries)</td><td>&lt;10ms guaranteed at any scale</td></tr>
+  <tr><td>Cost model</td><td>Per instance/hour (luôn chạy)</td><td>Per request + storage (on-demand) hoặc provisioned RCU/WCU</td></tr>
+  <tr><td>Best for</td><td>App có quan hệ phức tạp, reporting, OLAP</td><td>Key-value lookup, session store, IoT, gaming leaderboard, high-throughput</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Heuristic chọn nhanh</strong>
+  Nếu query của bạn luôn dùng "WHERE id = X" hoặc "WHERE user_id = X" — DynamoDB tốt hơn (single-digit ms, scale unlimited). Nếu cần JOIN nhiều table hoặc query "WHERE created_at BETWEEN ... AND status = ..." — RDS tốt hơn.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="dynamodb">3. Part 1 — DynamoDB</h1>
+
+<h2 id="dynamodb-concepts">a. Khái niệm: partition key, sort key, GSI, LSI</h2>
+
+<div class="arch">┌─────────────────────────────────────────────────────────┐
+│  TABLE: orders                                          │
+│                                                         │
+│  Partition Key (PK) -- BAT BUOC. Hash de phan partition │
+│      orderId  (vd "ORD-001", "ORD-002")                 │
+│                                                         │
+│  Sort Key (SK) -- OPTIONAL. Sort trong cung partition   │
+│      createdAt (vd "2026-05-25T10:00:00Z")              │
+│                                                         │
+│  Attributes -- KHONG can declare truoc (schemaless)     │
+│      userId, total, items, status, ...                  │
+│                                                         │
+│  ↓                                                      │
+│                                                         │
+│  Primary Key = PK + SK (composite)                      │
+│  - Voi 1 orderId, co the co nhieu SK khac nhau          │
+│  - Vd 1 user co nhieu order qua thoi gian               │
+└─────────────────────────────────────────────────────────┘</div>
+
+<h3>Partition: cách DynamoDB scale</h3>
+<p>DynamoDB chia data thành nhiều <strong>partition</strong> (mỗi cái 10GB + 1000 WCU + 3000 RCU). Hash của Partition Key quyết định item đi vào partition nào.</p>
+
+<div class="warn">
+  <strong>⚠️ Hot partition problem</strong>
+  Nếu chọn PK kém (vd <code>partitionKey = "DAY"</code> với cùng giá trị cho mọi row), tất cả request đổ vào 1 partition → throttle. Phải chọn PK <strong>high-cardinality</strong> (nhiều giá trị unique).
+</div>
+
+<h3>GSI (Global Secondary Index) vs LSI (Local Secondary Index)</h3>
+<table>
+  <tr><th>—</th><th>GSI</th><th>LSI</th></tr>
+  <tr><td>Khi tạo</td><td>Bất kỳ lúc nào (sau khi table tạo)</td><td>Chỉ lúc tạo table</td></tr>
+  <tr><td>Partition Key</td><td>Khác PK của table</td><td>Cùng PK với table</td></tr>
+  <tr><td>Sort Key</td><td>Có thể khác</td><td>Khác SK của table</td></tr>
+  <tr><td>Capacity</td><td>Riêng (RCU/WCU độc lập)</td><td>Share với table</td></tr>
+  <tr><td>Consistency</td><td>Eventually consistent</td><td>Strongly consistent option có</td></tr>
+  <tr><td>Use case</td><td>Query theo attribute khác (vd query order by status)</td><td>Query cùng PK nhưng sort theo field khác</td></tr>
+</table>
+
+<h2 id="dynamodb-create">b. Tạo table</h2>
+
+<pre><code>aws dynamodb create-table --region ap-southeast-1 <span class="cmt">`</span>
+  --table-name myapp-orders <span class="cmt">`</span>
+  --attribute-definitions <span class="cmt">`</span>
+    AttributeName=orderId,AttributeType=S <span class="cmt">`</span>
+    AttributeName=createdAt,AttributeType=S <span class="cmt">`</span>
+    AttributeName=userId,AttributeType=S <span class="cmt">`</span>
+  --key-schema <span class="cmt">`</span>
+    AttributeName=orderId,KeyType=HASH <span class="cmt">`</span>
+    AttributeName=createdAt,KeyType=RANGE <span class="cmt">`</span>
+  --global-secondary-indexes <span class="cmt">`</span>
+    <span class="str">"[{
+      \"IndexName\": \"by-user\",
+      \"KeySchema\": [
+        {\"AttributeName\": \"userId\", \"KeyType\": \"HASH\"},
+        {\"AttributeName\": \"createdAt\", \"KeyType\": \"RANGE\"}
+      ],
+      \"Projection\": {\"ProjectionType\": \"ALL\"}
+    }]"</span> <span class="cmt">`</span>
+  --billing-mode PAY_PER_REQUEST</code></pre>
+
+<p><strong>Giải thích:</strong></p>
+<ul>
+  <li><code>HASH</code> = partition key, <code>RANGE</code> = sort key</li>
+  <li><code>PAY_PER_REQUEST</code> = on-demand billing — không cần dự đoán capacity, AWS tính per request. Phù hợp demo + traffic biến động</li>
+  <li>Alternative: <code>PROVISIONED</code> với RCU/WCU cố định — rẻ hơn nếu traffic ổn định</li>
+  <li>GSI <code>by-user</code> cho phép query "tất cả order của 1 user" — table primary chỉ query được "order theo orderId"</li>
+</ul>
+
+<h2 id="dynamodb-crud">c. CRUD operations</h2>
+
+<h3>PutItem (insert hoặc replace)</h3>
+<pre><code>aws dynamodb put-item --region ap-southeast-1 <span class="cmt">`</span>
+  --table-name myapp-orders <span class="cmt">`</span>
+  --item '{
+    <span class="str">"orderId"</span>: {<span class="str">"S"</span>: <span class="str">"ORD-001"</span>},
+    <span class="str">"createdAt"</span>: {<span class="str">"S"</span>: <span class="str">"2026-05-25T10:00:00Z"</span>},
+    <span class="str">"userId"</span>: {<span class="str">"S"</span>: <span class="str">"USR-100"</span>},
+    <span class="str">"total"</span>: {<span class="str">"N"</span>: <span class="str">"445000"</span>},
+    <span class="str">"status"</span>: {<span class="str">"S"</span>: <span class="str">"pending"</span>},
+    <span class="str">"items"</span>: {<span class="str">"L"</span>: [
+      {<span class="str">"M"</span>: {<span class="str">"productId"</span>: {<span class="str">"S"</span>: <span class="str">"PROD-1"</span>}, <span class="str">"qty"</span>: {<span class="str">"N"</span>: <span class="str">"2"</span>}}
+    ]}
+  }'</code></pre>
+
+<p>Lưu ý format AttributeValue: <code>S</code>=String, <code>N</code>=Number (string trong JSON), <code>B</code>=Binary, <code>BOOL</code>=Boolean, <code>L</code>=List, <code>M</code>=Map, <code>SS/NS</code>=String/Number Set, <code>NULL</code>.</p>
+
+<h3>GetItem (lookup by primary key)</h3>
+<pre><code>aws dynamodb get-item --region ap-southeast-1 <span class="cmt">`</span>
+  --table-name myapp-orders <span class="cmt">`</span>
+  --key '{
+    <span class="str">"orderId"</span>: {<span class="str">"S"</span>: <span class="str">"ORD-001"</span>},
+    <span class="str">"createdAt"</span>: {<span class="str">"S"</span>: <span class="str">"2026-05-25T10:00:00Z"</span>}
+  }'</code></pre>
+
+<h3>UpdateItem (partial update)</h3>
+<pre><code>aws dynamodb update-item --region ap-southeast-1 <span class="cmt">`</span>
+  --table-name myapp-orders <span class="cmt">`</span>
+  --key '{<span class="str">"orderId"</span>: {<span class="str">"S"</span>: <span class="str">"ORD-001"</span>}, <span class="str">"createdAt"</span>: {<span class="str">"S"</span>: <span class="str">"2026-05-25T10:00:00Z"</span>}}' <span class="cmt">`</span>
+  --update-expression <span class="str">"SET #s = :newStatus"</span> <span class="cmt">`</span>
+  --expression-attribute-names '{<span class="str">"#s"</span>: <span class="str">"status"</span>}' <span class="cmt">`</span>
+  --expression-attribute-values '{<span class="str">":newStatus"</span>: {<span class="str">"S"</span>: <span class="str">"shipped"</span>}}'</code></pre>
+
+<p><strong>Lưu ý:</strong> <code>status</code> là reserved word của DynamoDB → phải dùng placeholder <code>#s</code>. Tương tự với value <code>:newStatus</code> để tránh injection.</p>
+
+<h3>DeleteItem</h3>
+<pre><code>aws dynamodb delete-item --region ap-southeast-1 <span class="cmt">`</span>
+  --table-name myapp-orders <span class="cmt">`</span>
+  --key '{<span class="str">"orderId"</span>: {<span class="str">"S"</span>: <span class="str">"ORD-001"</span>}, <span class="str">"createdAt"</span>: {<span class="str">"S"</span>: <span class="str">"2026-05-25T10:00:00Z"</span>}}'</code></pre>
+
+<h2 id="dynamodb-query">d. Query vs Scan — KHÁC BIỆT lớn</h2>
+
+<table>
+  <tr><th>—</th><th>Query</th><th>Scan</th></tr>
+  <tr><td>Cách hoạt động</td><td>Tìm theo PK (+ optional SK condition). Chỉ đọc 1 partition</td><td>Đọc toàn bộ table, filter theo condition</td></tr>
+  <tr><td>Cost (RCU)</td><td>Rất thấp — chỉ tính item match</td><td>Rất cao — tính mọi item trong table</td></tr>
+  <tr><td>Tốc độ</td><td>Mili-second</td><td>Giây-phút tùy size</td></tr>
+  <tr><td>Khi nào dùng</td><td>99% queries</td><td>Last resort — admin task, hoặc ETL</td></tr>
+</table>
+
+<h3>Query example — tất cả order của user qua GSI</h3>
+<pre><code>aws dynamodb query --region ap-southeast-1 <span class="cmt">`</span>
+  --table-name myapp-orders <span class="cmt">`</span>
+  --index-name by-user <span class="cmt">`</span>
+  --key-condition-expression <span class="str">"userId = :uid"</span> <span class="cmt">`</span>
+  --expression-attribute-values '{<span class="str">":uid"</span>: {<span class="str">"S"</span>: <span class="str">"USR-100"</span>}}' <span class="cmt">`</span>
+  --scan-index-forward false <span class="cmt"># sort descending by createdAt</span></code></pre>
+
+<h3>Scan example — count toàn bộ order pending</h3>
+<pre><code><span class="cmt"># DUNG it -- co the ton RCU lon</span>
+aws dynamodb scan --region ap-southeast-1 <span class="cmt">`</span>
+  --table-name myapp-orders <span class="cmt">`</span>
+  --filter-expression <span class="str">"#s = :pending"</span> <span class="cmt">`</span>
+  --expression-attribute-names '{<span class="str">"#s"</span>: <span class="str">"status"</span>}' <span class="cmt">`</span>
+  --expression-attribute-values '{<span class="str">":pending"</span>: {<span class="str">"S"</span>: <span class="str">"pending"</span>}}' <span class="cmt">`</span>
+  --select COUNT</code></pre>
+
+<h3>Node.js example (AWS SDK v3)</h3>
+<pre><code><span class="kw">import</span> { DynamoDBClient } <span class="kw">from</span> <span class="str">"@aws-sdk/client-dynamodb"</span>;
+<span class="kw">import</span> { DynamoDBDocumentClient, QueryCommand, PutCommand } <span class="kw">from</span> <span class="str">"@aws-sdk/lib-dynamodb"</span>;
+
+<span class="cmt">// DocumentClient marshall/unmarshall JS object &lt;-&gt; DynamoDB format tu dong</span>
+<span class="kw">const</span> client = <span class="kw">new</span> DynamoDBClient({ region: <span class="str">"ap-southeast-1"</span> });
+<span class="kw">const</span> ddb = DynamoDBDocumentClient.from(client);
+
+<span class="cmt">// Put -- khong can {S: ...}, {N: ...} nua</span>
+<span class="kw">await</span> ddb.send(<span class="kw">new</span> PutCommand({
+  TableName: <span class="str">"myapp-orders"</span>,
+  Item: { orderId: <span class="str">"ORD-001"</span>, createdAt: <span class="str">"2026-05-25T10:00:00Z"</span>, total: 445000 }
+}));
+
+<span class="cmt">// Query GSI</span>
+<span class="kw">const</span> result = <span class="kw">await</span> ddb.send(<span class="kw">new</span> QueryCommand({
+  TableName: <span class="str">"myapp-orders"</span>,
+  IndexName: <span class="str">"by-user"</span>,
+  KeyConditionExpression: <span class="str">"userId = :uid"</span>,
+  ExpressionAttributeValues: { <span class="str">":uid"</span>: <span class="str">"USR-100"</span> }
+}));
+console.log(result.Items);</code></pre>
+
+<h2 id="dynamodb-streams">e. DynamoDB Streams — trigger Lambda khi data đổi</h2>
+
+<p>Streams ghi lại mọi INSERT/UPDATE/DELETE trên table thành event stream. Lambda có thể consume → tạo workflow event-driven.</p>
+
+<pre><code><span class="cmt"># 1. Bat stream khi tao table</span>
+aws dynamodb update-table --table-name myapp-orders <span class="cmt">`</span>
+  --stream-specification <span class="str">"StreamEnabled=true,StreamViewType=NEW_AND_OLD_IMAGES"</span>
+
+<span class="cmt"># 2. Tao Lambda</span>
+<span class="cmt"># 3. Map Lambda voi stream</span>
+$streamArn = aws dynamodb describe-table --table-name myapp-orders <span class="cmt">`</span>
+  --query <span class="str">"Table.LatestStreamArn"</span> --output text
+
+aws lambda create-event-source-mapping <span class="cmt">`</span>
+  --function-name myapp-order-processor <span class="cmt">`</span>
+  --event-source-arn $streamArn <span class="cmt">`</span>
+  --starting-position LATEST <span class="cmt">`</span>
+  --batch-size 10</code></pre>
+
+<h3>Use case Streams</h3>
+<ul>
+  <li>Real-time analytics: order tạo → update aggregations</li>
+  <li>Email notification khi order ship</li>
+  <li>Audit log: copy mọi change vào CloudWatch/S3</li>
+  <li>Cross-region replication custom</li>
+  <li>Search indexing: sync DynamoDB → OpenSearch</li>
+</ul>
+
+<h2 id="dynamodb-cleanup">f. 🗑️ Cleanup DynamoDB</h2>
+<pre><code>aws dynamodb delete-table --region ap-southeast-1 --table-name myapp-orders
+<span class="cmt"># Table delete async, khoang 1 phut. Khong tao snapshot.</span>
+<span class="cmt"># Chi phi: $0 -- DynamoDB on-demand chi tinh per request, table empty = $0</span></code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="sqs">4. Part 2 — SQS (Simple Queue Service)</h1>
+
+<h3>SQS là gì</h3>
+<p><strong>Queue FIFO/Standard</strong> để decouple producer (đẩy message) và consumer (xử lý). Message tồn tại trong queue tối đa 14 ngày, hoặc tới khi consumer xóa (acknowledge).</p>
+
+<div class="arch">PRODUCER                    SQS QUEUE                    CONSUMER
+                                                         (worker)
+[API receive             ┌─────────────────┐
+ order request]          │ msg-1: ORD-100  │            ┌──────────┐
+       │                 │ msg-2: ORD-101  │ ──────►    │ Lambda / │
+       └──── SendMessage │ msg-3: ORD-102  │            │ EC2 /    │
+                         │ ...             │ ◄──────    │ Fargate  │
+                         └─────────────────┘ DeleteMsg  └──────────┘
+
+ Producer reply 200      Queue store msg                Consumer pull,
+ ngay -- khong cho       trong toi 14 ngay              process, delete
+ worker xu ly xong</div>
+
+<h3>2 loại queue</h3>
+<table>
+  <tr><th>Standard</th><th>FIFO</th></tr>
+  <tr><td>At-least-once delivery (có thể duplicate)</td><td>Exactly-once</td></tr>
+  <tr><td>Best-effort ordering (không guarantee)</td><td>Strict ordering</td></tr>
+  <tr><td>Unlimited throughput</td><td>300 msg/s default, 3000 với batching</td></tr>
+  <tr><td>Cost rẻ hơn</td><td>Cost cao hơn ~2×</td></tr>
+  <tr><td>Use: notification, logging, batch processing</td><td>Use: order processing, financial transaction</td></tr>
+</table>
+
+<h3>Pattern điển hình: API → SQS → Lambda worker</h3>
+<pre><code><span class="cmt"># 1. Tao queue</span>
+$queueUrl = aws sqs create-queue --queue-name myapp-orders --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"QueueUrl"</span> --output text
+
+<span class="cmt"># 2. Send message</span>
+aws sqs send-message --queue-url $queueUrl <span class="cmt">`</span>
+  --message-body '{<span class="str">"orderId"</span>: <span class="str">"ORD-100"</span>, <span class="str">"action"</span>: <span class="str">"process"</span>}'
+
+<span class="cmt"># 3. Receive (Lambda tu dong receive khi mapping)</span>
+aws sqs receive-message --queue-url $queueUrl <span class="cmt">`</span>
+  --max-number-of-messages 10 --wait-time-seconds 20 <span class="cmt"># long polling</span>
+
+<span class="cmt"># 4. Delete sau khi xu ly thanh cong</span>
+aws sqs delete-message --queue-url $queueUrl --receipt-handle &lt;handle&gt;</code></pre>
+
+<h3>Connect Lambda với SQS</h3>
+<pre><code>aws lambda create-event-source-mapping <span class="cmt">`</span>
+  --function-name myapp-worker <span class="cmt">`</span>
+  --event-source-arn arn:aws:sqs:ap-southeast-1:529568113348:myapp-orders <span class="cmt">`</span>
+  --batch-size 10 <span class="cmt">`</span>
+  --maximum-batching-window-in-seconds 5</code></pre>
+
+<p>Lambda nhận event chứa <strong>mảng messages</strong>. Process từng message, throw error nếu fail → message quay lại queue retry.</p>
+
+<h3>Dead Letter Queue (DLQ)</h3>
+<p>Sau N retries, message fail nên đi vào queue khác (DLQ) để inspect thay vì lặp infinite:</p>
+<pre><code>aws sqs create-queue --queue-name myapp-orders-dlq
+
+<span class="cmt"># Set redrive policy: sau 3 lan retry -&gt; DLQ</span>
+aws sqs set-queue-attributes --queue-url $queueUrl --attributes <span class="cmt">`</span>
+  '{<span class="str">"RedrivePolicy"</span>: <span class="str">"{\"deadLetterTargetArn\":\"arn:aws:sqs:ap-southeast-1:529568113348:myapp-orders-dlq\",\"maxReceiveCount\":\"3\"}"</span>}'</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="sns">5. Part 3 — SNS (Simple Notification Service)</h1>
+
+<p>SNS = <strong>pub/sub</strong>. 1 publisher → nhiều subscriber. Khác với SQS (1 producer → 1 consumer queue).</p>
+
+<div class="arch">                              ┌─► Email subscriber
+                              ├─► SMS subscriber
+PUBLISHER ─► SNS TOPIC ──────►├─► Lambda function
+                              ├─► SQS queue
+                              └─► HTTPS endpoint (webhook)</div>
+
+<h3>Setup pattern</h3>
+<pre><code><span class="cmt"># 1. Tao topic</span>
+$topicArn = aws sns create-topic --name myapp-events <span class="cmt">`</span>
+  --query <span class="str">"TopicArn"</span> --output text
+
+<span class="cmt"># 2. Subscribe multiple endpoints</span>
+aws sns subscribe --topic-arn $topicArn --protocol email --notification-endpoint admin@example.com
+aws sns subscribe --topic-arn $topicArn --protocol sqs --notification-endpoint &lt;sqs-arn&gt;
+aws sns subscribe --topic-arn $topicArn --protocol lambda --notification-endpoint &lt;lambda-arn&gt;
+
+<span class="cmt"># 3. Publish</span>
+aws sns publish --topic-arn $topicArn <span class="cmt">`</span>
+  --subject <span class="str">"Order placed"</span> <span class="cmt">`</span>
+  --message <span class="str">"Order ORD-100 needs processing"</span></code></pre>
+
+<h3>SNS vs SQS — khi nào dùng cái nào</h3>
+<table>
+  <tr><th>SNS (pub/sub)</th><th>SQS (queue)</th></tr>
+  <tr><td>Fanout — 1 event tới N subscribers</td><td>Workload distribution — 1 message → 1 consumer</td></tr>
+  <tr><td>Push model — SNS push to subscriber</td><td>Pull model — consumer poll queue</td></tr>
+  <tr><td>Real-time — message gửi ngay khi publish</td><td>Buffered — message chờ trong queue</td></tr>
+  <tr><td>Không retry built-in (trừ HTTP endpoints)</td><td>Retry tự động + DLQ pattern</td></tr>
+</table>
+
+<h3>SNS + SQS fanout pattern (rất phổ biến)</h3>
+<div class="arch">                                ┌─► SQS-Email queue   ─► Lambda send email
+PUBLISHER ─► SNS TOPIC ─────────┼─► SQS-Analytics queue ─► Lambda log to BigQuery
+                                └─► SQS-Search queue   ─► Lambda update Algolia</div>
+
+<p>Mỗi consumer có queue riêng → có thể retry/process at own pace mà không ảnh hưởng consumer khác.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="eventbridge-custom">6. Part 4 — EventBridge custom events</h1>
+
+<p>Phase 4 đã dùng EventBridge cho schedule (cron). Phase này: EventBridge custom event bus — pattern matching engine cho application events.</p>
+
+<h3>Default vs custom event bus</h3>
+<ul>
+  <li><strong>Default bus</strong>: nhận event AWS service (EC2 state change, S3 upload, CodeDeploy...)</li>
+  <li><strong>Custom bus</strong>: app của bạn publish event vào → service khác subscribe</li>
+</ul>
+
+<h3>Publish custom event</h3>
+<pre><code><span class="cmt"># 1. Tao bus rieng cho app</span>
+aws events create-event-bus --name myapp-bus
+
+<span class="cmt"># 2. Publish event tu code app</span>
+aws events put-events --entries '[{
+  <span class="str">"Source"</span>: <span class="str">"myapp.orders"</span>,
+  <span class="str">"DetailType"</span>: <span class="str">"OrderPlaced"</span>,
+  <span class="str">"Detail"</span>: <span class="str">"{\"orderId\":\"ORD-100\",\"total\":445000}"</span>,
+  <span class="str">"EventBusName"</span>: <span class="str">"myapp-bus"</span>
+}]'
+
+<span class="cmt"># 3. Rule: bat moi event "OrderPlaced" tu source "myapp.orders"</span>
+aws events put-rule --name on-order-placed --event-bus-name myapp-bus <span class="cmt">`</span>
+  --event-pattern '{
+    <span class="str">"source"</span>: [<span class="str">"myapp.orders"</span>],
+    <span class="str">"detail-type"</span>: [<span class="str">"OrderPlaced"</span>]
+  }'
+
+<span class="cmt"># 4. Add target (Lambda / SQS / SNS / Step Functions / ...)</span>
+aws events put-targets --rule on-order-placed --event-bus-name myapp-bus <span class="cmt">`</span>
+  --targets <span class="str">"Id=1,Arn=arn:aws:lambda:ap-southeast-1:529568113348:function:notify-warehouse"</span></code></pre>
+
+<h3>EventBridge vs SNS — khi nào dùng cái nào</h3>
+<table>
+  <tr><th>EventBridge</th><th>SNS</th></tr>
+  <tr><td>Pattern matching mạnh — filter theo nhiều attribute</td><td>Subscribe theo topic, không filter chi tiết</td></tr>
+  <tr><td>Schema registry — version events</td><td>Không có schema</td></tr>
+  <tr><td>Tích hợp 100+ AWS service + SaaS partner (Datadog, Auth0...)</td><td>Chỉ AWS + email/SMS/HTTPS</td></tr>
+  <tr><td>Slower (~1s latency)</td><td>Faster (~&lt;100ms)</td></tr>
+  <tr><td>$1/1M event</td><td>$0.50/1M publish</td></tr>
+</table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="elasticache">7. Part 5 — ElastiCache (Redis)</h1>
+
+<p>Managed Redis hoặc Memcached. Use case chính: <strong>caching layer trước DB</strong>.</p>
+
+<h3>Pattern: cache-aside</h3>
+<div class="arch">API → 1. GET cache:user:100      ─► Redis
+        │                            │
+        │  HIT? return ngay luon     │ MISS
+        │                            ▼
+        │                          PostgreSQL/DynamoDB
+        │                            │
+        ◄ 2. SET cache:user:100 ... TTL 5 phut</div>
+
+<pre><code><span class="cmt"># Tao Redis cluster (single-node demo)</span>
+aws elasticache create-cache-cluster --region ap-southeast-1 <span class="cmt">`</span>
+  --cache-cluster-id myapp-redis <span class="cmt">`</span>
+  --engine redis <span class="cmt">`</span>
+  --cache-node-type cache.t4g.micro <span class="cmt">`</span>
+  --num-cache-nodes 1 <span class="cmt">`</span>
+  --security-group-ids &lt;sg-allow-from-ec2&gt;</code></pre>
+
+<h3>Use case ElastiCache cho project</h3>
+<ul>
+  <li><strong>Session store</strong>: JWT token blacklist, user session data</li>
+  <li><strong>Cache DB query</strong>: top products, popular searches</li>
+  <li><strong>Rate limiting</strong>: count request per IP per minute</li>
+  <li><strong>Leaderboard</strong>: Redis sorted set rất hiệu quả</li>
+  <li><strong>Pub/sub trong-process</strong>: Redis Pub/Sub thay SNS cho real-time low-latency</li>
+</ul>
+
+<h3>Cost</h3>
+<table>
+  <tr><th>Instance type</th><th>RAM</th><th>Cost ap-southeast-1</th></tr>
+  <tr><td>cache.t4g.micro</td><td>0.5 GB</td><td>~$11/tháng</td></tr>
+  <tr><td>cache.t4g.small</td><td>1.4 GB</td><td>~$22/tháng</td></tr>
+  <tr><td>cache.r7g.large</td><td>13 GB</td><td>~$130/tháng</td></tr>
+</table>
+
+<p>Cho demo project: <strong>không thực sự cần</strong> ElastiCache. Có thể implement cache đơn giản trong Node.js memory hoặc skip cache. Học cho biết.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="patterns">8. 6 pattern event-driven phổ biến</h1>
+
+<h3>Pattern 1: Order processing</h3>
+<div class="arch">User submit order ──► API Gateway ──► Lambda
+                                        │
+                                        ├─► DynamoDB.PutItem (save order)
+                                        └─► SNS publish "OrderPlaced"
+                                              │
+                                              ├─► SQS-email   ─► Lambda send email
+                                              ├─► SQS-inventory ─► Lambda decrement stock
+                                              └─► SQS-analytics ─► Lambda log</div>
+
+<h3>Pattern 2: Image upload pipeline</h3>
+<div class="arch">User PUT s3://bucket/raw/img.jpg ──► S3 event ──► Lambda resize
+                                                         │
+                                                         ├─► PUT s3://bucket/thumb/img.jpg
+                                                         └─► DynamoDB.Update image_url</div>
+
+<h3>Pattern 3: Scheduled cleanup</h3>
+<div class="arch">EventBridge cron(0 3 * * ?) ──► Lambda cleanup
+                                  │
+                                  ├─► Scan DynamoDB items olderThan 90 days
+                                  ├─► Delete S3 objects
+                                  └─► Send SNS report "cleaned X items"</div>
+
+<h3>Pattern 4: Fan-out webhook</h3>
+<div class="arch">Stripe webhook POST ──► API Gateway ──► Lambda verify signature
+                                            │
+                                            └─► EventBridge "payment.success"
+                                                  │
+                                                  ├─► Lambda update order status
+                                                  ├─► Lambda send receipt email
+                                                  └─► Lambda log to Datadog</div>
+
+<h3>Pattern 5: Stream processing</h3>
+<div class="arch">App writes order ─► DynamoDB ──► DynamoDB Stream ──► Lambda
+                                                       │
+                                                       ├─► Update aggregations (total revenue)
+                                                       └─► Index in OpenSearch</div>
+
+<h3>Pattern 6: Cache-aside with TTL</h3>
+<div class="arch">Read flow:
+  Lambda ──► Redis.GET key
+              │
+              HIT  ──► return value
+              MISS ──► PostgreSQL query
+                       └─► Redis.SET key value TTL 5min
+                       └─► return value
+
+Write flow:
+  Lambda ──► PostgreSQL UPDATE
+         └─► Redis.DEL key  (invalidate cache)</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cleanup">9. 🗑️ Cleanup tất cả</h1>
+
+<pre><code><span class="cmt"># DynamoDB tables</span>
+aws dynamodb delete-table --table-name myapp-orders --region ap-southeast-1
+
+<span class="cmt"># SQS queues</span>
+aws sqs list-queues --queue-name-prefix myapp- --query <span class="str">"QueueUrls[]"</span> --output text | <span class="cmt">`</span>
+  ForEach-Object { aws sqs delete-queue --queue-url $_ }
+
+<span class="cmt"># SNS topics + subscriptions</span>
+aws sns list-topics --query <span class="str">"Topics[?contains(TopicArn, 'myapp-')]"</span> --output text | <span class="cmt">`</span>
+  ForEach-Object { aws sns delete-topic --topic-arn ($_ -split <span class="str">"\s+"</span>)[1] }
+
+<span class="cmt"># EventBridge custom bus + rules</span>
+aws events list-rules --event-bus-name myapp-bus --query <span class="str">"Rules[].Name"</span> --output text | <span class="cmt">`</span>
+  ForEach-Object {
+    $targetIds = aws events list-targets-by-rule --rule $_ --event-bus-name myapp-bus --query <span class="str">"Targets[].Id"</span> --output text
+    <span class="kw">if</span> ($targetIds) { aws events remove-targets --rule $_ --event-bus-name myapp-bus --ids ($targetIds -split <span class="str">"\s+"</span>) }
+    aws events delete-rule --name $_ --event-bus-name myapp-bus
+  }
+aws events delete-event-bus --name myapp-bus
+
+<span class="cmt"># ElastiCache</span>
+aws elasticache delete-cache-cluster --cache-cluster-id myapp-redis</code></pre>
+
+<h3>Cost ngừng</h3>
+<table>
+  <tr><th>Service</th><th>Cost khi cleanup</th></tr>
+  <tr><td>DynamoDB (on-demand)</td><td>$0 — empty table = $0</td></tr>
+  <tr><td>SQS / SNS / EventBridge</td><td>$0 khi không có message</td></tr>
+  <tr><td>ElastiCache</td><td>~$11-130/tháng → $0 sau cleanup</td></tr>
+</table>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>Phase 5 — NoSQL &amp; Async Messaging</strong></p>
+  <p>DynamoDB · SQS · SNS · EventBridge · ElastiCache</p>
+</div>
+
+</body>
+</html>
