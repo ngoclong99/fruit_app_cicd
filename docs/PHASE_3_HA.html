@@ -623,24 +623,201 @@ Remove-Item $tmpJson -Force</code></pre>
   Đừng dùng <code>--query "ResourceRecordSets[?Name=='X' &amp;&amp; Type=='A']"</code> — PowerShell sẽ encode <code>&amp;&amp;</code> thành <code>&amp;amp;&amp;amp;</code> → JMESPath syntax error. Lấy hết về rồi filter trong PowerShell với <code>Where-Object</code> như ở trên.
 </div>
 
-<h3><span class="step-num">A7</span> Verify</h3>
-<pre><code><span class="cmt"># 1. Truy cap qua ALB DNS truc tiep (bypass DNS)</span>
-curl <span class="kw">-v</span> https://&lt;ALB_DNS&gt;/api/health
-<span class="cmt"># Expect: 200 {"status":"ok"}</span>
+<h3><span class="step-num">A7</span> Verify — 8 test thực tế</h3>
 
-<span class="cmt"># 2. Truy cap qua domain (sau ~60s DNS propagate)</span>
-curl <span class="kw">-v</span> https://vhnlong.store/api/health
-<span class="cmt"># Response header co "Server: awselb/2.0" -> dung ALB</span>
+<p>Sau khi setup xong, không nên chỉ test bằng "mở browser thấy site lên là OK". Cần 8 test có mục đích cụ thể để xác minh từng phần của ALB đang đúng vai trò.</p>
 
-<span class="cmt"># 3. Cert duoc dung la ACM, khong phai Let's Encrypt</span>
-openssl s_client <span class="kw">-connect</span> vhnlong.store:443 -servername vhnlong.store &lt; /dev/null 2&gt;/dev/null | openssl x509 -noout -issuer
-<span class="cmt"># Expect: issuer=C=US, O=Amazon, CN=Amazon RSA 2048 M02 (cu se la Let's Encrypt R3/R10)</span>
+<div class="info">
+  <strong>📌 Replace <code>&lt;ALB_DNS&gt;</code>, <code>&lt;ALB_ARN&gt;</code>, <code>&lt;TG_ARN&gt;</code> trong các lệnh dưới đây</strong>
+  Lấy giá trị thật từ bước A4 (DNS), A3 (TG ARN). Vd doc này dùng:
+  <ul>
+    <li><code>ALB_DNS = myapp-alb-1197696397.ap-southeast-1.elb.amazonaws.com</code></li>
+    <li><code>TG_ARN = arn:aws:elasticloadbalancing:ap-southeast-1:...:targetgroup/myapp-tg-https/4294fca75408e4d5</code></li>
+  </ul>
+</div>
 
-<span class="cmt"># 4. Server header -- LUU Y!</span>
-curl -sk -I https://vhnlong.store/api/health | grep -i <span class="str">"^server:"</span>
-<span class="cmt"># Voi project hien tai (nginx tren EC2 van serve): "Server: nginx/1.25.x"</span>
-<span class="cmt"># Neu ALB terminate HTTPS va EC2 chi HTTP: van se la nginx (nginx tren EC2 set header)</span>
-<span class="cmt"># Header "Server: awselb/2.0" CHI xuat hien khi ALB tra response truc tiep (vd error page 502)</span></code></pre>
+<h4>Test 1 — DNS phải resolve vào IP của ALB (không phải IP EC2)</h4>
+<p><strong>Mục đích:</strong> xác minh Route 53 ALIAS đã trỏ đúng. Đây là test quan trọng nhất — nếu fail thì các test khác mặc dù pass cũng vô nghĩa (do client đang gọi thẳng vào EC2, không qua ALB).</p>
+
+<pre><code><span class="cmt"># PowerShell (Resolve-DnsName -- rõ hơn nslookup)</span>
+$ALB_DNS = <span class="str">"myapp-alb-1197696397.ap-southeast-1.elb.amazonaws.com"</span>
+$DOMAIN  = <span class="str">"vhnlong.store"</span>
+
+<span class="cmt"># IP cua ALB hien tai (ALB co 1 IP/AZ, total 2-3 IP)</span>
+$albIps = (Resolve-DnsName -Type A $ALB_DNS -Server 8.8.8.8 | Where-Object Type -eq A).IPAddress
+
+<span class="cmt"># IP ma domain dang tra ra</span>
+$domainIps = (Resolve-DnsName -Type A $DOMAIN -Server 8.8.8.8 | Where-Object Type -eq A).IPAddress
+
+Write-Host <span class="str">"ALB:    $($albIps -join ', ')"</span>
+Write-Host <span class="str">"Domain: $($domainIps -join ', ')"</span></code></pre>
+
+<p><strong>Expected:</strong> Domain IPs trùng với ALB IPs (≥2 IP cho HA). Có thể không 100% trùng do round-robin DNS, nhưng phải có overlap.</p>
+
+<p><strong>Ý nghĩa:</strong> ALB là multi-AZ — 1 ENI per AZ. Mỗi ENI có IP public riêng. Domain trả nhiều IP nghĩa là client có thể connect vào bất kỳ AZ nào → nếu 1 AZ chết thì client tự fail-over sang IP khác.</p>
+
+<h4>Test 2 — HTTPS basic: site hoạt động qua ALB</h4>
+<pre><code>curl -sk -w <span class="str">"Code: %{http_code}\nTime: %{time_total}s\n"</span> -o /dev/null https://vhnlong.store
+curl -sk https://vhnlong.store/api/health</code></pre>
+<p><strong>Expected:</strong> <code>Code: 200</code>, latency &lt; 500ms, body <code>{"status":"ok"}</code>.</p>
+<p><strong>Ý nghĩa:</strong> Sanity check — ALB forward được tới EC2 backend.</p>
+
+<h4>Test 3 — SSL cert là ACM (không phải Let's Encrypt)</h4>
+<pre><code>echo | openssl s_client -connect vhnlong.store:443 -servername vhnlong.store 2&gt;/dev/null | openssl x509 -noout -issuer -subject -dates</code></pre>
+<p><strong>Expected:</strong></p>
+<pre><code>issuer=C = US, O = Amazon, CN = Amazon RSA 2048 M01
+subject=CN = vhnlong.store
+notBefore=May 25 00:00:00 2026 GMT
+notAfter=Dec  8 23:59:59 2026 GMT</code></pre>
+<p><strong>Ý nghĩa:</strong> Cert được serve từ ACM qua ALB, không phải certbot cũ trên EC2. Issuer <strong>"O = Amazon"</strong> là dấu hiệu chắc chắn. Nếu thấy <code>Let's Encrypt R3/R10</code> nghĩa là client đang bypass ALB và gọi thẳng EC2:443 (sai DNS).</p>
+
+<h4>Test 4 — HTTP redirect 301 → HTTPS (do ALB listener làm)</h4>
+<pre><code>curl -sv -o /dev/null http://vhnlong.store 2&gt;&amp;1 | grep -E <span class="str">"^&lt; HTTP|^&lt; [Ll]ocation:"</span> | head -3</code></pre>
+<p><strong>Expected:</strong></p>
+<pre><code>&lt; HTTP/1.1 301 Moved Permanently
+&lt; Location: https://vhnlong.store:443/</code></pre>
+<p><strong>Ý nghĩa:</strong> ALB nhận HTTP:80 → trả 301 ngay, không forward tới EC2. Đây là feature "Redirect" của ALB Listener (A4). User không bao giờ truy cập app qua HTTP, luôn upgrade lên HTTPS.</p>
+
+<h4>Test 5 — Target trong TG đang healthy</h4>
+<pre><code>$TG_ARN = <span class="str">"arn:aws:elasticloadbalancing:...:targetgroup/myapp-tg-https/..."</span>
+
+<span class="cmt"># State cua targets</span>
+aws elbv2 describe-target-health --region ap-southeast-1 --target-group-arn $TG_ARN <span class="cmt">`</span>
+  --query <span class="str">"TargetHealthDescriptions[].{Id:Target.Id,Port:Target.Port,State:TargetHealth.State,Reason:TargetHealth.Reason}"</span> <span class="cmt">`</span>
+  --output table
+
+<span class="cmt"># Health check config (verify dung interval, path)</span>
+aws elbv2 describe-target-groups --region ap-southeast-1 --target-group-arns $TG_ARN <span class="cmt">`</span>
+  --query <span class="str">"TargetGroups[0].{Proto:Protocol,Port:Port,HCProto:HealthCheckProtocol,HCPath:HealthCheckPath,Interval:HealthCheckIntervalSeconds}"</span> <span class="cmt">`</span>
+  --output table</code></pre>
+<p><strong>Expected:</strong> State <code>healthy</code>, Reason <code>None</code>. Config: protocol HTTPS, port 443, path /api/health, interval 30s.</p>
+<p><strong>Ý nghĩa:</strong> ALB đang ping <code>https://EC2:443/api/health</code> mỗi 30s → EC2 trả 200 → ALB cho phép EC2 nhận traffic. Nếu state <code>unhealthy</code>: xem cột <code>Reason</code> và đi đến mục Troubleshooting bên dưới.</p>
+
+<h4>Test 6 — Xác minh ALB thực sự trong path (qua nginx logs)</h4>
+<p>Test này chứng minh request KHÔNG bypass ALB. Cách làm: gửi request có marker, rồi xem nginx log trên EC2 thấy gì.</p>
+
+<pre><code><span class="cmt"># 1. Gui request</span>
+curl -sk https://vhnlong.store/api/health &gt; $null
+
+<span class="cmt"># 2. Cho 2s log buffer flush, roi xem 3 dong cuoi nginx</span>
+sleep 2
+ssh -i &lt;ssh-key&gt; ubuntu@&lt;ec2-ip&gt; <span class="str">"docker logs myapp-production-nginx-1 --tail 3"</span></code></pre>
+
+<p><strong>Expected:</strong> Log format chuẩn của nginx:</p>
+<pre><code>172.31.35.31 - - [25/May/2026:09:32:22] <span class="str">"GET /api/health HTTP/1.1"</span> 200 15 <span class="str">"-"</span> <span class="str">"curl/8.2.1"</span> <span class="str">"171.225.184.247"</span>
+^^^^^^^^^^^^^                                                                                              ^^^^^^^^^^^^^^^
+Source IP (1) = ALB ENI internal IP                                                              X-Forwarded-For (2) = real client IP</code></pre>
+
+<p><strong>Ý nghĩa của 2 IP trong cùng 1 dòng log:</strong></p>
+<ol>
+  <li><strong>Source IP <code>172.31.x.x</code></strong> = IP nội bộ VPC của ALB ENI (1 ENI per AZ). Nginx nhìn thấy ALB là "client" của nó, vì ALB là TCP termination point.</li>
+  <li><strong>IP cuối <code>171.225.x.x</code></strong> = real client IP (laptop của bạn). ALB lấy từ TCP connection của user → ghi vào HTTP header <code>X-Forwarded-For</code>. Nginx config đã set log format extract header này.</li>
+</ol>
+
+<p>Nếu KHÔNG thấy IP <code>172.31.x.x</code> ở cột source → client đang bypass ALB.</p>
+
+<h4>Test 7 — Multi-AZ: nhiều request có thể đi qua các ALB ENI khác AZ</h4>
+<pre><code><span class="cmt"># Gui 10 request</span>
+for ($i=1; $i -le 10; $i++) { curl -sk https://vhnlong.store/api/health &gt; $null }
+sleep 2
+
+<span class="cmt"># Xem co bao nhieu ALB IP khac nhau trong log nginx</span>
+ssh -i &lt;key&gt; ubuntu@&lt;ec2-ip&gt; <span class="cmt">`</span>
+  <span class="str">"docker logs myapp-production-nginx-1 --since 30s | grep 'GET /api/health' | grep -v ELB-HealthChecker | awk '{print \$1}' | sort | uniq -c"</span></code></pre>
+
+<p><strong>Expected:</strong> 1-3 IP nội bộ khác nhau (vd <code>172.31.19.106</code>, <code>172.31.35.31</code>...). Mỗi IP = 1 ALB ENI ở 1 AZ.</p>
+
+<p><strong>Ý nghĩa:</strong> AWS DNS round-robin trả các ALB ENI khác nhau cho từng query → traffic phân tán qua các AZ ngay từ DNS level. Nếu 1 AZ chết, query DNS sau sẽ không trả IP đó nữa.</p>
+
+<div class="info">
+  <strong>ℹ️ Chỉ có thể thấy 1 IP duy nhất</strong>
+  Bình thường — vì local DNS cache trên máy. Trong khoảng cache TTL (60s), client luôn dùng cùng 1 IP. Đợi qua TTL hoặc <code>ipconfig /flushdns</code> rồi gọi lại sẽ thấy IP khác.
+</div>
+
+<h4>Test 8 — Failure detection + recovery (mô phỏng backend chết)</h4>
+
+<div class="warn">
+  <strong>⚠️ Test này gây downtime ~60-90s nếu chỉ có 1 EC2</strong>
+  Nếu có ASG ≥2 EC2 (Module C), không downtime vì ALB route sang EC2 healthy khác. Test này tốt nhất chạy khi không có user thật.
+</div>
+
+<pre><code><span class="cmt"># T0: baseline</span>
+aws elbv2 describe-target-health --region ap-southeast-1 --target-group-arn $TG_ARN <span class="cmt">`</span>
+  --query <span class="str">"TargetHealthDescriptions[0].TargetHealth.State"</span> --output text
+curl -sk -w <span class="str">"API: HTTP %{http_code}\n"</span> -o /dev/null https://vhnlong.store/api/health
+
+<span class="cmt"># T1: STOP backend container</span>
+ssh -i &lt;key&gt; ubuntu@&lt;ec2-ip&gt; <span class="str">"docker stop myapp-production-backend-1"</span>
+
+<span class="cmt"># T2: Poll 80s xem ALB phat hien unhealthy chua</span>
+for ($i=1; $i -le 8; $i++) {
+  $state = aws elbv2 describe-target-health --region ap-southeast-1 --target-group-arn $TG_ARN <span class="cmt">`</span>
+    --query <span class="str">"TargetHealthDescriptions[0].TargetHealth.State"</span> --output text
+  $code = curl -sk -m 5 -o /dev/null -w <span class="str">"%{http_code}"</span> https://vhnlong.store/api/health
+  Write-Host <span class="str">"[$($i*10)s] target=$state | API=$code"</span>
+  Start-Sleep 10
+}
+
+<span class="cmt"># T3: START lai</span>
+ssh -i &lt;key&gt; ubuntu@&lt;ec2-ip&gt; <span class="str">"docker start myapp-production-backend-1"</span>
+
+<span class="cmt"># T4: Poll xem recovery</span>
+for ($i=1; $i -le 10; $i++) {
+  $state = aws elbv2 describe-target-health --region ap-southeast-1 --target-group-arn $TG_ARN <span class="cmt">`</span>
+    --query <span class="str">"TargetHealthDescriptions[0].TargetHealth.State"</span> --output text
+  $code = curl -sk -m 5 -o /dev/null -w <span class="str">"%{http_code}"</span> https://vhnlong.store/api/health
+  Write-Host <span class="str">"[$($i*10)s] target=$state | API=$code"</span>
+  if ($state -eq <span class="str">"healthy"</span> -and $code -eq <span class="str">"200"</span>) { Write-Host <span class="str">"RECOVERED"</span>; break }
+  Start-Sleep 10
+}</code></pre>
+
+<p><strong>Expected timeline:</strong></p>
+<table>
+  <tr><th>Thời điểm</th><th>Target state</th><th>API response</th><th>Giải thích</th></tr>
+  <tr><td>T0 baseline</td><td>healthy</td><td>200</td><td>Normal</td></tr>
+  <tr><td>T+10-30s sau stop</td><td>healthy (chưa kịp detect)</td><td>000 / 502</td><td>Backend container đã chết, nhưng ALB chưa biết. nginx upstream timeout → 502</td></tr>
+  <tr><td>T+40-60s sau stop</td><td>unhealthy</td><td>502</td><td>ALB sau 2 lần health check fail (× 30s interval) đã flip target sang unhealthy. ALB trả 502 thẳng cho client</td></tr>
+  <tr><td>T+10s sau start</td><td>unhealthy (chưa flip)</td><td>200</td><td>Backend trở lại, nhưng ALB cần 2 lần health check pass mới flip back. Trong khoảng này, traffic có thể vẫn được route qua (graceful)</td></tr>
+  <tr><td>T+60s sau start</td><td>healthy</td><td>200</td><td>Recovered hoàn toàn</td></tr>
+</table>
+
+<p><strong>Ý nghĩa:</strong></p>
+<ul>
+  <li><strong>Detection delay = 60s</strong> = <code>unhealthy_threshold (2) × interval (30s)</code>. Có thể giảm bằng <code>--unhealthy-threshold-count 2 --health-check-interval-seconds 10</code> → detect trong 20s.</li>
+  <li><strong>Recovery delay = 60s</strong> = <code>healthy_threshold × interval</code>. Tương tự.</li>
+  <li><strong>Trả 502 thay vì hang</strong> = good. Client biết app down, hiện error page thay vì spinning forever.</li>
+  <li><strong>Với 1 EC2, downtime ~50-90s</strong> không thể tránh. Cần Module C (ASG ≥2 EC2) để 0 downtime.</li>
+</ul>
+
+<h4>📋 Bảng tổng hợp 8 test</h4>
+<table>
+  <tr><th>#</th><th>Test</th><th>Pass khi</th><th>Chứng minh điều gì</th></tr>
+  <tr><td>1</td><td>DNS resolution</td><td>Domain IPs trùng với ALB IPs (≥2)</td><td>Route 53 ALIAS đúng, không bypass ALB</td></tr>
+  <tr><td>2</td><td>HTTPS basic</td><td>200 + body OK</td><td>End-to-end pipeline hoạt động</td></tr>
+  <tr><td>3</td><td>ACM cert</td><td>Issuer = Amazon</td><td>Cert serve từ ALB (ACM), không phải certbot EC2</td></tr>
+  <tr><td>4</td><td>HTTP redirect</td><td>301 + Location HTTPS</td><td>ALB Listener cấu hình redirect đúng</td></tr>
+  <tr><td>5</td><td>TG health</td><td>State = healthy</td><td>Health check pass, target nhận traffic được</td></tr>
+  <tr><td>6</td><td>ALB in path</td><td>nginx log thấy IP <code>172.31.x.x</code></td><td>Traffic thật đi qua ALB, không bypass</td></tr>
+  <tr><td>7</td><td>Multi-AZ</td><td>Thấy 2-3 ALB ENI khác nhau</td><td>HA architecture multi-AZ active</td></tr>
+  <tr><td>8</td><td>Failure recovery</td><td>Detect 60s, recover 60s, trả 502</td><td>ALB graceful fail + recover, không hang</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Quick smoke test (3 lệnh) — dùng khi cần verify nhanh</strong>
+<pre><code><span class="cmt"># 1. Site up</span>
+curl -sk https://vhnlong.store/api/health
+<span class="cmt"># Expect: {"status":"ok"}</span>
+
+<span class="cmt"># 2. Cert tu ACM</span>
+echo | openssl s_client -connect vhnlong.store:443 -servername vhnlong.store 2&gt;/dev/null | openssl x509 -noout -issuer
+<span class="cmt"># Expect: issuer=...O = Amazon...</span>
+
+<span class="cmt"># 3. Target healthy</span>
+aws elbv2 describe-target-health --region ap-southeast-1 --target-group-arn $TG_ARN <span class="cmt">`</span>
+  --query <span class="str">"TargetHealthDescriptions[0].TargetHealth.State"</span> --output text
+<span class="cmt"># Expect: healthy</span></code></pre>
+  Đủ 3 cái này → ALB OK. Test 1-8 ở trên là khi cần debug sâu hoặc verify lần đầu.
+</div>
 
 <h3>🔧 Troubleshooting Module A</h3>
 
