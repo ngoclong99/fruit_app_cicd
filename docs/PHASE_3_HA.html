@@ -349,6 +349,35 @@ Lifecycle integration (45 phut — sua morning/evening.ps1)</div>
   Module này dùng nguyên doc <a href="ALB_DNS.html">ALB_DNS.html</a> đã có (DNS basics, ALB anatomy, 8 bước CLI). Phần dưới đây bổ sung <strong>cách làm qua AWS Console UI</strong>.
 </div>
 
+<div class="warn">
+  <strong>⚠️ Bài học từ lần chạy thực tế (25/5/2026)</strong>
+  3 cái không có trong bản cũ của doc nhưng quan trọng:
+  <ol>
+    <li><strong>A0 — Discover trước</strong>: phải biết VPC ID, subnet IDs, EC2 SG ID trước. Bước mới thêm bên dưới.</li>
+    <li><strong>A3 (Target Group) trap</strong>: nginx hiện tại của project redirect HTTP:80 → HTTPS:443 → health check fail với <code>ResponseCodeMismatch</code>. 3 cách giải, xem A3 dưới.</li>
+    <li><strong>A6 (Route 53) qua CLI</strong>: không dùng UPSERT được khi đổi từ <code>A→IP</code> sang <code>A→ALIAS</code> — phải DELETE record cũ + CREATE record mới trong cùng change-batch. UI giấu phức tạp này.</li>
+  </ol>
+</div>
+
+<h3><span class="step-num">A0</span> Discover hạ tầng hiện có (read-only)</h3>
+<div class="tabs"><span class="tab-label cli">AWS CLI</span></div>
+<pre><code><span class="cmt"># 1. VPC default (ALB se chay trong day)</span>
+$VPC_ID = aws ec2 describe-vpcs --region ap-southeast-1 <span class="cmt">`</span>
+  --filters <span class="str">"Name=is-default,Values=true"</span> <span class="cmt">`</span>
+  --query <span class="str">"Vpcs[0].VpcId"</span> --output text
+
+<span class="cmt"># 2. Subnets (can &gt;= 2 AZ khac nhau)</span>
+aws ec2 describe-subnets --region ap-southeast-1 <span class="cmt">`</span>
+  --filters <span class="str">"Name=vpc-id,Values=$VPC_ID"</span> <span class="cmt">`</span>
+  --query <span class="str">"Subnets[].{SubnetId:SubnetId,AZ:AvailabilityZone}"</span> --output table
+
+<span class="cmt"># 3. EC2 hien tai (de biet SG va instance ID se register vao TG)</span>
+aws ec2 describe-instances --region ap-southeast-1 <span class="cmt">`</span>
+  --filters <span class="str">"Name=tag:Name,Values=myapp-ec2"</span> <span class="str">"Name=instance-state-name,Values=running"</span> <span class="cmt">`</span>
+  --query <span class="str">"Reservations[].Instances[].{Id:InstanceId,Subnet:SubnetId,AZ:Placement.AvailabilityZone,SG:SecurityGroups[0].GroupId}"</span> --output table</code></pre>
+
+<p>Ghi lại 4 ID cho các bước sau: <code>VPC_ID</code>, danh sách <code>SubnetId</code>, <code>EC2 INSTANCE_ID</code>, <code>EC2 SG</code>.</p>
+
 <h3><span class="step-num">A1</span> Tạo Security Group cho ALB</h3>
 <div class="tabs"><span class="tab-label">AWS Console UI</span></div>
 <ol>
@@ -386,47 +415,122 @@ Lifecycle integration (45 phut — sua morning/evening.ps1)</div>
 </ol>
 
 <h3><span class="step-num">A3</span> Tạo Target Group</h3>
-<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+
+<div class="danger">
+  <strong>🚨 CHỌN GIAO THỨC TG QUAN TRỌNG</strong>
+  Nginx hiện tại của project listen :80 chỉ để redirect 301 sang :443 (vì cert đặt ở EC2). Nếu TG dùng <strong>HTTP:80</strong> → ALB gửi health check tới EC2:80 → nhận 301 thay 200 → target <strong>unhealthy mãi</strong> với reason <code>ResponseCodeMismatch</code>.
+  <br/><br/>
+  3 cách giải, chọn 1:
+  <ul>
+    <li><strong>(Quick — đã làm)</strong> Tạo TG với <code>--protocol HTTPS --port 443 --health-check-protocol HTTPS</code> + matcher 200. ALB→EC2 đi qua HTTPS (Let's Encrypt cert vẫn dùng). HTTPS-twice nhưng functional ngay.</li>
+    <li><strong>(Sạch)</strong> Sửa <code>nginx/default.conf</code>: thêm <code>location = /api/health { return 200 "OK"; }</code> trong server block port 80 → health check pass mà không phá redirect. Cần commit + redeploy.</li>
+    <li><strong>(Tốt nhất, long-term)</strong> Migrate nginx về HTTP-only. ALB lo SSL termination, EC2 chỉ HTTP:80. Cần sửa nginx config, bỏ certbot khỏi morning.ps1, update docker-compose.</li>
+  </ul>
+</div>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
+
+<h4>UI (option Quick — HTTPS:443)</h4>
 <ol>
   <li>Console → <span class="ui-path">EC2 → Target Groups → Create target group</span></li>
   <li>Choose target type: <strong>Instances</strong></li>
-  <li>Target group name: <code>myapp-tg</code></li>
-  <li>Protocol: HTTP, Port: 80</li>
+  <li>Target group name: <code>myapp-tg-https</code></li>
+  <li>Protocol: <strong>HTTPS</strong>, Port: <strong>443</strong></li>
   <li>VPC: default</li>
   <li>Health checks:
     <ul>
-      <li>Protocol: HTTP</li>
+      <li>Protocol: <strong>HTTPS</strong></li>
       <li>Path: <code>/api/health</code></li>
-      <li>Advanced: Interval 30s, Timeout 5s, Healthy threshold 2, Unhealthy threshold 2</li>
+      <li>Advanced: Interval 30s, Timeout 5s, Healthy threshold 2, Unhealthy threshold 2, Success code 200</li>
     </ul>
   </li>
   <li>Next → Skip register targets (sẽ đăng ký sau) → Create</li>
 </ol>
 
-<h3><span class="step-num">A4</span> Tạo ALB</h3>
-<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<h4>CLI</h4>
+<pre><code>$TG_ARN = aws elbv2 create-target-group --region ap-southeast-1 <span class="cmt">`</span>
+  --name myapp-tg-https <span class="cmt">`</span>
+  --protocol HTTPS --port 443 <span class="cmt">`</span>
+  --vpc-id $VPC_ID <span class="cmt">`</span>
+  --target-type instance <span class="cmt">`</span>
+  --health-check-protocol HTTPS <span class="cmt">`</span>
+  --health-check-path /api/health <span class="cmt">`</span>
+  --health-check-interval-seconds 30 <span class="cmt">`</span>
+  --health-check-timeout-seconds 5 <span class="cmt">`</span>
+  --healthy-threshold-count 2 <span class="cmt">`</span>
+  --unhealthy-threshold-count 2 <span class="cmt">`</span>
+  --matcher HttpCode=200 <span class="cmt">`</span>
+  --query <span class="str">"TargetGroups[0].TargetGroupArn"</span> --output text</code></pre>
+
+<div class="info">
+  <strong>ℹ️ Vì sao Git Bash không chạy được</strong>
+  Git Bash trên Windows tự convert <code>/api/health</code> thành Windows path (<code>C:/Program Files/Git/api/health</code>) → AWS CLI từ chối. <strong>Bắt buộc dùng PowerShell</strong> hoặc set env <code>MSYS_NO_PATHCONV=1</code>.
+</div>
+
+<h3><span class="step-num">A4</span> Tạo ALB + 2 Listener (HTTP redirect + HTTPS forward)</h3>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
+
+<h4>UI</h4>
 <ol>
   <li>Console → <span class="ui-path">EC2 → Load Balancers → Create load balancer</span></li>
   <li>Application Load Balancer → Create</li>
   <li>Name: <code>myapp-alb</code></li>
   <li>Scheme: <strong>Internet-facing</strong></li>
-  <li>IP address type: IPv4</li>
+  <li>IP address type: <strong>IPv4</strong> (hoặc dualstack nếu cần IPv6)</li>
   <li>Network mapping:
     <ul>
       <li>VPC: default</li>
-      <li>Mappings: tick ít nhất <strong>2 AZ</strong> (ap-southeast-1a + ap-southeast-1b)</li>
+      <li>Mappings: tick ≥2 AZ (lý tưởng cả 3: ap-southeast-1a + 1b + 1c)</li>
     </ul>
   </li>
-  <li>Security groups: chọn <code>myapp-alb-sg</code> (đã tạo A1), bỏ default</li>
+  <li>Security groups: chọn <code>myapp-alb-sg</code>, bỏ default</li>
   <li>Listeners:
     <ul>
-      <li>HTTP:80 → forward to <code>myapp-tg</code></li>
-      <li>Add listener: HTTPS:443 → forward to <code>myapp-tg</code> → chọn ACM cert vừa tạo A2</li>
+      <li>HTTP:80 → <strong>Redirect to HTTPS 443</strong> (KHÔNG forward đến TG)</li>
+      <li>Add listener HTTPS:443 → forward to <code>myapp-tg-https</code> → chọn ACM cert A2</li>
     </ul>
   </li>
   <li>Create load balancer</li>
-  <li><strong>Lưu DNS name</strong> (vd <code>myapp-alb-12345.ap-southeast-1.elb.amazonaws.com</code>) — sẽ dùng ở A6</li>
+  <li><strong>Lưu 3 giá trị</strong> từ tab Description: <code>DNS name</code> (dùng A8), <code>Hosted zone</code> (Z1LMS91P8CMLE5 — dùng cho Route 53 ALIAS), <code>ARN</code></li>
 </ol>
+
+<h4>CLI (2 lệnh: tạo ALB → tạo 2 listener)</h4>
+<pre><code><span class="cmt"># 1. Tao ALB</span>
+$alb = aws elbv2 create-load-balancer --region ap-southeast-1 <span class="cmt">`</span>
+  --name myapp-alb <span class="cmt">`</span>
+  --subnets &lt;subnet-1a&gt; &lt;subnet-1b&gt; &lt;subnet-1c&gt; <span class="cmt">`</span>
+  --security-groups $ALB_SG <span class="cmt">`</span>
+  --scheme internet-facing <span class="cmt">`</span>
+  --type application <span class="cmt">`</span>
+  --query <span class="str">"LoadBalancers[0].{ARN:LoadBalancerArn,DNS:DNSName,Zone:CanonicalHostedZoneId}"</span> <span class="cmt">`</span>
+  --output json | ConvertFrom-Json
+<span class="cmt"># Luu $alb.ARN, $alb.DNS, $alb.Zone</span>
+
+<span class="cmt"># 2. Listener HTTPS:443 -&gt; forward TG</span>
+aws elbv2 create-listener --region ap-southeast-1 <span class="cmt">`</span>
+  --load-balancer-arn $alb.ARN <span class="cmt">`</span>
+  --protocol HTTPS --port 443 <span class="cmt">`</span>
+  --certificates CertificateArn=$CERT_ARN <span class="cmt">`</span>
+  --ssl-policy ELBSecurityPolicy-TLS13-1-2-2021-06 <span class="cmt">`</span>
+  --default-actions Type=forward,TargetGroupArn=$TG_ARN
+
+<span class="cmt"># 3. Listener HTTP:80 -&gt; redirect 301 sang HTTPS</span>
+<span class="cmt"># PowerShell escape JSON inline kho -- ghi ra file tam roi reference</span>
+$redirectJson = <span class="str">'[{"Type":"redirect","RedirectConfig":{"Protocol":"HTTPS","Port":"443","StatusCode":"HTTP_301","Host":"#{host}","Path":"/#{path}","Query":"#{query}"}}]'</span>
+$tmpJson = [System.IO.Path]::GetTempFileName()
+[System.IO.File]::WriteAllText($tmpJson, $redirectJson)
+
+aws elbv2 create-listener --region ap-southeast-1 <span class="cmt">`</span>
+  --load-balancer-arn $alb.ARN <span class="cmt">`</span>
+  --protocol HTTP --port 80 <span class="cmt">`</span>
+  --default-actions <span class="str">"file://$tmpJson"</span>
+Remove-Item $tmpJson -Force</code></pre>
+
+<div class="info">
+  <strong>ℹ️ Vì sao JSON cho redirect phải qua file</strong>
+  PowerShell xử lý <code>#{...}</code> như comment + braces, làm hỏng JSON inline. Ghi ra file tạm rồi <code>file://</code> reference là cách bền vững.
+</div>
 
 <h3><span class="step-num">A5</span> Đăng ký EC2 vào Target Group</h3>
 <div class="tabs"><span class="tab-label">AWS Console UI</span></div>
@@ -444,7 +548,10 @@ Lifecycle integration (45 phut — sua morning/evening.ps1)</div>
 </div>
 
 <h3><span class="step-num">A6</span> Trỏ Route 53 ALIAS sang ALB</h3>
-<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
+
+<h4>UI (đơn giản)</h4>
 <ol>
   <li>Console → <span class="ui-path">Route 53 → Hosted zones → vhnlong.store</span></li>
   <li>Chọn record <code>vhnlong.store</code> type A → Edit</li>
@@ -455,6 +562,66 @@ Lifecycle integration (45 phut — sua morning/evening.ps1)</div>
   <li>Save</li>
   <li>Lặp lại cho record <code>www.vhnlong.store</code></li>
 </ol>
+
+<h4>CLI (phức tạp — phải DELETE + CREATE, không phải UPSERT)</h4>
+
+<div class="warn">
+  <strong>⚠️ Gotcha quan trọng</strong>
+  Hiện đang có <code>A record → IP</code> (record thường), muốn đổi thành <code>A record → ALIAS</code>. Mặc dù cả 2 đều là "type A", chúng KHÁC nhau trong Route 53 (alias có <code>AliasTarget</code>, thường có <code>ResourceRecords</code>). <strong>UPSERT không hoạt động</strong> — phải <code>DELETE</code> record cũ + <code>CREATE</code> record mới trong cùng change-batch (atomic).
+</div>
+
+<pre><code>$HOSTED_ZONE_ID = <span class="str">"Z0999500HD1JE8VHHDN2"</span>
+$ALB_DNS  = <span class="str">"dualstack.myapp-alb-XXX.ap-southeast-1.elb.amazonaws.com"</span>
+<span class="cmt"># dualstack. prefix recommended boi AWS de support IPv6 sau nay neu can</span>
+$ALB_ZONE = <span class="str">"Z1LMS91P8CMLE5"</span>  <span class="cmt"># CanonicalHostedZoneId tu A4 (KHAC voi hosted zone cua domain)</span>
+
+<span class="cmt"># Lay tat ca record A cua domain</span>
+$allRecords = aws route53 list-resource-record-sets --hosted-zone-id $HOSTED_ZONE_ID <span class="cmt">`</span>
+  --output json | ConvertFrom-Json
+$targetRecords = $allRecords.ResourceRecordSets | Where-Object {
+  ($_.Name -eq <span class="str">"vhnlong.store."</span> -or $_.Name -eq <span class="str">"www.vhnlong.store."</span>) -and $_.Type -eq <span class="str">"A"</span>
+}
+
+<span class="cmt"># Tao change-batch: DELETE record cu + CREATE alias moi cho moi domain</span>
+$changes = @()
+foreach ($r in $targetRecords) {
+  $changes += @{
+    Action = <span class="str">"DELETE"</span>
+    ResourceRecordSet = @{
+      Name = $r.Name; Type = <span class="str">"A"</span>; TTL = $r.TTL
+      ResourceRecords = $r.ResourceRecords
+    }
+  }
+  $changes += @{
+    Action = <span class="str">"CREATE"</span>
+    ResourceRecordSet = @{
+      Name = $r.Name; Type = <span class="str">"A"</span>
+      AliasTarget = @{
+        HostedZoneId         = $ALB_ZONE
+        DNSName              = $ALB_DNS
+        EvaluateTargetHealth = $true
+      }
+    }
+  }
+}
+
+$changeBatch = @{ Changes = $changes } | ConvertTo-Json -Depth 10
+$tmpJson = [System.IO.Path]::GetTempFileName()
+[System.IO.File]::WriteAllText($tmpJson, $changeBatch)
+aws route53 change-resource-record-sets <span class="cmt">`</span>
+  --hosted-zone-id $HOSTED_ZONE_ID <span class="cmt">`</span>
+  --change-batch <span class="str">"file://$tmpJson"</span>
+Remove-Item $tmpJson -Force</code></pre>
+
+<div class="tip">
+  <strong>💡 EvaluateTargetHealth = true</strong>
+  Khi ALB không có target healthy → Route 53 sẽ KHÔNG trả về DNS này (failover nếu có route khác). Hữu ích khi đa region.
+</div>
+
+<div class="info">
+  <strong>ℹ️ JMESPath <code>&amp;&amp;</code> trap trong PowerShell</strong>
+  Đừng dùng <code>--query "ResourceRecordSets[?Name=='X' &amp;&amp; Type=='A']"</code> — PowerShell sẽ encode <code>&amp;&amp;</code> thành <code>&amp;amp;&amp;amp;</code> → JMESPath syntax error. Lấy hết về rồi filter trong PowerShell với <code>Where-Object</code> như ở trên.
+</div>
 
 <h3><span class="step-num">A7</span> Verify</h3>
 <pre><code><span class="cmt"># 1. Truy cap qua ALB DNS truc tiep (bypass DNS)</span>
@@ -467,7 +634,27 @@ curl <span class="kw">-v</span> https://vhnlong.store/api/health
 
 <span class="cmt"># 3. Cert duoc dung la ACM, khong phai Let's Encrypt</span>
 openssl s_client <span class="kw">-connect</span> vhnlong.store:443 -servername vhnlong.store &lt; /dev/null 2&gt;/dev/null | openssl x509 -noout -issuer
-<span class="cmt"># Expect: issuer=C=US, O=Amazon, CN=Amazon RSA 2048 M02 (cu se la Let's Encrypt R3/R10)</span></code></pre>
+<span class="cmt"># Expect: issuer=C=US, O=Amazon, CN=Amazon RSA 2048 M02 (cu se la Let's Encrypt R3/R10)</span>
+
+<span class="cmt"># 4. Server header -- LUU Y!</span>
+curl -sk -I https://vhnlong.store/api/health | grep -i <span class="str">"^server:"</span>
+<span class="cmt"># Voi project hien tai (nginx tren EC2 van serve): "Server: nginx/1.25.x"</span>
+<span class="cmt"># Neu ALB terminate HTTPS va EC2 chi HTTP: van se la nginx (nginx tren EC2 set header)</span>
+<span class="cmt"># Header "Server: awselb/2.0" CHI xuat hien khi ALB tra response truc tiep (vd error page 502)</span></code></pre>
+
+<h3>🔧 Troubleshooting Module A</h3>
+
+<table>
+  <tr><th>Triệu chứng</th><th>Nguyên nhân</th><th>Fix</th></tr>
+  <tr><td>Target <code>unhealthy</code> reason <code>ResponseCodeMismatch</code></td><td>Health check expect 200 nhưng nhận 301/302 (nginx redirect HTTP→HTTPS) hoặc 404 (path sai)</td><td>Đổi TG sang HTTPS:443, hoặc sửa nginx để return 200 cho /api/health, hoặc bỏ redirect</td></tr>
+  <tr><td>Target <code>unhealthy</code> reason <code>Target.Timeout</code></td><td>EC2 SG không cho ALB SG vào port 80/443</td><td>EC2 SG inbound: thêm rule port 80/443 từ ALB SG (hoặc 0.0.0.0/0 nếu chưa tách)</td></tr>
+  <tr><td>Target <code>unhealthy</code> reason <code>Target.FailedHealthChecks</code></td><td>App backend chưa chạy hoặc /api/health crash</td><td>SSH vào EC2: <code>docker ps</code>, <code>curl -k https://localhost/api/health</code></td></tr>
+  <tr><td>ACM cert kẹt <code>PENDING_VALIDATION</code></td><td>CNAME validation record chưa add vào Route 53 hoặc chưa propagate</td><td><code>dig _xxx.vhnlong.store CNAME +short</code> — phải thấy <code>_yyy.acm-validations.aws</code></td></tr>
+  <tr><td>Lệnh <code>aws route53 change-resource-record-sets</code> báo <code>InvalidChangeBatch: ... but they all must be deletes</code></td><td>Trộn record cũ-mới với cùng tên-type trong UPSERT</td><td>Tách thành DELETE + CREATE thay vì UPSERT khi đổi type/alias</td></tr>
+  <tr><td>Domain truy cập vẫn vào IP cũ</td><td>DNS cache local hoặc resolver chưa propagate</td><td><code>ipconfig /flushdns</code> + check qua DNS khác: <code>nslookup vhnlong.store 8.8.8.8</code></td></tr>
+  <tr><td>Git Bash báo path Windows lạ trong AWS CLI</td><td>Git Bash convert <code>/api/health</code> → Windows path</td><td>Dùng PowerShell hoặc <code>MSYS_NO_PATHCONV=1 aws ...</code></td></tr>
+  <tr><td>PowerShell JMESPath báo <code>Bad jmespath expression: Unknown token ;</code></td><td><code>&amp;&amp;</code> trong query bị PowerShell encode</td><td>Bỏ <code>&amp;&amp;</code> khỏi JMESPath. Lấy hết về rồi filter bằng <code>Where-Object</code></td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
