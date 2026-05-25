@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Giai đoạn 4 — Container Orchestration (ECS Fargate)</title>
+  <title>Giai đoạn 4 — Container &amp; Serverless</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 32px; max-width: 1000px; margin: 0 auto; }
@@ -63,7 +63,7 @@
 <body>
 
 <div class="cover">
-  <h1>🚀 Giai đoạn 4 — Container Orchestration</h1>
+  <h1>🚀 Giai đoạn 4 — Container &amp; Serverless</h1>
   <p>Master guide: ECS Fargate + ECR lifecycle + CloudWatch Logs + Blue/Green deployment<br/>
   Bỏ EC2, AWS tự quản container scheduling.</p>
   <br/>
@@ -95,6 +95,18 @@
     <li><a href="#verify">Verify end-to-end</a></li>
     <li><a href="#cleanup">Cleanup</a></li>
     <li><a href="#trouble">Troubleshooting</a></li>
+    <li><a href="#serverless">Part 2 — Serverless (Lambda + API Gateway + EventBridge)</a>
+      <ol style="list-style-type: lower-alpha;">
+        <li><a href="#why-lambda">Tại sao Lambda — paradigm thứ 3</a></li>
+        <li><a href="#lambda-anatomy">Lambda anatomy</a></li>
+        <li><a href="#lambda-deploy">Deploy Lambda đầu tiên</a></li>
+        <li><a href="#lambda-event">Event sources</a></li>
+        <li><a href="#api-gateway">API Gateway — Lambda thành REST API</a></li>
+        <li><a href="#eventbridge">EventBridge — cron + custom events</a></li>
+        <li><a href="#lambda-real">Real-world: Lambda thay evening.ps1</a></li>
+        <li><a href="#lambda-cleanup">Cleanup serverless resources</a></li>
+      </ol>
+    </li>
     <li><a href="#next">Sang Phase 5</a></li>
   </ol>
 </div>
@@ -859,14 +871,394 @@ aws logs delete-log-group --log-group-name /ecs/myapp
 </ul>
 
 <!-- ════════════════════════════════════════════════════════════ -->
-<h1 id="next">16. Sang Phase 5</h1>
+<h1 id="serverless">Part 2 — Serverless (Lambda + API Gateway + EventBridge)</h1>
 
-<p>Phase 5 — Infrastructure as Code (Terraform) sẽ <strong>codify</strong> tất cả những gì đã setup manual qua UI/CLI ở Phase 3-4:</p>
+<p>Phần trên về ECS Fargate là <strong>compute paradigm thứ 2</strong> (sau EC2). Phần này về <strong>paradigm thứ 3 — Serverless</strong>: bạn viết function, AWS lo TẤT CẢ phần dưới (OS, runtime, scaling, networking).</p>
+
+<h2 id="why-lambda">a. Tại sao Lambda — paradigm thứ 3</h2>
+
+<div class="arch">┌─────────────────────────────────────────────────────────┐
+│  PARADIGM 1 — EC2 (Phase 1-3)                           │
+│  Ban quan ly: OS, patch, scale, monitor, restart        │
+│  AWS quan ly: phan cung                                 │
+│  Billing: per HOUR EC2 chay (du khong xai)              │
+├─────────────────────────────────────────────────────────┤
+│  PARADIGM 2 — Container (Fargate, Phase 4 Part 1)       │
+│  Ban quan ly: container image + task definition         │
+│  AWS quan ly: OS, kernel, container runtime, scaling    │
+│  Billing: per SECOND task chay                          │
+├─────────────────────────────────────────────────────────┤
+│  PARADIGM 3 — Serverless (Lambda, Phase 4 Part 2)       │
+│  Ban quan ly: CHI function code (handler)               │
+│  AWS quan ly: OS, runtime, container, scaling, network  │
+│  Billing: per REQUEST + ms execution time               │
+│  Free tier: 1M request + 400,000 GB-second/month       │
+└─────────────────────────────────────────────────────────┘</div>
+
+<h3>Use cases Lambda hay nhất</h3>
+<table>
+  <tr><th>Use case</th><th>Vì sao Lambda phù hợp</th></tr>
+  <tr><td>Cron job (scheduled task)</td><td>Chạy 1 phút/ngày → EC2 lãng phí 23h59'. Lambda + EventBridge cost ~$0</td></tr>
+  <tr><td>Image processing khi upload S3</td><td>Event-driven: S3 trigger Lambda tự động khi có file mới</td></tr>
+  <tr><td>Webhook nhận event từ Stripe/GitHub</td><td>Khoản traffic ít, không đáng dựng server riêng</td></tr>
+  <tr><td>REST API có ít request</td><td>1000 req/ngày = $0. Server EC2 = $7-15/tháng</td></tr>
+  <tr><td>Stream processing (Kinesis, DynamoDB streams)</td><td>Auto scale theo throughput</td></tr>
+  <tr><td>Auto cleanup (tự xóa file cũ, EC2 cũ)</td><td>Trigger by EventBridge schedule</td></tr>
+</table>
+
+<h3>Khi nào KHÔNG dùng Lambda</h3>
 <ul>
-  <li>1 file <code>main.tf</code> = tạo lại toàn bộ infra trong 5 phút</li>
-  <li>Code in Git = audit trail + review trước khi đổi prod</li>
-  <li>Reusable module — copy sang dự án khác</li>
+  <li><strong>Workload chạy liên tục 24/7</strong>: Lambda đắt hơn EC2 nếu function chạy hàng giờ liên tục</li>
+  <li><strong>Cần persistent state trong RAM</strong>: Lambda stateless, mỗi invocation memory reset (trừ khi dùng Lambda extension)</li>
+  <li><strong>WebSocket connections lâu</strong>: Lambda max 15 phút mỗi invocation. Dùng API Gateway WebSocket + connection table</li>
+  <li><strong>Long-running batch job</strong>: 15 phút limit → dùng Step Functions / ECS task / Batch</li>
+  <li><strong>Cold start critical</strong>: First invocation sau idle có 200ms-2s cold start delay</li>
 </ul>
+
+<h2 id="lambda-anatomy">b. Lambda anatomy</h2>
+
+<div class="arch">┌─────────────────────────────────────────────────────────┐
+│  FUNCTION                                               │
+│  - Code (Python/Node/Go/Java/.NET/Ruby/Rust)            │
+│  - Runtime version (vd nodejs20.x, python3.12)          │
+│  - Handler: filename.exportedFunction                   │
+│  - Memory: 128MB - 10240MB (CPU scale cung memory)      │
+│  - Timeout: 1s - 900s (15 phut max)                     │
+│  - Env variables                                        │
+│  - IAM role (Execution Role)                            │
+│                                                         │
+│  ↓ trigger by                                           │
+│                                                         │
+│  EVENT SOURCES (cach Lambda duoc invoke)                │
+│  - API Gateway (HTTP request)                           │
+│  - EventBridge (schedule cron, custom event)            │
+│  - S3 (file upload/delete)                              │
+│  - SQS / SNS (message queue)                            │
+│  - DynamoDB Stream                                      │
+│  - CloudWatch Logs (real-time log processing)           │
+│  - Manual: aws lambda invoke ...                        │
+└─────────────────────────────────────────────────────────┘</div>
+
+<h3>Handler signature</h3>
+<pre><code><span class="cmt"># Python</span>
+<span class="kw">def</span> lambda_handler(event, context):
+    <span class="cmt"># event = JSON tu event source (vd API Gateway request)</span>
+    <span class="cmt"># context = info ve invocation (request id, time left, log group...)</span>
+    <span class="kw">return</span> {
+        <span class="str">"statusCode"</span>: <span class="num">200</span>,
+        <span class="str">"body"</span>: json.dumps({<span class="str">"ok"</span>: <span class="kw">True</span>})
+    }
+
+<span class="cmt"># Node.js</span>
+exports.handler = <span class="kw">async</span> (event, context) =&gt; {
+  <span class="kw">return</span> {
+    statusCode: <span class="num">200</span>,
+    body: JSON.stringify({ ok: <span class="kw">true</span> })
+  };
+};</code></pre>
+
+<h2 id="lambda-deploy">c. Deploy Lambda đầu tiên</h2>
+
+<h3><span class="step-num">L1</span> Viết function code</h3>
+<p>Tạo file <code>scripts/lambda-hello/index.py</code>:</p>
+<pre><code><span class="kw">import</span> json
+<span class="kw">import</span> os
+
+<span class="kw">def</span> lambda_handler(event, context):
+    <span class="cmt"># Doc env var, request info</span>
+    msg = os.environ.get(<span class="str">"GREETING"</span>, <span class="str">"Hello"</span>)
+    name = event.get(<span class="str">"name"</span>, <span class="str">"World"</span>)
+
+    <span class="kw">return</span> {
+        <span class="str">"message"</span>: f<span class="str">"{msg}, {name}!"</span>,
+        <span class="str">"request_id"</span>: context.aws_request_id,
+        <span class="str">"remaining_ms"</span>: context.get_remaining_time_in_millis()
+    }</code></pre>
+
+<h3><span class="step-num">L2</span> Tạo IAM execution role</h3>
+<pre><code><span class="cmt"># Trust policy: Lambda service duoc assume role nay</span>
+$trust = '{
+  <span class="str">"Version"</span>: <span class="str">"2012-10-17"</span>,
+  <span class="str">"Statement"</span>: [{
+    <span class="str">"Effect"</span>: <span class="str">"Allow"</span>,
+    <span class="str">"Principal"</span>: { <span class="str">"Service"</span>: <span class="str">"lambda.amazonaws.com"</span> },
+    <span class="str">"Action"</span>: <span class="str">"sts:AssumeRole"</span>
+  }]
+}'
+$trust | Out-File -Encoding utf8 trust-lambda.json
+
+aws iam create-role <span class="cmt">`</span>
+  --role-name myapp-lambda-exec-role <span class="cmt">`</span>
+  --assume-role-policy-document file://trust-lambda.json
+
+<span class="cmt"># Attach managed policy de Lambda ghi log vao CloudWatch</span>
+aws iam attach-role-policy <span class="cmt">`</span>
+  --role-name myapp-lambda-exec-role <span class="cmt">`</span>
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole</code></pre>
+
+<h3><span class="step-num">L3</span> Package code + deploy</h3>
+<pre><code><span class="cmt"># Zip code (Python khong can dependencies o vi du nay)</span>
+Compress-Archive -Path scripts/lambda-hello/index.py -DestinationPath scripts/lambda-hello/function.zip -Force
+
+<span class="cmt"># Tao Lambda function</span>
+aws lambda create-function <span class="cmt">`</span>
+  --function-name myapp-hello <span class="cmt">`</span>
+  --runtime python3.12 <span class="cmt">`</span>
+  --role arn:aws:iam::529568113348:role/myapp-lambda-exec-role <span class="cmt">`</span>
+  --handler index.lambda_handler <span class="cmt">`</span>
+  --zip-file fileb://scripts/lambda-hello/function.zip <span class="cmt">`</span>
+  --timeout 10 --memory-size 128 <span class="cmt">`</span>
+  --environment <span class="str">"Variables={GREETING=Xin chao}"</span> <span class="cmt">`</span>
+  --region ap-southeast-1</code></pre>
+
+<h3><span class="step-num">L4</span> Test invoke</h3>
+<pre><code><span class="cmt"># Invoke manual, payload JSON</span>
+aws lambda invoke <span class="cmt">`</span>
+  --function-name myapp-hello <span class="cmt">`</span>
+  --payload '{<span class="str">"name"</span>: <span class="str">"Long"</span>}' <span class="cmt">`</span>
+  --cli-binary-format raw-in-base64-out <span class="cmt">`</span>
+  --region ap-southeast-1 <span class="cmt">`</span>
+  response.json
+
+cat response.json
+<span class="cmt"># {"message":"Xin chao, Long!","request_id":"...","remaining_ms":9897}</span></code></pre>
+
+<h3><span class="step-num">L5</span> Update code</h3>
+<pre><code><span class="cmt"># Sua index.py xong, package lai</span>
+Compress-Archive -Path scripts/lambda-hello/index.py -DestinationPath scripts/lambda-hello/function.zip -Force
+
+<span class="cmt"># Update code (giu nguyen config)</span>
+aws lambda update-function-code <span class="cmt">`</span>
+  --function-name myapp-hello <span class="cmt">`</span>
+  --zip-file fileb://scripts/lambda-hello/function.zip <span class="cmt">`</span>
+  --region ap-southeast-1</code></pre>
+
+<h2 id="lambda-event">d. Event sources</h2>
+
+<p>Lambda không tự chạy — phải có cái gì đó <strong>trigger</strong> nó. Mỗi event source = pattern khác nhau:</p>
+
+<table>
+  <tr><th>Trigger</th><th>Use case ví dụ</th><th>Payload event chứa gì</th></tr>
+  <tr><td>EventBridge schedule</td><td>Cron job — chạy 9 AM mỗi ngày</td><td>Empty (chỉ time)</td></tr>
+  <tr><td>API Gateway</td><td>REST endpoint /api/something</td><td>HTTP method, path, headers, body</td></tr>
+  <tr><td>S3</td><td>User upload file → resize, virus scan</td><td>Bucket name, key, eventName (ObjectCreated/Removed)</td></tr>
+  <tr><td>SQS</td><td>Process message từ queue (1-10 message/batch)</td><td>Mảng messages</td></tr>
+  <tr><td>SNS</td><td>Pub/sub — nhiều subscriber</td><td>Message content</td></tr>
+  <tr><td>DynamoDB Stream</td><td>Khi row insert/update/delete trong DDB</td><td>Old image + new image của row</td></tr>
+  <tr><td>CloudWatch Logs</td><td>Real-time process log (vd alert khi thấy "ERROR")</td><td>Compressed batch log entries</td></tr>
+</table>
+
+<h2 id="api-gateway">e. API Gateway — Lambda thành REST API</h2>
+
+<p>API Gateway là dịch vụ AWS đứng trước Lambda, expose HTTP/REST endpoint:</p>
+
+<div class="arch">User browser              API Gateway              Lambda
+  │                          │                       │
+  │  GET /products           │                       │
+  │  ─────────────────────►  │                       │
+  │                          │  invoke(event=        │
+  │                          │    {method:GET,       │
+  │                          │     path:/products})  │
+  │                          │  ────────────────────►│
+  │                          │                       │ handler
+  │                          │  return {             │ logic
+  │                          │    statusCode: 200,   │
+  │                          │    body: '...'        │
+  │                          │  }                    │
+  │                          │  ◄────────────────────│
+  │  200 OK + JSON body      │                       │
+  │  ◄─────────────────────  │                       │
+  └──────────────────────────┴───────────────────────┘</div>
+
+<h3>2 loại API Gateway</h3>
+<table>
+  <tr><th>Loại</th><th>Cost</th><th>Phù hợp</th></tr>
+  <tr><td><strong>REST API</strong></td><td>$3.50/triệu request</td><td>Cần API key, throttle, request validation, transformations phức tạp</td></tr>
+  <tr><td><strong>HTTP API (v2)</strong></td><td>$1.00/triệu request (rẻ 71%)</td><td>API đơn giản, JWT validation, CORS — đủ cho 90% use case</td></tr>
+  <tr><td><strong>WebSocket API</strong></td><td>$1/triệu message</td><td>Real-time chat, gaming, IoT</td></tr>
+</table>
+
+<h3>Tạo HTTP API + integrate Lambda (CLI)</h3>
+<pre><code><span class="cmt"># 1. Tao HTTP API</span>
+$apiId = aws apigatewayv2 create-api <span class="cmt">`</span>
+  --name myapp-api --protocol-type HTTP <span class="cmt">`</span>
+  --target arn:aws:lambda:ap-southeast-1:529568113348:function:myapp-hello <span class="cmt">`</span>
+  --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"ApiId"</span> --output text
+
+<span class="cmt"># 2. Cho phep API Gateway invoke Lambda</span>
+aws lambda add-permission <span class="cmt">`</span>
+  --function-name myapp-hello <span class="cmt">`</span>
+  --statement-id apigw-invoke <span class="cmt">`</span>
+  --action lambda:InvokeFunction <span class="cmt">`</span>
+  --principal apigateway.amazonaws.com <span class="cmt">`</span>
+  --source-arn <span class="str">"arn:aws:execute-api:ap-southeast-1:529568113348:$apiId/*/*"</span>
+
+<span class="cmt"># 3. Get endpoint URL</span>
+aws apigatewayv2 get-api --api-id $apiId --query <span class="str">"ApiEndpoint"</span> --output text
+<span class="cmt"># https://abcd1234.execute-api.ap-southeast-1.amazonaws.com</span>
+
+<span class="cmt"># 4. Test</span>
+curl <span class="str">"https://abcd1234.execute-api.ap-southeast-1.amazonaws.com/?name=Long"</span></code></pre>
+
+<h2 id="eventbridge">f. EventBridge — cron + custom events</h2>
+
+<h3>2 use case chính của EventBridge</h3>
+
+<h4>1. Scheduled rules (cron)</h4>
+<pre><code><span class="cmt"># Rule chay moi ngay luc 20:00 UTC (3 AM Saigon)</span>
+aws events put-rule <span class="cmt">`</span>
+  --name daily-cleanup <span class="cmt">`</span>
+  --schedule-expression <span class="str">"cron(0 20 * * ? *)"</span> <span class="cmt">`</span>
+  --region ap-southeast-1
+<span class="cmt"># cron format: minute hour day-of-month month day-of-week year</span>
+<span class="cmt"># ? = "khong specify" (cron yeu cau 1 trong day-of-month/day-of-week la ?)</span>
+
+<span class="cmt"># Alternative: rate expression don gian hon</span>
+aws events put-rule --schedule-expression <span class="str">"rate(1 day)"</span> ...
+aws events put-rule --schedule-expression <span class="str">"rate(5 minutes)"</span> ...
+aws events put-rule --schedule-expression <span class="str">"rate(2 hours)"</span> ...
+
+<span class="cmt"># Add Lambda lam target</span>
+aws events put-targets <span class="cmt">`</span>
+  --rule daily-cleanup <span class="cmt">`</span>
+  --targets <span class="str">"Id=lambda-1,Arn=arn:aws:lambda:ap-southeast-1:529568113348:function:myapp-cleanup"</span>
+
+<span class="cmt"># Cho phep EventBridge invoke Lambda</span>
+aws lambda add-permission <span class="cmt">`</span>
+  --function-name myapp-cleanup <span class="cmt">`</span>
+  --statement-id eventbridge-invoke <span class="cmt">`</span>
+  --action lambda:InvokeFunction <span class="cmt">`</span>
+  --principal events.amazonaws.com <span class="cmt">`</span>
+  --source-arn arn:aws:events:ap-southeast-1:529568113348:rule/daily-cleanup</code></pre>
+
+<h4>2. Pattern-based rules (event-driven)</h4>
+<pre><code><span class="cmt"># Rule: chay Lambda khi EC2 state thay doi sang "stopped"</span>
+aws events put-rule --name ec2-stopped-alert <span class="cmt">`</span>
+  --event-pattern '{
+    <span class="str">"source"</span>: [<span class="str">"aws.ec2"</span>],
+    <span class="str">"detail-type"</span>: [<span class="str">"EC2 Instance State-change Notification"</span>],
+    <span class="str">"detail"</span>: { <span class="str">"state"</span>: [<span class="str">"stopped"</span>] }
+  }'</code></pre>
+
+<h2 id="lambda-real">g. Real-world: Lambda thay evening.ps1</h2>
+
+<p>Hiện tại <code>evening.ps1</code> chạy LOCAL trên laptop — phải bật máy mỗi tối. Lambda + EventBridge thay được, chạy hoàn toàn trên cloud:</p>
+
+<h3>Lambda code (<code>scripts/lambda-evening/index.py</code>)</h3>
+<pre><code><span class="kw">import</span> boto3
+
+ec2 = boto3.client(<span class="str">"ec2"</span>, region_name=<span class="str">"ap-southeast-1"</span>)
+ecr = boto3.client(<span class="str">"ecr"</span>, region_name=<span class="str">"ap-southeast-1"</span>)
+
+<span class="kw">def</span> lambda_handler(event, context):
+    <span class="cmt"># 1. Terminate EC2 voi tag myapp-ec2</span>
+    instances = ec2.describe_instances(
+        Filters=[
+            {<span class="str">"Name"</span>: <span class="str">"tag:Name"</span>, <span class="str">"Values"</span>: [<span class="str">"myapp-ec2"</span>]},
+            {<span class="str">"Name"</span>: <span class="str">"instance-state-name"</span>, <span class="str">"Values"</span>: [<span class="str">"running"</span>, <span class="str">"pending"</span>]}
+        ]
+    )
+    ids = [i[<span class="str">"InstanceId"</span>] <span class="kw">for</span> r <span class="kw">in</span> instances[<span class="str">"Reservations"</span>] <span class="kw">for</span> i <span class="kw">in</span> r[<span class="str">"Instances"</span>]]
+    <span class="kw">if</span> ids:
+        ec2.terminate_instances(InstanceIds=ids)
+
+    <span class="cmt"># 2. Xoa ECR repos de tiet kiem $0.10/GB/thang</span>
+    <span class="kw">for</span> repo <span class="kw">in</span> [<span class="str">"myapp-backend"</span>, <span class="str">"myapp-frontend"</span>]:
+        <span class="kw">try</span>:
+            ecr.delete_repository(repositoryName=repo, force=<span class="kw">True</span>)
+        <span class="kw">except</span> ecr.exceptions.RepositoryNotFoundException:
+            <span class="kw">pass</span>
+
+    <span class="kw">return</span> {<span class="str">"terminated"</span>: ids, <span class="str">"ecr_cleared"</span>: <span class="kw">True</span>}</code></pre>
+
+<h3>Deploy + schedule</h3>
+<pre><code><span class="cmt"># IAM role can them quyen: ec2:TerminateInstances, ec2:DescribeInstances,</span>
+<span class="cmt"># ecr:DeleteRepository. Tao policy + attach vao myapp-lambda-evening-role.</span>
+
+<span class="cmt"># Schedule chay luc 22:00 Saigon (15:00 UTC) moi ngay tru thu 7 + chu nhat</span>
+aws events put-rule --name evening-cleanup <span class="cmt">`</span>
+  --schedule-expression <span class="str">"cron(0 15 ? * MON-FRI *)"</span></code></pre>
+
+<div class="real">
+  <strong>🎯 Lợi ích so với evening.ps1 local</strong>
+  <ul>
+    <li>Chạy <strong>luôn luôn</strong>, không cần bật laptop</li>
+    <li>Cost Lambda: ~$0/tháng (1 invocation/ngày, free tier 1M invocations)</li>
+    <li>Logs vào CloudWatch — debug dễ</li>
+    <li>Có thể trigger thủ công khi cần: <code>aws lambda invoke ...</code></li>
+  </ul>
+</div>
+
+<h2 id="lambda-cleanup">h. 🗑️ Cleanup Serverless resources</h2>
+
+<pre><code><span class="cmt"># ────────── BUOC 1: Xoa EventBridge rules + targets ──────────</span>
+$rules = aws events list-rules --query <span class="str">"Rules[?starts_with(Name, 'myapp-') || Name=='daily-cleanup' || Name=='evening-cleanup'].Name"</span> --output text
+foreach ($r <span class="kw">in</span> ($rules -split <span class="str">"\s+"</span>)) {
+  <span class="kw">if</span> ($r) {
+    <span class="cmt"># Remove targets truoc khi xoa rule</span>
+    $targetIds = aws events list-targets-by-rule --rule $r --query <span class="str">"Targets[].Id"</span> --output text
+    <span class="kw">if</span> ($targetIds) { aws events remove-targets --rule $r --ids ($targetIds -split <span class="str">"\s+"</span>) }
+    aws events delete-rule --name $r
+  }
+}
+
+<span class="cmt"># ────────── BUOC 2: Xoa API Gateway ──────────</span>
+$apis = aws apigatewayv2 get-apis --query <span class="str">"Items[?Name=='myapp-api'].ApiId"</span> --output text
+foreach ($a <span class="kw">in</span> ($apis -split <span class="str">"\s+"</span>)) {
+  <span class="kw">if</span> ($a) { aws apigatewayv2 delete-api --api-id $a }
+}
+
+<span class="cmt"># ────────── BUOC 3: Xoa Lambda functions ──────────</span>
+foreach ($fn <span class="kw">in</span> @(<span class="str">"myapp-hello"</span>, <span class="str">"myapp-evening"</span>, <span class="str">"myapp-cleanup"</span>)) {
+  aws lambda delete-function --function-name $fn 2&gt;$null
+}
+
+<span class="cmt"># ────────── BUOC 4: Xoa IAM roles ──────────</span>
+foreach ($role <span class="kw">in</span> @(<span class="str">"myapp-lambda-exec-role"</span>, <span class="str">"myapp-lambda-evening-role"</span>)) {
+  <span class="cmt"># Detach het policy truoc</span>
+  $policies = aws iam list-attached-role-policies --role-name $role --query <span class="str">"AttachedPolicies[].PolicyArn"</span> --output text 2&gt;$null
+  foreach ($p <span class="kw">in</span> ($policies -split <span class="str">"\s+"</span>)) {
+    <span class="kw">if</span> ($p) { aws iam detach-role-policy --role-name $role --policy-arn $p }
+  }
+  aws iam delete-role --role-name $role 2&gt;$null
+}
+
+<span class="cmt"># ────────── BUOC 5: Xoa CloudWatch log groups (tu Lambda log) ──────────</span>
+$logGroups = aws logs describe-log-groups --query <span class="str">"logGroups[?starts_with(logGroupName, '/aws/lambda/myapp-')].logGroupName"</span> --output text
+foreach ($lg <span class="kw">in</span> ($logGroups -split <span class="str">"\s+"</span>)) {
+  <span class="kw">if</span> ($lg) { aws logs delete-log-group --log-group-name $lg }
+}
+
+Write-Host <span class="str">"=== Serverless cleanup hoan tat ==="</span> -ForegroundColor Green</code></pre>
+
+<h3>Chi phí khi chạy</h3>
+<table>
+  <tr><th>Resource</th><th>Free tier</th><th>Sau free tier</th></tr>
+  <tr><td>Lambda requests</td><td>1M/tháng vĩnh viễn</td><td>$0.20/1M sau đó</td></tr>
+  <tr><td>Lambda compute (GB-second)</td><td>400,000/tháng vĩnh viễn</td><td>$0.0000166667/GB-s</td></tr>
+  <tr><td>API Gateway HTTP API</td><td>1M request/tháng (12 tháng đầu)</td><td>$1.00/1M request</td></tr>
+  <tr><td>EventBridge default bus</td><td>FREE forever</td><td>—</td></tr>
+  <tr><td>EventBridge schedules</td><td>14M invocations/tháng FREE</td><td>$1.00/1M sau đó</td></tr>
+  <tr><td>CloudWatch Logs</td><td>5GB ingestion + 5GB stored/tháng FREE</td><td>$0.50/GB ingest, $0.03/GB stored</td></tr>
+</table>
+
+<div class="tip">
+  <strong>💡 Demo project Lambda cost</strong>
+  Với 1-2 function chạy daily cron + vài chục test invocation: <strong>~$0/tháng</strong>. Free tier rộng tới mức demo gần như không bao giờ trả tiền.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="next">17. Sang Phase 5</h1>
+
+<p>Phase 5 — NoSQL &amp; Async Messaging (DynamoDB, SQS, SNS, EventBridge custom). Sau khi học compute (Phase 4), tiếp tục data store paradigm khác RDS + cách kết nối service async:</p>
+<ul>
+  <li><strong>DynamoDB</strong>: NoSQL key-value/document, milli-second latency at any scale</li>
+  <li><strong>SQS</strong>: queue async, decouple producer/consumer</li>
+  <li><strong>SNS + EventBridge</strong>: pub/sub + event bus cho event-driven architecture</li>
+</ul>
+
+<p>Bonus: Phase 5 sẽ kết hợp với Lambda của Phase 4 — Lambda sẽ là consumer của SQS, subscriber của SNS, processor của DynamoDB Streams.</p>
 
 <hr/>
 
