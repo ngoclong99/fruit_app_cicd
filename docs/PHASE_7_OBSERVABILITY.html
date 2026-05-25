@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giai đoạn 7 — Observability</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.7; color: #1a1a1a; background: #fff; padding: 32px; max-width: 1000px; margin: 0 auto; }
+    .cover { text-align: center; padding: 60px 0 40px; border-bottom: 3px solid #7c3aed; margin-bottom: 48px; }
+    .cover h1 { font-size: 2.2rem; color: #7c3aed; margin-bottom: 8px; }
+    .cover p { color: #555; font-size: 1rem; }
+    .badge { display: inline-block; background: #ede9fe; color: #5b21b6; border-radius: 9999px; padding: 2px 12px; font-size: 0.8rem; margin: 4px 2px; }
+    .toc { background: #faf5ff; border-left: 4px solid #7c3aed; padding: 20px 24px; margin-bottom: 48px; border-radius: 0 8px 8px 0; }
+    .toc h2 { font-size: 1rem; color: #7c3aed; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+    .toc a { color: #7c3aed; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    h1 { font-size: 1.8rem; color: #5b21b6; margin: 40px 0 12px; }
+    h2 { font-size: 1.4rem; color: #6d28d9; margin: 32px 0 10px; border-bottom: 1px solid #ddd6fe; padding-bottom: 4px; }
+    h3 { font-size: 1.1rem; color: #5b21b6; margin: 20px 0 8px; }
+    h4 { font-size: 1rem; color: #374151; margin: 16px 0 6px; }
+    p { margin-bottom: 10px; }
+    li { margin-bottom: 4px; }
+    ul, ol { padding-left: 22px; margin-bottom: 12px; }
+    pre { background: #2e1065; color: #ede9fe; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 12px 0 20px; font-size: 0.82rem; line-height: 1.6; }
+    code { background: #ede9fe; color: #5b21b6; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+    pre code { background: transparent; color: inherit; padding: 0; }
+    .cmt { color: #94a3b8; } .kw { color: #c4b5fd; } .str { color: #86efac; } .num { color: #fca5a5; } .var { color: #fcd34d; }
+    .info, .warn, .tip, .danger { border-left: 4px solid; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+    .info { border-color: #3b82f6; background: #eff6ff; }
+    .warn { border-color: #f59e0b; background: #fffbeb; }
+    .tip { border-color: #10b981; background: #ecfdf5; }
+    .danger { border-color: #ef4444; background: #fef2f2; }
+    .info strong, .warn strong, .tip strong, .danger strong { display: block; margin-bottom: 4px; }
+    .info strong { color: #1d4ed8; } .warn strong { color: #b45309; } .tip strong { color: #065f46; } .danger strong { color: #b91c1c; }
+    .arch { border: 2px solid #ddd6fe; border-radius: 12px; padding: 20px; margin: 16px 0; background: #faf5ff; font-family: monospace; font-size: 0.82rem; line-height: 1.8; white-space: pre; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.88rem; }
+    th { background: #6d28d9; color: #fff; padding: 8px 12px; text-align: left; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tr:nth-child(even) td { background: #faf5ff; }
+    tr:hover td { background: #ede9fe; }
+    hr { border: none; border-top: 2px dashed #ddd6fe; margin: 40px 0; }
+    .section-card { border: 1px solid #ddd6fe; border-radius: 12px; padding: 20px 24px; margin: 24px 0; background: #faf5ff; }
+    .section-card > h2 { border-bottom: none; margin-top: 0; padding-bottom: 0; }
+    .step-num { display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: #6d28d9; color: white; text-align: center; line-height: 28px; font-weight: bold; margin-right: 8px; font-size: 0.9rem; }
+    @media print { body { padding: 16px; font-size: 12px; } a { color: #6d28d9; } }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>🔭 Giai đoạn 7 — Observability</h1>
+  <p>CloudTrail · X-Ray · CloudWatch Logs Insights · Dashboards · Synthetics<br/>
+  Biết app đang chạy gì, lỗi ở đâu, ai đã đổi gì trên AWS</p>
+  <br/>
+  <span class="badge">CloudTrail</span>
+  <span class="badge">X-Ray</span>
+  <span class="badge">Logs Insights</span>
+  <span class="badge">Dashboards</span>
+  <span class="badge">Synthetics</span>
+  <span class="badge">Structured logging</span>
+</div>
+
+<div class="toc">
+  <h2>📋 Mục lục</h2>
+  <ol>
+    <li><a href="#why">3 pillar của Observability</a></li>
+    <li><a href="#cloudtrail">Part 1 — CloudTrail (audit log AWS API)</a></li>
+    <li><a href="#logs-insights">Part 2 — CloudWatch Logs Insights (query logs)</a></li>
+    <li><a href="#structured-logs">Part 3 — Structured logs (Pino, Winston)</a></li>
+    <li><a href="#xray">Part 4 — X-Ray distributed tracing</a></li>
+    <li><a href="#dashboards">Part 5 — CloudWatch Dashboards</a></li>
+    <li><a href="#synthetics">Part 6 — Synthetics (uptime monitoring)</a></li>
+    <li><a href="#alert-routing">Part 7 — Alert routing (Slack, PagerDuty)</a></li>
+    <li><a href="#sli-slo">Part 8 — SLI/SLO/SLA basics</a></li>
+    <li><a href="#cost">Chi phí + Cleanup</a></li>
+  </ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="why">1. 3 pillar của Observability</h1>
+
+<p>Khái niệm chuẩn industry: observability = khả năng <strong>hiểu trạng thái nội bộ</strong> của hệ thống qua dữ liệu external. 3 pillar:</p>
+
+<table>
+  <tr><th>Pillar</th><th>Định nghĩa</th><th>Service AWS</th><th>Trả lời câu hỏi</th></tr>
+  <tr><td><strong>Logs</strong></td><td>Record của event riêng lẻ (text, structured JSON)</td><td>CloudWatch Logs</td><td>"Lúc 10:23, có gì xảy ra?"</td></tr>
+  <tr><td><strong>Metrics</strong></td><td>Số liệu tổng hợp theo time (CPU%, request/s, latency)</td><td>CloudWatch Metrics</td><td>"Trend của latency trong 24h qua thế nào?"</td></tr>
+  <tr><td><strong>Traces</strong></td><td>Hành trình của 1 request qua nhiều service</td><td>X-Ray</td><td>"Request này tại sao chậm 3s? Ở đoạn nào?"</td></tr>
+</table>
+
+<p>Cộng thêm 2 pillar mới đang nổi:</p>
+<ul>
+  <li><strong>Audit logs</strong> (CloudTrail): ai đã làm gì trên AWS infra</li>
+  <li><strong>Profiling</strong>: function nào của app tốn CPU/memory (CodeGuru / OpenTelemetry)</li>
+</ul>
+
+<div class="info">
+  <strong>ℹ️ Monitoring vs Observability</strong>
+  Monitoring = check dashboard có biết được thứ predefined (CPU > 80%? → alert). Observability = debug được vấn đề KHÔNG PREDEFINED, vd "tại sao 0.5% user gặp 500 error?" — cần logs + traces detailed.
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="cloudtrail">2. Part 1 — CloudTrail</h1>
+
+<h3>CloudTrail là gì</h3>
+<p>Ghi lại <strong>mọi AWS API call</strong> được thực hiện trên account: ai (user/role), khi nào, từ đâu (IP), service nào, action gì, parameters, result. Bắt buộc có cho compliance, security forensics, troubleshooting.</p>
+
+<div class="arch">User goes to Console / API call
+       │
+       ▼
+AWS API Gateway (internal)
+       │
+       ├─► Process request
+       └─► CloudTrail ghi event ──► Event Lookup (90 days, FREE)
+                                    └─► Trail (S3 bucket, lưu vĩnh viễn)</div>
+
+<h3>2 cách dùng CloudTrail</h3>
+<table>
+  <tr><th>—</th><th>Event Lookup (default)</th><th>Trail</th></tr>
+  <tr><td>Setup</td><td>Có sẵn, không cần config</td><td>Cần tạo trail + S3 bucket</td></tr>
+  <tr><td>Retention</td><td>90 ngày</td><td>Vĩnh viễn (do bạn quản)</td></tr>
+  <tr><td>Cost</td><td>FREE</td><td>$2/100k event ghi vào S3 + S3 storage</td></tr>
+  <tr><td>Search</td><td>UI Console + CLI</td><td>S3 + Athena query SQL</td></tr>
+  <tr><td>Use case</td><td>Debug 1 vấn đề gần đây</td><td>Compliance, long-term audit</td></tr>
+</table>
+
+<h3>Event Lookup (FREE, dùng được ngay)</h3>
+<pre><code><span class="cmt"># 5 event gan day cua user "github-actions-deploy"</span>
+aws cloudtrail lookup-events --region ap-southeast-1 <span class="cmt">`</span>
+  --lookup-attributes <span class="str">"AttributeKey=Username,AttributeValue=github-actions-deploy"</span> <span class="cmt">`</span>
+  --max-items 5 <span class="cmt">`</span>
+  --query <span class="str">"Events[].{Time:EventTime,Action:EventName,Resource:Resources[0].ResourceName}"</span> <span class="cmt">`</span>
+  --output table
+
+<span class="cmt"># Ai vua xoa S3 bucket gan day?</span>
+aws cloudtrail lookup-events --region ap-southeast-1 <span class="cmt">`</span>
+  --lookup-attributes <span class="str">"AttributeKey=EventName,AttributeValue=DeleteBucket"</span> <span class="cmt">`</span>
+  --max-items 10
+
+<span class="cmt"># Tat ca action tren ALB myapp-alb</span>
+aws cloudtrail lookup-events --region ap-southeast-1 <span class="cmt">`</span>
+  --lookup-attributes <span class="str">"AttributeKey=ResourceName,AttributeValue=myapp-alb"</span></code></pre>
+
+<h3>Tạo Trail (lưu lâu dài qua S3)</h3>
+<pre><code><span class="cmt"># 1. Tao S3 bucket destination</span>
+aws s3api create-bucket --bucket vhnlong-cloudtrail --region ap-southeast-1 <span class="cmt">`</span>
+  --create-bucket-configuration LocationConstraint=ap-southeast-1
+
+<span class="cmt"># 2. Apply bucket policy cho CloudTrail ghi</span>
+<span class="cmt"># (Policy JSON dai -- xem AWS docs)</span>
+
+<span class="cmt"># 3. Tao trail</span>
+aws cloudtrail create-trail --region ap-southeast-1 <span class="cmt">`</span>
+  --name myapp-trail <span class="cmt">`</span>
+  --s3-bucket-name vhnlong-cloudtrail <span class="cmt">`</span>
+  --is-multi-region-trail <span class="cmt">`</span>
+  --include-global-service-events
+
+<span class="cmt"># 4. Start logging</span>
+aws cloudtrail start-logging --name myapp-trail --region ap-southeast-1</code></pre>
+
+<h3>Real-world use cases</h3>
+<ul>
+  <li><strong>"Ai xóa nhầm RDS production?"</strong> → CloudTrail lookup-events DeleteDBInstance</li>
+  <li><strong>"Ai access AWS account từ IP lạ?"</strong> → filter by SourceIPAddress</li>
+  <li><strong>"Khi nào IAM policy bị đổi?"</strong> → filter EventName=AttachRolePolicy/DetachRolePolicy</li>
+  <li><strong>Compliance SOC2/HIPAA</strong>: bắt buộc trail multi-region, lưu ≥7 năm</li>
+</ul>
+
+<h3>CloudTrail + EventBridge: real-time alert</h3>
+<pre><code><span class="cmt"># Rule: alert khi co RootUser hoat dong (forbidden trong prod)</span>
+aws events put-rule --name root-user-activity <span class="cmt">`</span>
+  --event-pattern '{
+    <span class="str">"source"</span>: [<span class="str">"aws.signin"</span>],
+    <span class="str">"detail-type"</span>: [<span class="str">"AWS Console Sign In via CloudTrail"</span>],
+    <span class="str">"detail"</span>: { <span class="str">"userIdentity"</span>: { <span class="str">"type"</span>: [<span class="str">"Root"</span>] } }
+  }'
+
+aws events put-targets --rule root-user-activity <span class="cmt">`</span>
+  --targets <span class="str">"Id=1,Arn=&lt;sns-topic-arn&gt;"</span></code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="logs-insights">3. Part 2 — CloudWatch Logs Insights</h1>
+
+<p>Query language để search/aggregate log như SQL. <strong>Game-changer</strong> so với <code>grep</code> trên SSH.</p>
+
+<h3>Cú pháp cơ bản</h3>
+<pre><code><span class="cmt"># Liet ke 50 dong cuoi cua /ecs/myapp, sorted by time</span>
+fields @timestamp, @message
+| sort @timestamp desc
+| limit 50
+
+<span class="cmt"># Filter ERROR</span>
+fields @timestamp, @message
+| filter @message like /ERROR/
+| sort @timestamp desc
+| limit 100
+
+<span class="cmt"># Count error theo phut (5xx response)</span>
+fields @timestamp, @message
+| parse @message <span class="str">'"statusCode":*'</span> <span class="kw">as</span> status
+| filter status &gt;= 500
+| stats count() <span class="kw">by</span> <span class="kw">bin</span>(1m)
+
+<span class="cmt"># Top 10 endpoint co latency cao nhat</span>
+fields @timestamp, @message, path, duration_ms
+| filter duration_ms &gt; 0
+| stats avg(duration_ms), max(duration_ms), count() <span class="kw">by</span> path
+| sort avg(duration_ms) desc
+| limit 10</code></pre>
+
+<h3>Built-in fields</h3>
+<table>
+  <tr><th>Field</th><th>Ý nghĩa</th></tr>
+  <tr><td><code>@timestamp</code></td><td>Timestamp của log event (ISO 8601)</td></tr>
+  <tr><td><code>@message</code></td><td>Toàn bộ log line</td></tr>
+  <tr><td><code>@log</code></td><td>Tên log group</td></tr>
+  <tr><td><code>@logStream</code></td><td>Tên stream (mỗi container/instance là 1 stream)</td></tr>
+  <tr><td><code>@duration</code> (Lambda)</td><td>Lambda invocation duration</td></tr>
+  <tr><td><code>@requestId</code> (Lambda)</td><td>Lambda request ID</td></tr>
+</table>
+
+<h3>Run query qua CLI</h3>
+<pre><code><span class="cmt"># 1. Start query</span>
+$queryId = aws logs start-query <span class="cmt">`</span>
+  --log-group-name <span class="str">"/ecs/myapp"</span> <span class="cmt">`</span>
+  --start-time (Get-Date -UFormat %s -Date (Get-Date).AddHours(-1)) <span class="cmt">`</span>
+  --end-time (Get-Date -UFormat %s) <span class="cmt">`</span>
+  --query-string <span class="str">"fields @timestamp, @message | filter @message like /ERROR/ | limit 20"</span> <span class="cmt">`</span>
+  --query <span class="str">"queryId"</span> --output text
+
+<span class="cmt"># 2. Get results (poll until "Complete")</span>
+Start-Sleep 3
+aws logs get-query-results --query-id $queryId</code></pre>
+
+<h3>Logs Insights vs grep — vì sao thay thế</h3>
+<table>
+  <tr><th>grep trên SSH</th><th>Logs Insights</th></tr>
+  <tr><td>Cần SSH vào từng EC2</td><td>1 query qua tất cả log group, mọi instance</td></tr>
+  <tr><td>Pattern matching cơ bản</td><td>Filter + aggregate + groupBy + parse</td></tr>
+  <tr><td>Mất khi container/EC2 chết</td><td>Centralized — tồn tại lâu dài</td></tr>
+  <tr><td>Không có chart</td><td>Auto-render line/bar chart từ aggregate query</td></tr>
+</table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="structured-logs">4. Part 3 — Structured logging</h1>
+
+<p>Log dạng <strong>JSON</strong> thay vì string thuần. CloudWatch Logs Insights tự parse JSON → dễ filter/aggregate.</p>
+
+<h3>BAD: unstructured log</h3>
+<pre><code>console.log(<span class="str">"User 100 logged in at 10:23 from 1.2.3.4"</span>);
+<span class="cmt">// Output: User 100 logged in at 10:23 from 1.2.3.4</span>
+<span class="cmt">// CloudWatch khong parse duoc field rieng -- phai dung regex phuc tap</span></code></pre>
+
+<h3>GOOD: structured JSON log</h3>
+<pre><code><span class="kw">import</span> pino <span class="kw">from</span> <span class="str">"pino"</span>;
+<span class="kw">const</span> logger = pino({
+  level: <span class="str">"info"</span>,
+  timestamp: pino.stdTimeFunctions.isoTime,
+  formatters: { level: (label) =&gt; ({ level: label }) }
+});
+
+logger.info({
+  event: <span class="str">"user_login"</span>,
+  userId: 100,
+  ip: <span class="str">"1.2.3.4"</span>,
+  userAgent: <span class="str">"Mozilla/5.0..."</span>,
+  duration_ms: 234
+}, <span class="str">"User logged in"</span>);
+
+<span class="cmt">// Output (1 dong JSON):
+// {"level":"info","time":"2026-05-25T10:23:00Z","event":"user_login","userId":100,"ip":"1.2.3.4","userAgent":"Mozilla/5.0...","duration_ms":234,"msg":"User logged in"}</span></code></pre>
+
+<h3>Query JSON log dễ dàng</h3>
+<pre><code><span class="cmt"># Logs Insights tu dong parse JSON, expose field nhu first-class</span>
+fields @timestamp, userId, ip, duration_ms
+| filter event = <span class="str">"user_login"</span> <span class="kw">and</span> duration_ms &gt; 1000
+| sort @timestamp desc</code></pre>
+
+<div class="real">
+  <strong>🎯 Project này đã dùng structured logging</strong>
+  Backend code dùng Pino — xem <code>backend/src/config/logger.ts</code> + <code>backend/src/index.ts</code> với <code>pino-http</code>. Log output luôn là JSON. Khi deploy lên ECS + CloudWatch, có thể query qua Logs Insights ngay.
+</div>
+
+<h3>Best practices structured logs</h3>
+<ul>
+  <li><strong>Standard fields</strong>: <code>timestamp</code>, <code>level</code>, <code>service</code>, <code>requestId</code>, <code>userId</code> (nếu auth), <code>traceId</code> (cho X-Ray)</li>
+  <li><strong>Context fields</strong>: action, resource, duration_ms, status_code</li>
+  <li><strong>Don't log sensitive data</strong>: password, JWT, credit card → redact</li>
+  <li><strong>Use levels đúng</strong>: trace/debug/info/warn/error/fatal</li>
+  <li><strong>Correlate via requestId</strong>: cùng request → cùng requestId qua nhiều log line</li>
+</ul>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="xray">5. Part 4 — X-Ray distributed tracing</h1>
+
+<h3>Tracing là gì</h3>
+<p>1 user request có thể đi qua: ALB → ECS → Lambda → DynamoDB → SQS → Lambda → S3. <strong>Trace</strong> = bản ghi đầy đủ hành trình đó với latency mỗi đoạn (gọi là <strong>span</strong>).</p>
+
+<div class="arch">USER REQUEST (trace-id: abc-123)
+│
+├─ Span 1: ALB (5ms)
+│   └─ Span 2: ECS backend (180ms)
+│       │
+│       ├─ Span 3: DynamoDB GetItem (12ms)
+│       │
+│       ├─ Span 4: Lambda invoke (45ms)
+│       │   └─ Span 5: S3 PutObject (30ms)
+│       │
+│       └─ Span 6: PostgreSQL query (95ms)  ← BOTTLENECK!
+
+Total: 185ms</div>
+
+<h3>Setup X-Ray cho Node.js app (ECS)</h3>
+<pre><code><span class="cmt"># 1. Install SDK</span>
+npm install aws-xray-sdk-core aws-xray-sdk-express
+
+<span class="cmt"># 2. Wrap app</span>
+<span class="kw">import</span> AWSXRay <span class="kw">from</span> <span class="str">"aws-xray-sdk-express"</span>;
+
+app.use(AWSXRay.express.openSegment(<span class="str">"myapp-backend"</span>));
+<span class="cmt">// ... routes ...</span>
+app.use(AWSXRay.express.closeSegment());
+
+<span class="cmt"># 3. Wrap AWS SDK clients</span>
+<span class="kw">import</span> AWS <span class="kw">from</span> <span class="str">"aws-sdk"</span>;
+<span class="kw">const</span> wrappedAWS = AWSXRay.captureAWS(AWS);
+<span class="kw">const</span> s3 = <span class="kw">new</span> wrappedAWS.S3();
+<span class="cmt">// Moi S3 call se tu dong tao subsegment</span>
+
+<span class="cmt"># 4. Wrap HTTP calls</span>
+AWSXRay.captureHTTPsGlobal(<span class="kw">require</span>(<span class="str">"https"</span>));</code></pre>
+
+<h3>X-Ray daemon trên ECS</h3>
+<p>App gửi trace data qua UDP 2000 đến X-Ray daemon, daemon batch upload tới X-Ray service. Trong ECS, daemon chạy như sidecar container hoặc Fargate có built-in.</p>
+
+<pre><code><span class="cmt"># Task definition - them sidecar X-Ray daemon</span>
+{
+  <span class="str">"containerDefinitions"</span>: [
+    {
+      <span class="str">"name"</span>: <span class="str">"app"</span>,
+      <span class="str">"image"</span>: <span class="str">"myapp:v1"</span>,
+      <span class="str">"environment"</span>: [{ <span class="str">"name"</span>: <span class="str">"AWS_XRAY_DAEMON_ADDRESS"</span>, <span class="str">"value"</span>: <span class="str">"127.0.0.1:2000"</span> }]
+    },
+    {
+      <span class="str">"name"</span>: <span class="str">"xray-daemon"</span>,
+      <span class="str">"image"</span>: <span class="str">"public.ecr.aws/xray/aws-xray-daemon:latest"</span>,
+      <span class="str">"portMappings"</span>: [{ <span class="str">"containerPort"</span>: 2000, <span class="str">"protocol"</span>: <span class="str">"udp"</span> }]
+    }
+  ]
+}</code></pre>
+
+<h3>X-Ray cho Lambda — built-in, chỉ cần bật</h3>
+<pre><code>aws lambda update-function-configuration <span class="cmt">`</span>
+  --function-name myapp-hello <span class="cmt">`</span>
+  --tracing-config Mode=Active <span class="cmt">`</span>
+  --region ap-southeast-1
+<span class="cmt"># Va them quyen xray:PutTraceSegments vao execution role</span></code></pre>
+
+<h3>Xem trace</h3>
+<ol>
+  <li>Console → X-Ray → Service map: visualize service nào gọi service nào, latency, error rate</li>
+  <li>Console → X-Ray → Traces: list từng trace với filter</li>
+  <li>Click 1 trace → waterfall chart của từng span</li>
+</ol>
+
+<h3>Cost</h3>
+<table>
+  <tr><th>Item</th><th>Free tier</th><th>Sau free</th></tr>
+  <tr><td>Trace recorded</td><td>100,000 traces/tháng</td><td>$5/1M traces</td></tr>
+  <tr><td>Trace retrieved/scanned</td><td>1M scans/tháng</td><td>$0.50/1M</td></tr>
+</table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="dashboards">6. Part 5 — CloudWatch Dashboards</h1>
+
+<p>Custom dashboard với widget từ metrics + logs. Dùng để xem nhanh trạng thái app/infra.</p>
+
+<h3>Tạo dashboard qua CLI</h3>
+<pre><code>$dashboardBody = '{
+  <span class="str">"widgets"</span>: [
+    {
+      <span class="str">"type"</span>: <span class="str">"metric"</span>,
+      <span class="str">"properties"</span>: {
+        <span class="str">"metrics"</span>: [
+          [<span class="str">"AWS/ApplicationELB"</span>, <span class="str">"RequestCount"</span>, <span class="str">"LoadBalancer"</span>, <span class="str">"app/myapp-alb/abc"</span>]
+        ],
+        <span class="str">"period"</span>: 300,
+        <span class="str">"stat"</span>: <span class="str">"Sum"</span>,
+        <span class="str">"region"</span>: <span class="str">"ap-southeast-1"</span>,
+        <span class="str">"title"</span>: <span class="str">"ALB requests/5min"</span>
+      }
+    },
+    {
+      <span class="str">"type"</span>: <span class="str">"log"</span>,
+      <span class="str">"properties"</span>: {
+        <span class="str">"query"</span>: <span class="str">"SOURCE \"/ecs/myapp\" | fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"</span>,
+        <span class="str">"region"</span>: <span class="str">"ap-southeast-1"</span>,
+        <span class="str">"title"</span>: <span class="str">"Recent errors"</span>
+      }
+    }
+  ]
+}'
+
+aws cloudwatch put-dashboard --dashboard-name myapp-overview <span class="cmt">`</span>
+  --dashboard-body $dashboardBody</code></pre>
+
+<h3>Widget types phổ biến</h3>
+<ul>
+  <li><strong>metric</strong>: line/bar chart từ CloudWatch metric</li>
+  <li><strong>log</strong>: kết quả Logs Insights query</li>
+  <li><strong>text</strong>: markdown note</li>
+  <li><strong>alarm</strong>: status của alarm (red/green)</li>
+  <li><strong>number</strong>: single big number (single value of metric)</li>
+</ul>
+
+<h3>Dashboard cho project hiện tại</h3>
+<p>Đề xuất 6 widget:</p>
+<ol>
+  <li>ALB RequestCount (line chart)</li>
+  <li>ALB 5XX error rate (line)</li>
+  <li>ALB target healthy host count (number)</li>
+  <li>EC2 CPU% average (line)</li>
+  <li>Backend error logs (Logs Insights filter ERROR)</li>
+  <li>RDS connection count (line)</li>
+</ol>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="synthetics">7. Part 6 — Synthetics (uptime monitoring)</h1>
+
+<p>Synthetics tạo "canary" — bot tự gửi request đến endpoint của bạn từ AWS, đo kết quả + screenshot. Như UptimeRobot nhưng AWS-native.</p>
+
+<h3>Use case</h3>
+<ul>
+  <li><strong>Uptime monitor</strong>: ping /api/health mỗi 5 phút, alert nếu fail</li>
+  <li><strong>UI workflow test</strong>: simulated user login → click checkout → verify success (sử dụng Puppeteer)</li>
+  <li><strong>API contract test</strong>: GET /api/products phải trả 200 + array có ≥ 1 item</li>
+</ul>
+
+<h3>Tạo canary đơn giản (heartbeat)</h3>
+<p>Console → CloudWatch → Synthetics → Create canary. Hoặc CLI:</p>
+<pre><code><span class="cmt"># Script Node.js cua canary (zip file)</span>
+<span class="kw">const</span> synthetics = <span class="kw">require</span>(<span class="str">"Synthetics"</span>);
+
+exports.handler = <span class="kw">async</span> () =&gt; {
+  <span class="kw">const</span> page = <span class="kw">await</span> synthetics.getPage();
+  <span class="kw">const</span> response = <span class="kw">await</span> page.goto(<span class="str">"https://vhnlong.store/api/health"</span>);
+  <span class="kw">if</span> (response.status() !== 200) <span class="kw">throw new</span> Error(<span class="str">`Expected 200, got ${response.status()}`</span>);
+};</code></pre>
+
+<h3>Cost</h3>
+<table>
+  <tr><th>Item</th><th>Cost</th></tr>
+  <tr><td>Canary run</td><td>$0.0017/run (~$0.50/tháng cho 1 canary chạy mỗi 5 phút)</td></tr>
+  <tr><td>S3 storage (screenshot, video)</td><td>~$0.10/tháng</td></tr>
+  <tr><td>Lambda execution</td><td>FREE (within free tier)</td></tr>
+</table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="alert-routing">8. Part 7 — Alert routing</h1>
+
+<h3>Vấn đề "1 alert = 1 email"</h3>
+<p>Bị nhiều alarm cùng lúc → email flood → bỏ sót. Production cần routing thông minh: alert nhỏ → Slack, alert critical → SMS/PagerDuty.</p>
+
+<h3>SNS topic per severity</h3>
+<div class="arch">CloudWatch Alarm
+       │
+       ├─► SNS topic "alerts-warning"
+       │      └─► Email + Slack webhook
+       │
+       └─► SNS topic "alerts-critical"
+              ├─► Email
+              ├─► SMS to oncall phone
+              └─► PagerDuty integration</div>
+
+<h3>Setup Slack webhook</h3>
+<pre><code><span class="cmt"># 1. Tao Slack incoming webhook (qua Slack UI)</span>
+<span class="cmt"># 2. Lambda forward SNS message -&gt; Slack</span>
+
+<span class="kw">import</span> json
+<span class="kw">import</span> urllib3
+http = urllib3.PoolManager()
+
+<span class="kw">def</span> lambda_handler(event, context):
+    <span class="kw">for</span> record <span class="kw">in</span> event[<span class="str">"Records"</span>]:
+        msg = json.loads(record[<span class="str">"Sns"</span>][<span class="str">"Message"</span>])
+        slack_payload = {
+            <span class="str">"text"</span>: f<span class="str">":warning: *{msg.get('AlarmName')}*\n{msg.get('NewStateReason')}"</span>
+        }
+        http.request(<span class="str">"POST"</span>,
+            <span class="str">"https://hooks.slack.com/services/T00000/B00000/XXXXXX"</span>,
+            body=json.dumps(slack_payload).encode(),
+            headers={<span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>}
+        )
+
+<span class="cmt"># 3. Subscribe Lambda vao SNS topic</span>
+aws sns subscribe --topic-arn $topicArn --protocol lambda --notification-endpoint &lt;lambda-arn&gt;</code></pre>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<div class="section-card">
+<h1 id="sli-slo">9. Part 8 — SLI/SLO/SLA</h1>
+
+<p>Khái niệm production: làm sao đo được "app reliability" có objective?</p>
+
+<table>
+  <tr><th>Khái niệm</th><th>Định nghĩa</th><th>Ví dụ</th></tr>
+  <tr><td><strong>SLI</strong> (Service Level Indicator)</td><td>Metric đo trạng thái thực tế</td><td>"99.5% requests &lt;500ms" (actual measurement)</td></tr>
+  <tr><td><strong>SLO</strong> (Service Level Objective)</td><td>Target nội bộ team muốn đạt</td><td>"99.9% requests &lt;500ms" (goal)</td></tr>
+  <tr><td><strong>SLA</strong> (Service Level Agreement)</td><td>Cam kết với khách, có penalty nếu fail</td><td>"99% uptime hoặc hoàn 10% phí" (contract)</td></tr>
+</table>
+
+<h3>4 SLI quan trọng (Google SRE book)</h3>
+<ol>
+  <li><strong>Latency</strong>: thời gian xử lý 1 request (P50, P95, P99)</li>
+  <li><strong>Traffic</strong>: số request/giây</li>
+  <li><strong>Errors</strong>: % request fail</li>
+  <li><strong>Saturation</strong>: tài nguyên đang dùng bao nhiêu % (CPU, RAM, disk)</li>
+</ol>
+
+<h3>Cách implement SLO trong CloudWatch</h3>
+<pre><code><span class="cmt"># SLO: 99.5% request co latency &lt; 500ms trong 30 ngay</span>
+
+<span class="cmt"># 1. Metric tu ALB</span>
+<span class="cmt">#    TargetResponseTime (per request latency)</span>
+
+<span class="cmt"># 2. CloudWatch metric math</span>
+<span class="cmt">#    e1 = COUNT_OVER(REQUESTS_WITH(TargetResponseTime &lt; 0.5), TARGET_PERIOD)</span>
+<span class="cmt">#    e2 = TOTAL_REQUESTS(TARGET_PERIOD)</span>
+<span class="cmt">#    SLI = e1 / e2 * 100</span>
+
+<span class="cmt"># 3. Alarm khi SLI &lt; 99.5%</span></code></pre>
+
+<h3>Error budget</h3>
+<p>Nếu SLO = 99.9% uptime, error budget = 0.1% downtime = ~43 phút/tháng. Nếu đã dùng hết → freeze release, fix reliability trước.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h1 id="cost">10. Chi phí + Cleanup</h1>
+
+<table>
+  <tr><th>Service</th><th>Free tier</th><th>Sau free tier</th><th>Demo cost ước tính</th></tr>
+  <tr><td>CloudTrail Event Lookup</td><td>FREE forever (90 ngày)</td><td>—</td><td>$0</td></tr>
+  <tr><td>CloudTrail Trail to S3</td><td>1 trail/account free</td><td>$2/100k event</td><td>~$0 cho demo</td></tr>
+  <tr><td>CloudWatch Logs ingestion</td><td>5GB/tháng</td><td>$0.50/GB</td><td>~$0-1</td></tr>
+  <tr><td>CloudWatch Logs storage</td><td>5GB/tháng</td><td>$0.03/GB</td><td>~$0</td></tr>
+  <tr><td>CloudWatch Logs Insights</td><td>5GB scanned free</td><td>$0.005/GB scanned</td><td>~$0</td></tr>
+  <tr><td>X-Ray traces</td><td>100k/tháng</td><td>$5/1M</td><td>~$0 cho demo</td></tr>
+  <tr><td>CloudWatch Dashboard</td><td>3 dashboards free</td><td>$3/dashboard/tháng</td><td>$0</td></tr>
+  <tr><td>Synthetics canary</td><td>100 runs free</td><td>$0.0017/run</td><td>~$0.50/tháng cho 1 canary 5-min</td></tr>
+</table>
+
+<h3>Cleanup</h3>
+<pre><code><span class="cmt"># CloudTrail trail (giu Event Lookup default)</span>
+aws cloudtrail delete-trail --name myapp-trail --region ap-southeast-1
+aws s3 rm s3://vhnlong-cloudtrail --recursive
+aws s3api delete-bucket --bucket vhnlong-cloudtrail
+
+<span class="cmt"># CloudWatch dashboards</span>
+aws cloudwatch delete-dashboards --dashboard-names myapp-overview
+
+<span class="cmt"># Log groups retention -- set 7 days de log cu tu xoa</span>
+aws logs describe-log-groups --query <span class="str">"logGroups[].logGroupName"</span> --output text | <span class="cmt">`</span>
+  ForEach-Object { aws logs put-retention-policy --log-group-name $_ --retention-in-days 7 }
+
+<span class="cmt"># Synthetics canary</span>
+aws synthetics stop-canary --name myapp-uptime
+aws synthetics delete-canary --name myapp-uptime
+
+<span class="cmt"># X-Ray traces tu het han sau 30 ngay, khong can xoa</span></code></pre>
+
+<hr/>
+
+<div style="text-align:center; padding:32px; color:#6b7280; font-size:0.85rem; border-top: 2px solid #e5e7eb; margin-top:40px;">
+  <p><strong>Phase 7 — Observability</strong></p>
+  <p>Logs · Metrics · Traces · Audit · SLI/SLO</p>
+</div>
+
+</body>
+</html>
