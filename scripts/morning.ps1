@@ -40,34 +40,59 @@ foreach ($repo in @("myapp-backend", "myapp-frontend")) {
     }
 }
 
-# ─── Buoc 2: Tao EC2 ─────────────────────────────────────────
+# ─── Buoc 2: Tao EC2 (idempotent) ───────────────────────────
 Write-Host "[2/6] Tao EC2..." -ForegroundColor Cyan
 
-# Khoi tao EC2 instance moi voi cac tham so da dinh nghia
-$INSTANCE_ID = aws ec2 run-instances `
-    --image-id $AMI `
-    --instance-type $INSTANCE_TYPE `
-    --key-name $KEY_NAME `
-    --security-group-ids $SECURITY_GROUP `
-    --subnet-id $SUBNET_ID `
-    --iam-instance-profile Name=$IAM_PROFILE `
-    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=myapp-ec2}]' `
-    --query "Instances[0].InstanceId" `
-    --output text --region $REGION
+# Pre-check: tim EC2 voi tag Name=myapp-ec2 da ton tai chua
+# Bao gom ca state "running" va "pending" (vua tao truoc do, dang boot)
+# Khong include "stopping" / "stopped" / "terminated" vi can EC2 chay duoc
+$existingJson = aws ec2 describe-instances --region $REGION `
+    --filters "Name=tag:Name,Values=myapp-ec2" `
+              "Name=instance-state-name,Values=running,pending" `
+    --query "Reservations[].Instances[].{Id:InstanceId,IP:PublicIpAddress}" `
+    --output json
+$existing = $existingJson | ConvertFrom-Json
 
-Write-Host "    Instance: $INSTANCE_ID" -ForegroundColor Gray
+if ($existing.Count -gt 0) {
+    # Da co EC2 -- KHONG tao moi de tranh ton tien double.
+    # Lay cai dau tien (thuong chi co 1; neu nhieu user phai tu chon)
+    $INSTANCE_ID = $existing[0].Id
+    $PUBLIC_IP   = $existing[0].IP
+    Write-Host "    EC2 da ton tai: $INSTANCE_ID @ $PUBLIC_IP" -ForegroundColor Yellow
+    Write-Host "    Skip create -- dung lai EC2 cu" -ForegroundColor Yellow
 
-# Cho den khi EC2 chuyen sang trang thai "running" (co the mat 1-2 phut)
-Write-Host "    Cho EC2 khoi dong..." -ForegroundColor Gray
-aws ec2 wait instance-running --instance-ids $INSTANCE_ID --region $REGION
+    if ($existing.Count -gt 1) {
+        Write-Host "    CANH BAO: Co $($existing.Count) EC2 cung tag myapp-ec2 dang chay!" -ForegroundColor Red
+        Write-Host "    Liet ke: $($existing | ForEach-Object { "$($_.Id) ($($_.IP))" })" -ForegroundColor Red
+        Write-Host "    Hay terminate bot bang: aws ec2 terminate-instances --instance-ids &lt;id&gt;" -ForegroundColor Red
+    }
+} else {
+    # Chua co EC2 -- tao moi
+    $INSTANCE_ID = aws ec2 run-instances `
+        --image-id $AMI `
+        --instance-type $INSTANCE_TYPE `
+        --key-name $KEY_NAME `
+        --security-group-ids $SECURITY_GROUP `
+        --subnet-id $SUBNET_ID `
+        --iam-instance-profile Name=$IAM_PROFILE `
+        --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=myapp-ec2}]' `
+        --query "Instances[0].InstanceId" `
+        --output text --region $REGION
 
-# Lay Public IP cua EC2 vua tao
-$PUBLIC_IP = aws ec2 describe-instances `
-    --instance-ids $INSTANCE_ID `
-    --query "Reservations[0].Instances[0].PublicIpAddress" `
-    --output text --region $REGION
+    Write-Host "    Instance: $INSTANCE_ID" -ForegroundColor Gray
 
-Write-Host "    IP: $PUBLIC_IP" -ForegroundColor Green
+    # Cho den khi EC2 chuyen sang trang thai "running" (co the mat 1-2 phut)
+    Write-Host "    Cho EC2 khoi dong..." -ForegroundColor Gray
+    aws ec2 wait instance-running --instance-ids $INSTANCE_ID --region $REGION
+
+    # Lay Public IP cua EC2 vua tao
+    $PUBLIC_IP = aws ec2 describe-instances `
+        --instance-ids $INSTANCE_ID `
+        --query "Reservations[0].Instances[0].PublicIpAddress" `
+        --output text --region $REGION
+
+    Write-Host "    IP: $PUBLIC_IP" -ForegroundColor Green
+}
 
 # ─── Buoc 3: Cap nhat DNS va GitHub Secret ───────────────────
 Write-Host "[3/6] Cap nhat Route53 DNS + GitHub Secret..." -ForegroundColor Cyan
