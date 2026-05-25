@@ -266,38 +266,81 @@ Migration ASG -> ECS (chay song song roi switch)</div>
 <div class="module-card">
 <h2 id="module-a">6. Module A — ECR Lifecycle Policy</h2>
 
-<h3>Vấn đề</h3>
-<p>Mỗi lần CI build sẽ push 1 image mới vào ECR (vd <code>main-a1b2c3d</code>, <code>main-e4f5g6h</code>...). Sau N tháng có hàng trăm image cũ → tốn ~$0.10/GB/tháng.</p>
+<div class="info">
+  <strong>📌 Tại sao làm trước module khác</strong>
+  ECR lifecycle là module <strong>cheapest + safest</strong> để bắt đầu: FREE, idempotent, không phá gì hiện có. Đáng làm ngay vì <strong>tiết kiệm tiền thật</strong> (ECR storage $0.10/GB/tháng tích lũy nhanh nếu CI build mỗi commit).
+</div>
 
-<h3>Giải pháp</h3>
-<p>ECR lifecycle policy = rule tự xóa image cũ. Phổ biến nhất: <strong>giữ N image gần nhất, xóa hết còn lại</strong>.</p>
+<h3>Vấn đề thực tế</h3>
+<p>Mỗi lần CI build push 1 image mới vào ECR. Sau 6 tháng dev:</p>
 
-<h3><span class="step-num">A1</span> Tạo lifecycle policy (UI)</h3>
-<div class="tabs"><span class="tab-label">AWS Console UI</span></div>
+<table>
+  <tr><th>Resource</th><th>Số lượng</th><th>Cost</th></tr>
+  <tr><td>Image trong myapp-backend</td><td>~150 (1-2 deploy/ngày × 90 ngày)</td><td>~150 × 200MB = 30GB = $3/tháng</td></tr>
+  <tr><td>Image trong myapp-frontend</td><td>~150</td><td>~150 × 50MB = 7.5GB = $0.75/tháng</td></tr>
+  <tr><td>Untagged orphan layers</td><td>~50 (CI fail giữa chừng)</td><td>~$1/tháng</td></tr>
+  <tr><td><strong>Tổng tích lũy</strong></td><td>—</td><td><strong>~$5/tháng và tăng dần</strong></td></tr>
+</table>
+
+<h3>Lifecycle policy giải quyết</h3>
+<p>Policy = rule JSON tự xóa image theo quy tắc. ECR chạy policy ~mỗi 24h (không real-time). Khi policy match image → xóa vĩnh viễn.</p>
+
+<h3><span class="step-num">A0</span> Discover — check ECR repos hiện có (read-only)</h3>
+<div class="tabs"><span class="tab-label cli">AWS CLI</span></div>
+<pre><code><span class="cmt"># 1. List tat ca repos</span>
+aws ecr describe-repositories --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"repositories[].{Name:repositoryName,URI:repositoryUri,Created:createdAt}"</span> <span class="cmt">`</span>
+  --output table
+
+<span class="cmt"># 2. Dem image trong moi repo</span>
+foreach ($repo <span class="kw">in</span> @(<span class="str">"myapp-backend"</span>, <span class="str">"myapp-frontend"</span>)) {
+  $count = aws ecr describe-images --region ap-southeast-1 --repository-name $repo <span class="cmt">`</span>
+    --query <span class="str">"length(imageDetails)"</span> --output text
+  Write-Host <span class="str">"$repo : $count images"</span>
+}
+
+<span class="cmt"># 3. Tinh tong storage</span>
+aws ecr describe-images --region ap-southeast-1 --repository-name myapp-backend <span class="cmt">`</span>
+  --query <span class="str">"sum(imageDetails[].imageSizeInBytes) / \`1048576\`"</span> --output text
+<span class="cmt"># Output: tong MB</span>
+
+<span class="cmt"># 4. Check policy hien tai (neu co)</span>
+aws ecr get-lifecycle-policy --region ap-southeast-1 --repository-name myapp-backend 2&gt;$null
+<span class="cmt"># Neu chua co se bao "LifecyclePolicyNotFoundException"</span></code></pre>
+
+<p>Ghi lại 2 số: số image hiện tại + tổng MB → so sánh sau khi apply policy.</p>
+
+<h3><span class="step-num">A1</span> Tạo lifecycle policy đơn giản (giữ 10 image gần nhất)</h3>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
+
+<h4>UI walkthrough</h4>
 <ol>
-  <li>Console → <span class="ui-path">ECR → Repositories → myapp-backend → Lifecycle Policy</span></li>
-  <li>Create rule:
+  <li>Console → <span class="ui-path">ECR → Private registry → Repositories → myapp-backend</span></li>
+  <li>Tab <strong>Lifecycle Policy</strong> (nếu không thấy: scroll qua phải)</li>
+  <li>Click <strong>Create rule</strong></li>
+  <li>Điền form:
     <ul>
-      <li>Rule priority: <code>1</code></li>
-      <li>Description: <code>Keep last 10 images, delete rest</code></li>
-      <li>Image status: <strong>Any</strong></li>
-      <li>Match criteria: <strong>Image count more than</strong> = <code>10</code></li>
+      <li>Rule priority: <code>1</code> (lower number = higher priority)</li>
+      <li>Rule description: <code>Keep last 10 images, delete rest</code></li>
+      <li>Image status: <strong>Any</strong> (cả tagged và untagged)</li>
+      <li>Match criteria: <strong>Image count more than</strong></li>
+      <li>Count: <code>10</code></li>
       <li>Rule action: <strong>expire</strong></li>
     </ul>
   </li>
-  <li>Save</li>
-  <li>Test với <strong>Save and test</strong> — xem images nào sẽ bị xóa nếu rule chạy ngay</li>
+  <li><strong>Save and test</strong> — quan trọng! Test mode show image nào sẽ bị xóa, KHÔNG xóa thật</li>
+  <li>Verify danh sách image sẽ xóa → nếu OK, click <strong>Save</strong> để apply</li>
   <li>Lặp lại cho <code>myapp-frontend</code></li>
 </ol>
 
-<h3><span class="step-num">A2</span> Tạo lifecycle policy (CLI)</h3>
-<div class="tabs"><span class="tab-label cli">AWS CLI</span></div>
-<pre><code><span class="cmt"># Tao policy JSON</span>
+<h4>CLI</h4>
+<pre><code><span class="cmt"># 1. Tao policy JSON</span>
 $policy = @{
   rules = @(
     @{
       rulePriority = 1
-      description  = <span class="str">"Keep last 10 images"</span>
+      description  = <span class="str">"Keep last 10 images, delete rest"</span>
       selection    = @{
         tagStatus   = <span class="str">"any"</span>
         countType   = <span class="str">"imageCountMoreThan"</span>
@@ -308,40 +351,52 @@ $policy = @{
   )
 } | ConvertTo-Json -Depth 10
 
-<span class="cmt"># Apply</span>
-$policy | Out-File -Encoding utf8 ecr-lifecycle.json
-aws ecr put-lifecycle-policy <span class="cmt">`</span>
-  <span class="kw">--repository-name</span> myapp-backend <span class="cmt">`</span>
-  <span class="kw">--lifecycle-policy-text</span> file://ecr-lifecycle.json <span class="cmt">`</span>
-  <span class="kw">--region</span> ap-southeast-1
+<span class="cmt"># 2. Ghi ra file tam</span>
+$tmpFile = [System.IO.Path]::GetTempFileName()
+[System.IO.File]::WriteAllText($tmpFile, $policy)
 
-aws ecr put-lifecycle-policy <span class="cmt">`</span>
-  <span class="kw">--repository-name</span> myapp-frontend <span class="cmt">`</span>
-  <span class="kw">--lifecycle-policy-text</span> file://ecr-lifecycle.json <span class="cmt">`</span>
-  <span class="kw">--region</span> ap-southeast-1</code></pre>
+<span class="cmt"># 3. Apply cho 2 repos</span>
+foreach ($repo <span class="kw">in</span> @(<span class="str">"myapp-backend"</span>, <span class="str">"myapp-frontend"</span>)) {
+  aws ecr put-lifecycle-policy --region ap-southeast-1 <span class="cmt">`</span>
+    --repository-name $repo <span class="cmt">`</span>
+    --lifecycle-policy-text <span class="str">"file://$tmpFile"</span>
+  Write-Host <span class="str">"Policy applied to $repo"</span> -ForegroundColor Green
+}
 
-<div class="info">
-  <strong>ℹ️ Lifecycle chạy lúc nào</strong>
-  ECR chạy lifecycle policy <strong>không xác định</strong> (có thể vài giờ-1 ngày sau khi push). Không phải instant. Có thể trigger manual bằng <code>start-lifecycle-policy-preview</code>.
-</div>
+<span class="cmt"># 4. Cleanup tmp file</span>
+Remove-Item $tmpFile -Force</code></pre>
 
-<h3>Rule phức tạp hơn (giữ tagged khác untagged)</h3>
+<h3><span class="step-num">A2</span> Tạo policy phức tạp (khuyến nghị cho production)</h3>
+
+<p>Rule đơn ở A1 đủ cho demo. Production nên có policy phân biệt tagged vs untagged:</p>
+
 <pre><code>{
   <span class="str">"rules"</span>: [
     {
       <span class="str">"rulePriority"</span>: 1,
-      <span class="str">"description"</span>: <span class="str">"Keep last 5 tagged main- images"</span>,
+      <span class="str">"description"</span>: <span class="str">"Giu 10 image moi nhat co tag main-*"</span>,
       <span class="str">"selection"</span>: {
         <span class="str">"tagStatus"</span>: <span class="str">"tagged"</span>,
         <span class="str">"tagPrefixList"</span>: [<span class="str">"main-"</span>],
+        <span class="str">"countType"</span>: <span class="str">"imageCountMoreThan"</span>,
+        <span class="str">"countNumber"</span>: 10
+      },
+      <span class="str">"action"</span>: { <span class="str">"type"</span>: <span class="str">"expire"</span> }
+    },
+    {
+      <span class="str">"rulePriority"</span>: 2,
+      <span class="str">"description"</span>: <span class="str">"Giu 5 image moi nhat co tag staging-*"</span>,
+      <span class="str">"selection"</span>: {
+        <span class="str">"tagStatus"</span>: <span class="str">"tagged"</span>,
+        <span class="str">"tagPrefixList"</span>: [<span class="str">"staging-"</span>],
         <span class="str">"countType"</span>: <span class="str">"imageCountMoreThan"</span>,
         <span class="str">"countNumber"</span>: 5
       },
       <span class="str">"action"</span>: { <span class="str">"type"</span>: <span class="str">"expire"</span> }
     },
     {
-      <span class="str">"rulePriority"</span>: 2,
-      <span class="str">"description"</span>: <span class="str">"Expire untagged after 7 days"</span>,
+      <span class="str">"rulePriority"</span>: 3,
+      <span class="str">"description"</span>: <span class="str">"Xoa untagged sau 7 ngay (orphan tu CI fail)"</span>,
       <span class="str">"selection"</span>: {
         <span class="str">"tagStatus"</span>: <span class="str">"untagged"</span>,
         <span class="str">"countType"</span>: <span class="str">"sinceImagePushed"</span>,
@@ -352,6 +407,86 @@ aws ecr put-lifecycle-policy <span class="cmt">`</span>
     }
   ]
 }</code></pre>
+
+<div class="info">
+  <strong>ℹ️ Thứ tự rule quan trọng</strong>
+  Rule chạy theo priority tăng dần. Image match rule SỚM thì rule sau không apply. Vì vậy nên đặt rule "giữ" trước rule "xóa" — tránh accident xóa image vẫn đang dùng.
+</div>
+
+<h3><span class="step-num">A3</span> Test policy KHÔNG xóa thật (preview mode)</h3>
+
+<p>ECR có preview API cho test policy:</p>
+
+<pre><code><span class="cmt"># 1. Start preview</span>
+aws ecr start-lifecycle-policy-preview --region ap-southeast-1 <span class="cmt">`</span>
+  --repository-name myapp-backend <span class="cmt">`</span>
+  --lifecycle-policy-text <span class="str">"file://policy.json"</span>
+
+<span class="cmt"># 2. Cho preview hoan tat (~30s)</span>
+do {
+  Start-Sleep 5
+  $status = aws ecr get-lifecycle-policy-preview --region ap-southeast-1 <span class="cmt">`</span>
+    --repository-name myapp-backend --query <span class="str">"status"</span> --output text
+  Write-Host <span class="str">"Status: $status"</span>
+} while ($status -eq <span class="str">"IN_PROGRESS"</span>)
+
+<span class="cmt"># 3. Xem ket qua</span>
+aws ecr get-lifecycle-policy-preview --region ap-southeast-1 <span class="cmt">`</span>
+  --repository-name myapp-backend <span class="cmt">`</span>
+  --query <span class="str">"previewResults[].{Tag:imageTags[0],Action:action.type,Reason:appliedRulePriority}"</span> <span class="cmt">`</span>
+  --output table</code></pre>
+
+<h3><span class="step-num">A4</span> Verify policy đã apply</h3>
+
+<pre><code><span class="cmt"># 1. Get policy hien tai cua repo</span>
+aws ecr get-lifecycle-policy --region ap-southeast-1 --repository-name myapp-backend <span class="cmt">`</span>
+  --query <span class="str">"lifecyclePolicyText"</span> --output text | ConvertFrom-Json | Format-List
+
+<span class="cmt"># 2. Kiem tra log lifecycle da chay (CloudTrail)</span>
+aws cloudtrail lookup-events --region ap-southeast-1 <span class="cmt">`</span>
+  --lookup-attributes <span class="str">"AttributeKey=EventName,AttributeValue=ApplyPullThroughCacheRule"</span> <span class="cmt">`</span>
+  --max-results 5
+
+<span class="cmt"># 3. Sau 24h, recheck so image (nen giam neu &gt; 10)</span>
+aws ecr describe-images --region ap-southeast-1 --repository-name myapp-backend <span class="cmt">`</span>
+  --query <span class="str">"length(imageDetails)"</span> --output text</code></pre>
+
+<h3>🔧 Troubleshooting Module A</h3>
+
+<table>
+  <tr><th>Triệu chứng</th><th>Nguyên nhân</th><th>Fix</th></tr>
+  <tr><td>Policy applied nhưng số image không giảm</td><td>ECR chạy lifecycle ~mỗi 24h, không real-time</td><td>Đợi 24h hoặc force qua start-lifecycle-policy-preview (chỉ preview, không apply)</td></tr>
+  <tr><td>InvalidParameterException khi put-lifecycle-policy</td><td>JSON malformed, sai key name (vd <code>RulePriority</code> phải lowercase <code>rulePriority</code>)</td><td>Validate JSON trên jsonlint.com, check syntax theo AWS docs</td></tr>
+  <tr><td>RepositoryNotFoundException</td><td>Repo chưa được tạo bởi <code>morning.ps1</code></td><td>Chạy <code>morning.ps1</code> step 1 trước</td></tr>
+  <tr><td>Rule xóa image đang dùng → deploy fail</td><td>Policy "Keep last 10" có thể xóa image production cũ nếu tag mới push nhiều</td><td>Đổi sang rule theo tag prefix (vd giữ tất cả tag <code>main-*</code> &gt; 30 ngày) hoặc tăng count</td></tr>
+  <tr><td>Image bị xóa nhưng task ECS vẫn pull được</td><td>Docker cache trên EC2 hoặc ECS task đã pull trước đó</td><td>Bình thường — chỉ task mới scheduled sẽ fail. Restart service để pull lại</td></tr>
+</table>
+
+<h3>🗑️ Cleanup Module A — Xóa policy (revert behavior cũ)</h3>
+
+<div class="info">
+  <strong>ℹ️ Khi nào cleanup</strong>
+  Lifecycle policy KHÔNG tốn tiền — chỉ tiết kiệm. Cleanup chỉ cần khi: (1) muốn giữ tất cả image cho audit, (2) policy gây xóa nhầm image cần thiết.
+</div>
+
+<pre><code><span class="cmt"># 1. Xoa policy khoi tung repo</span>
+foreach ($repo <span class="kw">in</span> @(<span class="str">"myapp-backend"</span>, <span class="str">"myapp-frontend"</span>)) {
+  aws ecr delete-lifecycle-policy --region ap-southeast-1 --repository-name $repo 2&gt;$null
+  Write-Host <span class="str">"Policy removed from $repo"</span>
+}
+
+<span class="cmt"># 2. Verify khong con policy</span>
+aws ecr get-lifecycle-policy --region ap-southeast-1 --repository-name myapp-backend 2&gt;&amp;1
+<span class="cmt"># Expect: "LifecyclePolicyNotFoundException"</span></code></pre>
+
+<h4>Chi phí</h4>
+<table>
+  <tr><th>Khi nào</th><th>Cost</th></tr>
+  <tr><td>Lifecycle policy tự thân</td><td>FREE — không tốn tiền dù áp dụng cho bao nhiêu repo</td></tr>
+  <tr><td>ECR storage trước policy</td><td>~$5/tháng tích lũy sau 6 tháng dev (tăng dần)</td></tr>
+  <tr><td>ECR storage sau policy</td><td>~$0.30/tháng (giữ 10 image × 200MB = 2GB)</td></tr>
+  <tr><td><strong>Tiết kiệm hằng tháng</strong></td><td><strong>~$4.70</strong></td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
