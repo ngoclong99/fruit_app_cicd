@@ -248,78 +248,252 @@ terraform destroy</code></pre>
 <div class="module-card">
 <h2 id="backend">6. Module A — Remote State (S3 + DynamoDB)</h2>
 
-<h3>Cấu trúc</h3>
-<ul>
-  <li><strong>S3 bucket</strong>: lưu file <code>terraform.tfstate</code></li>
-  <li><strong>DynamoDB table</strong>: lock để 2 người không apply cùng lúc</li>
-</ul>
+<div class="info">
+  <strong>📌 Bài học cần biết trước khi bắt đầu</strong>
+  <ul>
+    <li><strong>Chicken-and-egg problem</strong>: Terraform cần backend (S3 bucket) để lưu state, nhưng chưa có gì cả → bootstrap bằng AWS CLI 1 lần</li>
+    <li><strong>State quan trọng hơn code</strong>: mất state = không thể manage infra. Phải versioning + backup nghiêm túc</li>
+    <li><strong>State có chứa secret</strong>: DB password, private key... → encryption MANDATORY (S3 server-side + KMS)</li>
+    <li><strong>Lock concurrent apply</strong>: 2 người apply cùng lúc → race condition, corrupt state. DynamoDB table làm distributed lock</li>
+    <li><strong>Không commit .tfstate vào Git</strong>: <code>.gitignore</code> phải có dòng <code>*.tfstate</code>, <code>.terraform/</code></li>
+  </ul>
+</div>
 
-<h3><span class="step-num">A1</span> Bootstrap (tạo backend bằng tay)</h3>
-<p>Vấn đề "chicken-and-egg": muốn dùng S3 làm backend nhưng S3 chưa có. Có 2 cách:</p>
-<ul>
-  <li>Tạo S3 + DynamoDB bằng CLI (1 lần)</li>
-  <li>Tạo bằng Terraform với local state, rồi migrate state lên S3 (đẹp hơn)</li>
-</ul>
+<h3>Cấu trúc backend</h3>
+<table>
+  <tr><th>Component</th><th>Mục đích</th><th>Tại sao chọn AWS service này</th></tr>
+  <tr><td><strong>S3 bucket</strong></td><td>Lưu file <code>terraform.tfstate</code> (JSON ~vài KB-MB)</td><td>11 9's durability, versioning, encryption native</td></tr>
+  <tr><td><strong>DynamoDB table</strong></td><td>Distributed lock — chặn 2 user apply cùng lúc</td><td>Strong consistency, conditional writes (atomic lock)</td></tr>
+  <tr><td><strong>KMS key</strong> (optional)</td><td>Encrypt state với customer-managed key</td><td>Audit access log per user (vs AES256 mặc định)</td></tr>
+</table>
 
-<p>Đề xuất cách 1 cho đơn giản:</p>
+<h3>A0 — Discover hiện trạng (read-only)</h3>
+<pre><code><span class="cmt"># 1. Check S3 bucket name conflict (must be globally unique)</span>
+aws s3api head-bucket --bucket vhnlong-tf-state 2&gt;&amp;1
+<span class="cmt"># Neu "NoSuchBucket" / "404" -&gt; name free, OK dung</span>
+<span class="cmt"># Neu "AccessDenied" / "403" -&gt; co nguoi khac dung, phai chon ten khac</span>
 
-<pre><code><span class="cmt"># Tao bucket cho state</span>
-aws s3api create-bucket <span class="cmt">`</span>
-  <span class="kw">--bucket</span> vhnlong-tf-state <span class="cmt">`</span>
-  <span class="kw">--region</span> ap-southeast-1 <span class="cmt">`</span>
-  <span class="kw">--create-bucket-configuration</span> LocationConstraint=ap-southeast-1
+<span class="cmt"># 2. Check Terraform version dia phuong</span>
+terraform version
+<span class="cmt"># Expect: Terraform v1.5+ (de dung import block)</span>
 
-<span class="cmt"># Bat versioning de revert state khi can</span>
-aws s3api put-bucket-versioning <span class="cmt">`</span>
-  <span class="kw">--bucket</span> vhnlong-tf-state <span class="cmt">`</span>
-  <span class="kw">--versioning-configuration</span> Status=Enabled
+<span class="cmt"># 3. Check AWS credentials</span>
+aws sts get-caller-identity
+<span class="cmt"># Expect: Account, UserId, Arn</span></code></pre>
 
-<span class="cmt"># Encrypt at rest</span>
-aws s3api put-bucket-encryption <span class="cmt">`</span>
-  <span class="kw">--bucket</span> vhnlong-tf-state <span class="cmt">`</span>
-  <span class="kw">--server-side-encryption-configuration</span> '<span class="str">{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}</span>'
+<h3><span class="step-num">A1</span> Bootstrap — tạo S3 bucket cho state</h3>
 
-<span class="cmt"># Block public access</span>
-aws s3api put-public-access-block <span class="cmt">`</span>
-  <span class="kw">--bucket</span> vhnlong-tf-state <span class="cmt">`</span>
-  <span class="kw">--public-access-block-configuration</span> <span class="str">"BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</span>
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
 
-<span class="cmt"># Tao DynamoDB table cho lock</span>
-aws dynamodb create-table <span class="cmt">`</span>
-  <span class="kw">--region</span> ap-southeast-1 <span class="cmt">`</span>
-  <span class="kw">--table-name</span> vhnlong-tf-lock <span class="cmt">`</span>
-  <span class="kw">--attribute-definitions</span> AttributeName=LockID,AttributeType=S <span class="cmt">`</span>
-  <span class="kw">--key-schema</span> AttributeName=LockID,KeyType=HASH <span class="cmt">`</span>
-  <span class="kw">--billing-mode</span> PAY_PER_REQUEST</code></pre>
+<h4>UI walkthrough</h4>
+<ol>
+  <li>Console → <span class="ui-path">S3 → Create bucket</span></li>
+  <li>Bucket name: <code>vhnlong-tf-state</code> (phải globally unique — thêm prefix nếu trùng)</li>
+  <li>AWS Region: <code>Asia Pacific (Singapore) ap-southeast-1</code></li>
+  <li>Object Ownership: <strong>ACLs disabled</strong> (recommended)</li>
+  <li>Block Public Access settings: <strong>Block all public access</strong> (tick all 4)</li>
+  <li>Bucket Versioning: <strong>Enable</strong> (RẤT QUAN TRỌNG — để revert state khi corrupt)</li>
+  <li>Default encryption: <strong>Server-side encryption with Amazon S3 managed keys (SSE-S3)</strong> hoặc KMS</li>
+  <li>Advanced settings: tick <strong>Object Lock</strong> nếu cần compliance (tốn thêm bước, optional)</li>
+  <li>Create bucket</li>
+</ol>
 
-<h3><span class="step-num">A2</span> Khai báo backend trong code</h3>
-<p>Sửa <code>main.tf</code>:</p>
+<h4>CLI</h4>
+<pre><code><span class="cmt"># 1. Tao bucket</span>
+aws s3api create-bucket --region ap-southeast-1 <span class="cmt">`</span>
+  --bucket vhnlong-tf-state <span class="cmt">`</span>
+  --create-bucket-configuration LocationConstraint=ap-southeast-1
+
+<span class="cmt"># 2. Versioning -- de revert khi state corrupt</span>
+aws s3api put-bucket-versioning --bucket vhnlong-tf-state <span class="cmt">`</span>
+  --versioning-configuration Status=Enabled
+
+<span class="cmt"># 3. Encryption (AES256 mac dinh, hoac dung KMS)</span>
+aws s3api put-bucket-encryption --bucket vhnlong-tf-state --server-side-encryption-configuration <span class="str">'{
+  "Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]
+}'</span>
+
+<span class="cmt"># 4. Block public access (an toan vi state co secret)</span>
+aws s3api put-public-access-block --bucket vhnlong-tf-state <span class="cmt">`</span>
+  --public-access-block-configuration <span class="str">"BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</span>
+
+<span class="cmt"># 5. Lifecycle rule -- xoa version cu sau 90 ngay (giam cost neu update state nhieu)</span>
+$lifecycle = <span class="str">'{
+  "Rules": [{
+    "ID": "delete-old-versions",
+    "Status": "Enabled",
+    "Filter": {},
+    "NoncurrentVersionExpiration": {"NoncurrentDays": 90}
+  }]
+}'</span>
+$tmpFile = [System.IO.Path]::GetTempFileName()
+[System.IO.File]::WriteAllText($tmpFile, $lifecycle)
+aws s3api put-bucket-lifecycle-configuration --bucket vhnlong-tf-state --lifecycle-configuration <span class="str">"file://$tmpFile"</span>
+Remove-Item $tmpFile -Force</code></pre>
+
+<h3><span class="step-num">A2</span> Bootstrap — tạo DynamoDB lock table</h3>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
+
+<h4>UI</h4>
+<ol>
+  <li>Console → <span class="ui-path">DynamoDB → Create table</span></li>
+  <li>Table name: <code>vhnlong-tf-lock</code></li>
+  <li>Partition key: <code>LockID</code>, type <strong>String</strong></li>
+  <li>Sort key: (không có)</li>
+  <li>Settings: <strong>Customize settings</strong></li>
+  <li>Capacity mode: <strong>On-demand</strong> (PAY_PER_REQUEST — apply chỉ vài lần/ngày)</li>
+  <li>Create table</li>
+</ol>
+
+<h4>CLI</h4>
+<pre><code>aws dynamodb create-table --region ap-southeast-1 <span class="cmt">`</span>
+  --table-name vhnlong-tf-lock <span class="cmt">`</span>
+  --attribute-definitions AttributeName=LockID,AttributeType=S <span class="cmt">`</span>
+  --key-schema AttributeName=LockID,KeyType=HASH <span class="cmt">`</span>
+  --billing-mode PAY_PER_REQUEST
+
+<span class="cmt"># Doi table ACTIVE</span>
+aws dynamodb wait table-exists --region ap-southeast-1 --table-name vhnlong-tf-lock</code></pre>
+
+<div class="info">
+  <strong>ℹ️ Tại sao tên partition key phải là <code>LockID</code></strong>
+  Terraform's S3 backend code hardcoded tên này. Nếu đặt tên khác → init sẽ fail. Đây là contract của Terraform.
+</div>
+
+<h3><span class="step-num">A3</span> Khai báo backend trong code Terraform</h3>
+
+<p>Sửa <code>terraform/main.tf</code>:</p>
 
 <pre><code><span class="kw">terraform</span> {
   <span class="kw">required_version</span> = <span class="str">"&gt;= 1.5"</span>
-  <span class="kw">required_providers</span> { ... }
 
-  <span class="kw">backend</span> <span class="str">"s3"</span> {
-    bucket         = <span class="str">"vhnlong-tf-state"</span>
-    key            = <span class="str">"production/terraform.tfstate"</span>  <span class="cmt"># path trong bucket</span>
-    region         = <span class="str">"ap-southeast-1"</span>
-    encrypt        = <span class="kw">true</span>
-    dynamodb_table = <span class="str">"vhnlong-tf-lock"</span>
+  <span class="kw">required_providers</span> {
+    aws = {
+      source  = <span class="str">"hashicorp/aws"</span>
+      version = <span class="str">"~&gt; 5.0"</span>
+    }
   }
+
+  <span class="cmt"># Backend S3 + DynamoDB lock</span>
+  <span class="kw">backend</span> <span class="str">"s3"</span> {
+    bucket         = <span class="str">"vhnlong-tf-state"</span>           <span class="cmt"># tu A1</span>
+    key            = <span class="str">"production/terraform.tfstate"</span> <span class="cmt"># path trong bucket -- per env</span>
+    region         = <span class="str">"ap-southeast-1"</span>
+    encrypt        = <span class="kw">true</span>                          <span class="cmt"># encrypt at rest (su dung S3 encryption)</span>
+    dynamodb_table = <span class="str">"vhnlong-tf-lock"</span>             <span class="cmt"># tu A2</span>
+  }
+}
+
+<span class="kw">provider</span> <span class="str">"aws"</span> {
+  region = <span class="str">"ap-southeast-1"</span>
 }</code></pre>
 
-<h3><span class="step-num">A3</span> Migrate state local → S3</h3>
-<pre><code>terraform init -migrate-state
-<span class="cmt"># Hoi yes/no -- yes de copy state cu len S3 backend</span>
-
-<span class="cmt"># Verify -- xoa state local di, plan van OK</span>
-Remove-Item terraform.tfstate*
-terraform plan  <span class="cmt"># van doc state tu S3</span></code></pre>
-
-<div class="info">
-  <strong>ℹ️ Chi phí backend</strong>
-  S3: vài KB → $0.0001/tháng. DynamoDB pay-per-request: vài cents nếu apply nhiều. <strong>~$0/tháng cho demo</strong>.
+<div class="warn">
+  <strong>⚠️ Backend không support variables</strong>
+  Trong block <code>backend "s3" { ... }</code> KHÔNG được dùng <code>var.xxx</code>. Phải hardcode value. Nếu cần multi-env config khác nhau → dùng <code>terraform init -backend-config="bucket=..." -backend-config="key=..."</code> hoặc file <code>backend.hcl</code>.
 </div>
+
+<h3><span class="step-num">A4</span> Init + migrate state local → S3</h3>
+
+<pre><code><span class="cmt"># Truong hop 1: fresh project (chua co .tfstate local)</span>
+cd terraform/
+terraform init
+<span class="cmt"># Output: "Successfully initialized backend"</span>
+
+<span class="cmt"># Truong hop 2: co .tfstate local roi -&gt; migrate len S3</span>
+terraform init -migrate-state
+<span class="cmt"># Terraform hoi: "Do you want to copy existing state to the new backend?"</span>
+<span class="cmt">#   yes -&gt; upload state.tfstate local len S3</span>
+<span class="cmt"># Sau do .tfstate local bi rename thanh .tfstate.backup</span>
+
+<span class="cmt"># Verify: xoa state local di, terraform plan van OK</span>
+Remove-Item terraform.tfstate*
+terraform plan
+<span class="cmt"># Phai chay duoc -- doc state tu S3 backend</span></code></pre>
+
+<h3><span class="step-num">A5</span> Verify lock hoạt động</h3>
+
+<pre><code><span class="cmt"># Mo 2 terminal cung apply -- terminal 2 phai bao "Error acquiring the state lock"</span>
+
+<span class="cmt"># Terminal 1:</span>
+terraform apply
+
+<span class="cmt"># Terminal 2 (cung luc):</span>
+terraform apply
+<span class="cmt"># Error: Error acquiring the state lock
+#        ID: abc-123-def
+#        Path: vhnlong-tf-state/production/terraform.tfstate
+#        Operation: OperationTypePlan
+#        Who: user@hostname</span>
+
+<span class="cmt"># Check lock dang chiem boi ai</span>
+aws dynamodb scan --table-name vhnlong-tf-lock --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"Items[].{ID:LockID.S,Info:Info.S}"</span> --output table</code></pre>
+
+<h3>🔧 Troubleshooting Module A</h3>
+
+<table>
+  <tr><th>Triệu chứng</th><th>Nguyên nhân</th><th>Fix</th></tr>
+  <tr><td><code>Error: Failed to get existing workspaces: ... AccessDenied</code></td><td>IAM user/role không có quyền s3:ListBucket trên bucket</td><td>Add S3 policy: <code>s3:ListBucket</code>, <code>s3:GetObject</code>, <code>s3:PutObject</code> trên <code>arn:aws:s3:::vhnlong-tf-state/*</code></td></tr>
+  <tr><td><code>Error: Error acquiring the state lock</code> nhưng không ai đang apply</td><td>Lock bị treo (vd Ctrl+C giữa apply, network drop)</td><td><code>terraform force-unlock &lt;lock-id&gt;</code>. CẨN THẬN — chỉ khi chắc không ai đang chạy</td></tr>
+  <tr><td><code>Error: Backend configuration changed</code></td><td>Đã init với backend khác, giờ đổi config</td><td><code>terraform init -reconfigure</code> (xóa cache, init lại) hoặc <code>-migrate-state</code> (move state)</td></tr>
+  <tr><td><code>NoSuchBucket</code> khi init</td><td>Bucket chưa tạo, hoặc tên sai trong main.tf</td><td>Verify bucket: <code>aws s3 ls s3://vhnlong-tf-state</code>. Check spelling main.tf</td></tr>
+  <tr><td>State bị corrupt (JSON malformed)</td><td>Ctrl+C giữa write hoặc 2 process ghi cùng lúc (nếu thiếu lock)</td><td>Restore version cũ qua S3 versioning: Console → bucket → file → Versions → restore</td></tr>
+  <tr><td><code>RequestError: send request failed ... HTTPS</code></td><td>Network/proxy issue khi gọi S3 API</td><td>Set env <code>HTTPS_PROXY</code>, hoặc check AWS endpoint reachable: <code>curl https://s3.ap-southeast-1.amazonaws.com</code></td></tr>
+</table>
+
+<h3>🗑️ Cleanup Module A — Xóa backend</h3>
+
+<div class="danger">
+  <strong>🚨 Trước khi xóa backend, PHẢI destroy hết infra Terraform managed</strong>
+  Nếu xóa backend khi vẫn còn infra managed → bạn không bao giờ destroy được qua Terraform. Phải xóa từng resource manual qua Console (rất khó).
+</div>
+
+<pre><code><span class="cmt"># ────────── BUOC 1: Destroy het Terraform-managed infra ──────────</span>
+cd terraform/
+terraform destroy
+<span class="cmt"># Yes/no -- yes</span>
+
+<span class="cmt"># ────────── BUOC 2: Xoa toan bo object trong bucket (ke ca version cu) ──────────</span>
+<span class="cmt"># Versioning bat thi delete bucket khong xoa duoc neu con version</span>
+aws s3api delete-objects --bucket vhnlong-tf-state --delete <span class="str">"{
+  \"Objects\": [$(aws s3api list-object-versions --bucket vhnlong-tf-state --output json | jq -r '.Versions[]?, .DeleteMarkers[]? | \"{\\\"Key\\\":\\\"\" + .Key + \"\\\",\\\"VersionId\\\":\\\"\" + .VersionId + \"\\\"}\"' | paste -sd, -)]
+}"</span>
+
+<span class="cmt"># Cach don gian hon (PowerShell):</span>
+$versions = aws s3api list-object-versions --bucket vhnlong-tf-state --output json | ConvertFrom-Json
+foreach ($v <span class="kw">in</span> $versions.Versions) {
+  aws s3api delete-object --bucket vhnlong-tf-state --key $v.Key --version-id $v.VersionId
+}
+foreach ($m <span class="kw">in</span> $versions.DeleteMarkers) {
+  aws s3api delete-object --bucket vhnlong-tf-state --key $m.Key --version-id $m.VersionId
+}
+
+<span class="cmt"># ────────── BUOC 3: Xoa S3 bucket ──────────</span>
+aws s3api delete-bucket --bucket vhnlong-tf-state --region ap-southeast-1
+
+<span class="cmt"># ────────── BUOC 4: Xoa DynamoDB lock table ──────────</span>
+aws dynamodb delete-table --table-name vhnlong-tf-lock --region ap-southeast-1
+aws dynamodb wait table-not-exists --table-name vhnlong-tf-lock --region ap-southeast-1
+
+Write-Host <span class="str">"Backend cleanup hoan tat"</span> -ForegroundColor Green</code></pre>
+
+<h4>Verify</h4>
+<pre><code>aws s3api head-bucket --bucket vhnlong-tf-state 2&gt;&amp;1
+<span class="cmt"># Expect: NoSuchBucket</span>
+
+aws dynamodb describe-table --table-name vhnlong-tf-lock --region ap-southeast-1 2&gt;&amp;1
+<span class="cmt"># Expect: ResourceNotFoundException</span></code></pre>
+
+<h4>Chi phí</h4>
+<table>
+  <tr><th>Resource</th><th>Cost khi chạy</th><th>Sau cleanup</th></tr>
+  <tr><td>S3 bucket (state ~10KB)</td><td>~$0.0001/tháng + $0.005/1000 PUT</td><td>$0</td></tr>
+  <tr><td>S3 versioning (10 version cũ)</td><td>~$0.001/tháng</td><td>$0</td></tr>
+  <tr><td>DynamoDB on-demand lock</td><td>~$0.0001/tháng (rất ít request)</td><td>$0</td></tr>
+  <tr><td><strong>Tổng demo</strong></td><td><strong>~$0.001/tháng</strong></td><td><strong>$0</strong></td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
