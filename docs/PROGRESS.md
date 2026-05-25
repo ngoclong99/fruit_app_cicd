@@ -190,12 +190,13 @@ Mở [docs/S3_FRONTEND.md](S3_FRONTEND.md) để xem hướng dẫn từng bư�
 
 ## Giai đoạn 3 — High Availability
 > Mục tiêu: App không chết khi có sự cố
+> **Master guide:** [PHASE_3_HA.html](PHASE_3_HA.html) · **Đào sâu ALB/DNS:** [ALB_DNS.html](ALB_DNS.html)
 
-- [ ] **ALB** — load balancer, DNS cố định (không phụ thuộc IP)
-- [ ] **Auto Scaling Group** — tự thêm/bớt EC2 theo traffic
-- [ ] **Multi-AZ RDS** — DB tự failover khi 1 zone chết
-- [ ] **Health checks** — tự phát hiện EC2 lỗi, thay thế tự động
-- [ ] **Zero-downtime deploy** — deploy không gián đoạn user
+- [x] **ALB** — đã setup + verify đủ 8 test thực tế (25/5/2026), đã cleanup sau khi học xong (hết tốn $0.50/ngày). Resource hiện đã xóa, kiến trúc revert về `Route 53 A → IP EC2`. Bài học chi tiết + script cleanup trong [PHASE_3_HA.html#module-a](PHASE_3_HA.html#module-a)
+- [ ] **Auto Scaling Group** — docs đầy đủ, chưa thực thi. Cost ~$15-45/tháng nếu để 2 EC2 24/7
+- [ ] **Multi-AZ RDS** — docs đầy đủ, chưa thực thi. Cost ~$30+/tháng → khuyến cáo skip cho demo, học qua [RDS_GUIDE.html](RDS_GUIDE.html)
+- [x] **Health checks** — đã verify trong Module A (ALB target health pass /api/health mỗi 30s, detect failure trong 60s)
+- [ ] **Zero-downtime deploy** — phụ thuộc ASG, chưa làm
 
 ---
 
