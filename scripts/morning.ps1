@@ -184,12 +184,39 @@ mkdir -p ~/app/production ~/app/staging
 echo 'SETUP DONE'
 "@
 
-# Chay script tren EC2 qua SSH
-# -o StrictHostKeyChecking=no: tu dong chap nhan host key moi, khong hoi
-# QUAN TRONG: pipe script qua STDIN den 'bash -s', KHONG truyen qua argv
-# Vi PowerShell 5.1 strip newlines khi pass multi-line string qua argv
-# -> bash thay script tren 1 dong -> comment '#' an het script -> docker khong cai duoc
-$SETUP | ssh -i $KEY_PATH -o StrictHostKeyChecking=no ubuntu@$PUBLIC_IP "bash -s"
+# Chay script tren EC2:
+#   1. Ghi $SETUP ra file tam tren may local
+#   2. scp file len EC2
+#   3. ssh chay bash file
+#
+# Cach nay BEN VUNG hon pipe qua STDIN (cach cu):
+#   - PowerShell here-string khi pipe qua SSH stdin co the bi mangle ky tu (CR/LF,
+#     quotes, $ escape) -> bash nhan duoc script khac voi script PowerShell goc
+#   - SSH session co the time out giua chung khi cai apt-get/curl dai 30s+
+#     -> client tuong da xong nhung SCRIPT da bi cut o bash -> half-executed
+#   - Khong de retry: pipe la one-shot, fail thi mat het
+#
+# Pattern scp+bash file:
+#   - File toi EC2 trong 1s (upload nho)
+#   - SSH session tach biet, chi cho lenh chay script -> retry SSH chu khong upload lai
+#   - User co the SSH thu cong vao EC2 chay /tmp/setup.sh de debug
+$tmpSetup = [System.IO.Path]::GetTempFileName() + ".sh"
+# WriteAllText voi UTF-8 KHONG BOM va newline LF -- tranh bash than phien
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($tmpSetup, ($SETUP -replace "`r`n", "`n"), $utf8NoBom)
+
+scp -i $KEY_PATH -o StrictHostKeyChecking=no $tmpSetup ubuntu@${PUBLIC_IP}:/tmp/morning-setup.sh
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "LOI: scp setup script that bai (exit $LASTEXITCODE)" -ForegroundColor Red
+    Remove-Item $tmpSetup -Force
+    exit 1
+}
+Remove-Item $tmpSetup -Force
+
+# ServerAliveInterval giu connection song khi apt-get chay lau (~60s+)
+ssh -i $KEY_PATH -o StrictHostKeyChecking=no `
+    -o ServerAliveInterval=30 -o ServerAliveCountMax=10 `
+    ubuntu@$PUBLIC_IP "bash /tmp/morning-setup.sh && rm -f /tmp/morning-setup.sh"
 
 # Fail-fast: neu setup tren EC2 loi thi dung luon, dung trigger deploy (deploy se loi vi khong co docker)
 if ($LASTEXITCODE -ne 0) {
@@ -198,6 +225,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Kiem tra log o tren de biet buoc nao loi (Docker / AWS CLI / Certbot)" -ForegroundColor Yellow
     Write-Host "Goi y: SSH vao EC2 chay tay tung lenh de debug:" -ForegroundColor Yellow
     Write-Host "  ssh -i $KEY_PATH ubuntu@$PUBLIC_IP" -ForegroundColor Yellow
+    Write-Host "  bash /tmp/morning-setup.sh  # script con tren EC2 neu setup fail" -ForegroundColor Yellow
     exit 1
 }
 
