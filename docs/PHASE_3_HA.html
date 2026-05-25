@@ -832,6 +832,106 @@ aws elbv2 describe-target-health --region ap-southeast-1 --target-group-arn $TG_
   <tr><td>Git Bash báo path Windows lạ trong AWS CLI</td><td>Git Bash convert <code>/api/health</code> → Windows path</td><td>Dùng PowerShell hoặc <code>MSYS_NO_PATHCONV=1 aws ...</code></td></tr>
   <tr><td>PowerShell JMESPath báo <code>Bad jmespath expression: Unknown token ;</code></td><td><code>&amp;&amp;</code> trong query bị PowerShell encode</td><td>Bỏ <code>&amp;&amp;</code> khỏi JMESPath. Lấy hết về rồi filter bằng <code>Where-Object</code></td></tr>
 </table>
+
+<h3>🗑️ Cleanup Module A — Xóa ALB để hết tốn $0.50/ngày</h3>
+
+<div class="danger">
+  <strong>🚨 THỨ TỰ XÓA QUAN TRỌNG</strong>
+  AWS không cho xóa resource đang có dependency. Bắt buộc xóa theo thứ tự ngược: Route 53 → Listener → ALB → TG → ACM cert → SG. Sai thứ tự sẽ báo <code>ResourceInUse</code>.
+</div>
+
+<h4>Script cleanup tự động (PowerShell)</h4>
+<pre><code><span class="cmt"># Lay ARN/ID hien tai (tu A4)</span>
+$ALB_ARN     = <span class="str">"arn:aws:elasticloadbalancing:ap-southeast-1:529568113348:loadbalancer/app/myapp-alb/..."</span>
+$TG_ARN      = <span class="str">"arn:aws:elasticloadbalancing:ap-southeast-1:529568113348:targetgroup/myapp-tg-https/..."</span>
+$CERT_ARN    = <span class="str">"arn:aws:acm:ap-southeast-1:529568113348:certificate/..."</span>
+$ALB_SG      = <span class="str">"sg-0b88291756a4256d6"</span>
+$HOSTED_ZONE = <span class="str">"Z0999500HD1JE8VHHDN2"</span>
+$EC2_IP      = <span class="str">"&lt;ip-EC2-hien-tai&gt;"</span>  <span class="cmt"># lay tu describe-instances</span>
+
+<span class="cmt"># ────────── BUOC 1: Tro Route 53 ve A->IP (revert) ──────────</span>
+<span class="cmt"># KHONG xoa record vi can de domain hoat dong. Chi doi tu ALIAS->A IP.</span>
+$allRec = aws route53 list-resource-record-sets --hosted-zone-id $HOSTED_ZONE --output json | ConvertFrom-Json
+$aliasRec = $allRec.ResourceRecordSets | Where-Object {
+  ($_.Name -eq <span class="str">"vhnlong.store."</span> -or $_.Name -eq <span class="str">"www.vhnlong.store."</span>) `
+  -and $_.Type -eq <span class="str">"A"</span> -and $_.AliasTarget
+}
+$changes = @()
+foreach ($r in $aliasRec) {
+  <span class="cmt"># Delete ALIAS</span>
+  $changes += @{ Action = <span class="str">"DELETE"</span>; ResourceRecordSet = @{ Name=$r.Name; Type=<span class="str">"A"</span>; AliasTarget=$r.AliasTarget } }
+  <span class="cmt"># Create A->IP de domain van hoat dong</span>
+  $changes += @{ Action = <span class="str">"CREATE"</span>; ResourceRecordSet = @{
+    Name=$r.Name; Type=<span class="str">"A"</span>; TTL=60
+    ResourceRecords=@(@{Value=$EC2_IP})
+  }}
+}
+$batch = @{ Changes=$changes } | ConvertTo-Json -Depth 10
+$tmp = [System.IO.Path]::GetTempFileName(); [System.IO.File]::WriteAllText($tmp, $batch)
+aws route53 change-resource-record-sets --hosted-zone-id $HOSTED_ZONE --change-batch <span class="str">"file://$tmp"</span>
+Remove-Item $tmp -Force
+Write-Host <span class="str">"[1/6] Route 53 tro lai A->IP"</span> -ForegroundColor Green
+
+<span class="cmt"># ────────── BUOC 2: Xoa 2 Listener cua ALB ──────────</span>
+$listeners = aws elbv2 describe-listeners --region ap-southeast-1 --load-balancer-arn $ALB_ARN <span class="cmt">`</span>
+  --query <span class="str">"Listeners[].ListenerArn"</span> --output text
+foreach ($l in $listeners.Split()) {
+  if ($l) { aws elbv2 delete-listener --region ap-southeast-1 --listener-arn $l }
+}
+Write-Host <span class="str">"[2/6] Listeners deleted"</span> -ForegroundColor Green
+
+<span class="cmt"># ────────── BUOC 3: Xoa ALB (~30-60s) ──────────</span>
+aws elbv2 delete-load-balancer --region ap-southeast-1 --load-balancer-arn $ALB_ARN
+Write-Host <span class="str">"[3/6] ALB delete in-progress. Doi 60s..."</span> -ForegroundColor Yellow
+Start-Sleep 60
+
+<span class="cmt"># ────────── BUOC 4: Xoa Target Group ──────────</span>
+<span class="cmt"># Target group khong xoa duoc neu ALB van con reference -- do do delay 60s o tren.</span>
+aws elbv2 delete-target-group --region ap-southeast-1 --target-group-arn $TG_ARN
+Write-Host <span class="str">"[4/6] Target Group deleted"</span> -ForegroundColor Green
+
+<span class="cmt"># ────────── BUOC 5: Xoa ACM cert ──────────</span>
+<span class="cmt"># Cert KHONG ton tien khi khong dung (free). Co the giu lai dung sau. Neu muon xoa han:</span>
+aws acm delete-certificate --region ap-southeast-1 --certificate-arn $CERT_ARN
+Write-Host <span class="str">"[5/6] ACM cert deleted (tuy chon)"</span> -ForegroundColor Green
+
+<span class="cmt"># ────────── BUOC 6: Xoa ALB Security Group ──────────</span>
+aws ec2 delete-security-group --region ap-southeast-1 --group-id $ALB_SG
+Write-Host <span class="str">"[6/6] ALB SG deleted"</span> -ForegroundColor Green
+
+Write-Host <span class="str">""</span> -ForegroundColor Green
+Write-Host <span class="str">"=== CLEANUP MODULE A HOAN TAT ==="</span> -ForegroundColor Green
+Write-Host <span class="str">"Domain $DOMAIN gio tro thang vao EC2 IP (giong setup truoc Phase 3)"</span> -ForegroundColor Cyan
+Write-Host <span class="str">"Cost ALB \$0.50/ngay -- stopped"</span> -ForegroundColor Cyan</code></pre>
+
+<h4>Verify đã sạch</h4>
+<pre><code><span class="cmt"># Khong con ALB nao</span>
+aws elbv2 describe-load-balancers --region ap-southeast-1 --query <span class="str">"LoadBalancers[?LoadBalancerName=='myapp-alb']"</span>
+<span class="cmt"># Expect: [] (rong)</span>
+
+<span class="cmt"># Khong con Target Group</span>
+aws elbv2 describe-target-groups --region ap-southeast-1 --query <span class="str">"TargetGroups[?TargetGroupName=='myapp-tg-https']"</span>
+
+<span class="cmt"># Khong con ACM cert (neu da xoa)</span>
+aws acm list-certificates --region ap-southeast-1 --query <span class="str">"CertificateSummaryList[?DomainName=='vhnlong.store']"</span>
+
+<span class="cmt"># Site van hoat dong qua Let's Encrypt cert cu cua EC2</span>
+curl -sk https://vhnlong.store/api/health
+<span class="cmt"># Expect: {"status":"ok"} (qua EC2 truc tiep, khong qua ALB)</span></code></pre>
+
+<div class="warn">
+  <strong>⚠️ Lưu ý revert</strong>
+  Sau cleanup, domain trở lại trỏ vào EC2 IP (như trước Phase 3). HTTPS sẽ dùng Let's Encrypt cert cũ trên EC2 (certbot vẫn còn). Nếu cert đã hết hạn (Let's Encrypt 90 ngày), site sẽ báo cert invalid → chạy <code>morning.ps1</code> để renew.
+</div>
+
+<h4>Chi phí đã ngừng</h4>
+<table>
+  <tr><th>Resource</th><th>Cost trước cleanup</th><th>Sau cleanup</th></tr>
+  <tr><td>ALB hours</td><td>$0.50/ngày = ~$15/tháng</td><td>$0</td></tr>
+  <tr><td>ALB LCU</td><td>~$0 (demo traffic thấp)</td><td>$0</td></tr>
+  <tr><td>ACM cert</td><td>$0 (free)</td><td>$0</td></tr>
+  <tr><td>Route 53 ALIAS query</td><td>$0 (free cho AWS resource)</td><td>$0 (A→IP query cũng free trong 1 tỷ đầu)</td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
@@ -945,8 +1045,35 @@ echo 'USER-DATA DONE'</code></pre>
       <li><code>tail /var/log/cloud-init-output.log</code> → "USER-DATA DONE"</li>
     </ul>
   </li>
-  <li>Terminate instance test này — chỉ để verify template</li>
+<li>Terminate instance test này — chỉ để verify template</li>
 </ol>
+
+<h3>🗑️ Cleanup Module B — Xóa Launch Template</h3>
+
+<div class="info">
+  <strong>ℹ️ Launch Template KHÔNG tốn tiền</strong>
+  Launch Template chỉ là spec / template — không có resource physical. Free. Có thể giữ lại để dùng sau, hoặc xóa cho gọn.
+</div>
+
+<pre><code><span class="cmt"># 1. Xoa Launch Template (xoa tat ca version)</span>
+aws ec2 delete-launch-template --region ap-southeast-1 --launch-template-name myapp-lt
+
+<span class="cmt"># 2. Neu lo de instance test van con -> terminate</span>
+aws ec2 describe-instances --region ap-southeast-1 <span class="cmt">`</span>
+  --filters <span class="str">"Name=tag:Name,Values=myapp-ec2"</span> <span class="str">"Name=instance-state-name,Values=running"</span> <span class="cmt">`</span>
+  --query <span class="str">"Reservations[].Instances[].InstanceId"</span> --output text
+<span class="cmt"># Neu co instance lai khong dung -> terminate-instances --instance-ids ...</span></code></pre>
+
+<h4>Verify</h4>
+<pre><code>aws ec2 describe-launch-templates --region ap-southeast-1 --query <span class="str">"LaunchTemplates[?LaunchTemplateName=='myapp-lt']"</span>
+<span class="cmt"># Expect: [] (rong)</span></code></pre>
+
+<h4>Chi phí</h4>
+<table>
+  <tr><th>Resource</th><th>Cost</th></tr>
+  <tr><td>Launch Template</td><td>$0 (free)</td></tr>
+  <tr><td>Instance test (nếu lỡ để chạy)</td><td>$0.0264/h cho t3.small ap-southeast-1</td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
@@ -1036,6 +1163,60 @@ echo 'USER-DATA DONE'</code></pre>
     "Launching a new EC2 instance: i-yyy"</li>
   <li>Verify: site vẫn truy cập được tới gần khi EC2 mới thay xong</li>
 </ol>
+
+<h3>🗑️ Cleanup Module C — Xóa ASG để ngừng tốn EC2</h3>
+
+<div class="danger">
+  <strong>🚨 ASG sẽ tự tạo EC2 mới nếu bạn terminate EC2 thủ công</strong>
+  Vì ASG có job "luôn giữ desired=N EC2". Phải <strong>set capacity về 0 TRƯỚC</strong>, đợi terminate, rồi mới delete ASG. Không thì xóa được ASG nhưng các EC2 đã chạy còn lại trong tài khoản.
+</div>
+
+<pre><code>$ASG_NAME = <span class="str">"myapp-asg"</span>
+
+<span class="cmt"># ────────── BUOC 1: Set capacity ve 0 -> ASG terminate het EC2 ──────────</span>
+aws autoscaling update-auto-scaling-group --region ap-southeast-1 <span class="cmt">`</span>
+  --auto-scaling-group-name $ASG_NAME <span class="cmt">`</span>
+  --min-size 0 --desired-capacity 0 --max-size 0
+Write-Host <span class="str">"[1/3] ASG capacity = 0, doi ASG terminate instances..."</span> -ForegroundColor Yellow
+
+<span class="cmt"># Doi cho EC2 terminate xong (~2-3 phut)</span>
+$attempts = 0
+do {
+  Start-Sleep 30
+  $count = (aws autoscaling describe-auto-scaling-groups --region ap-southeast-1 <span class="cmt">`</span>
+    --auto-scaling-group-names $ASG_NAME <span class="cmt">`</span>
+    --query <span class="str">"AutoScalingGroups[0].Instances | length(@)"</span> --output text)
+  Write-Host <span class="str">"  $count instance trong ASG"</span>
+  $attempts++
+} while ([int]$count -gt 0 -and $attempts -lt 10)
+
+<span class="cmt"># ────────── BUOC 2: Xoa ASG ──────────</span>
+aws autoscaling delete-auto-scaling-group --region ap-southeast-1 <span class="cmt">`</span>
+  --auto-scaling-group-name $ASG_NAME --force-delete
+Write-Host <span class="str">"[2/3] ASG deleted"</span> -ForegroundColor Green
+
+<span class="cmt"># ────────── BUOC 3: Verify ──────────</span>
+aws autoscaling describe-auto-scaling-groups --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"AutoScalingGroups[?AutoScalingGroupName=='$ASG_NAME']"</span>
+<span class="cmt"># Expect: [] (rong)</span>
+aws ec2 describe-instances --region ap-southeast-1 <span class="cmt">`</span>
+  --filters <span class="str">"Name=tag:Name,Values=myapp-ec2"</span> <span class="str">"Name=instance-state-name,Values=running"</span> <span class="cmt">`</span>
+  --query <span class="str">"Reservations[].Instances[].InstanceId"</span> --output text
+<span class="cmt"># Expect: rong (khong con EC2)</span>
+Write-Host <span class="str">"[3/3] All EC2 from ASG terminated"</span> -ForegroundColor Green</code></pre>
+
+<div class="warn">
+  <strong>⚠️ Sau khi xóa ASG, project quay về morning.ps1 pattern</strong>
+  Cần chạy <code>.\scripts\morning.ps1</code> để tạo lại EC2 manual, hoặc giữ cleanup này như "end-of-day" — đêm không có EC2 nào chạy, sáng tạo lại.
+</div>
+
+<h4>Chi phí đã ngừng</h4>
+<table>
+  <tr><th>Resource</th><th>Cost trước cleanup</th><th>Sau cleanup</th></tr>
+  <tr><td>EC2 (2 × t3.small 24/7)</td><td>~$0.063/h × 24 × 30 = ~$45/tháng</td><td>$0</td></tr>
+  <tr><td>ASG itself</td><td>$0 (free)</td><td>$0</td></tr>
+  <tr><td>EBS volume (8GB gp3 mỗi EC2)</td><td>~$1.30/tháng (đi kèm EC2 — auto xóa khi terminate)</td><td>$0</td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
@@ -1129,8 +1310,90 @@ aws ssm put-parameter <span class="kw">--name</span> /myapp/production/DB_HOST <
   <li>Tick "Reboot with failover?"</li>
   <li>Confirm — quá trình mất ~60s</li>
   <li>Trong khi đó verify từ EC2: <code>psql -h $RDS_ENDPOINT ...</code> — sẽ disconnect ~30-60s rồi reconnect</li>
-  <li>RDS event log sẽ ghi "Multi-AZ instance failover started → completed"</li>
+<li>RDS event log sẽ ghi "Multi-AZ instance failover started → completed"</li>
 </ol>
+
+<h3>🗑️ Cleanup Module D — Xóa RDS (QUAN TRỌNG nhất vì $30+/tháng)</h3>
+
+<div class="danger">
+  <strong>🚨 RDS DỄ QUÊN NHẤT — tốn $30+/tháng nếu không xóa</strong>
+  Khác với EC2 (terminate là xong), RDS có cơ chế "final snapshot" mặc định bật → nếu xóa không cẩn thận, sẽ tạo snapshot và tiếp tục tính phí EBS snapshot storage. Phải <strong>set --skip-final-snapshot</strong> để xóa sạch hoàn toàn.
+</div>
+
+<pre><code>$DB_ID = <span class="str">"myapp-prod-db"</span>
+
+<span class="cmt"># ────────── BUOC 1 (CRITICAL): Backup data ra ngoai TRUOC KHI XOA ──────────</span>
+<span class="cmt"># Neu can data sau nay -- dump ra file</span>
+$RDS_ENDPOINT = aws rds describe-db-instances --region ap-southeast-1 <span class="cmt">`</span>
+  --db-instance-identifier $DB_ID <span class="cmt">`</span>
+  --query <span class="str">"DBInstances[0].Endpoint.Address"</span> --output text
+ssh -i &lt;key&gt; ubuntu@&lt;ec2-ip&gt; <span class="str">"PGPASSWORD=&lt;password&gt; pg_dump -h $RDS_ENDPOINT -U userPostgres todos_db &gt; backup-$(Get-Date -Format yyyyMMdd).sql"</span>
+Write-Host <span class="str">"[1/4] Backup saved"</span> -ForegroundColor Green
+
+<span class="cmt"># ────────── BUOC 2: Disable deletion protection (neu da bat) ──────────</span>
+aws rds modify-db-instance --region ap-southeast-1 <span class="cmt">`</span>
+  --db-instance-identifier $DB_ID <span class="cmt">`</span>
+  --no-deletion-protection --apply-immediately
+Write-Host <span class="str">"[2/4] Deletion protection disabled"</span> -ForegroundColor Green
+
+<span class="cmt"># ────────── BUOC 3: Delete RDS instance (~10-15 phut) ──────────</span>
+<span class="cmt"># --skip-final-snapshot: KHONG tao snapshot luc xoa -&gt; sach hoan toan</span>
+<span class="cmt"># --delete-automated-backups: xoa luon backup tu dong (giu lai se ton EBS snapshot)</span>
+aws rds delete-db-instance --region ap-southeast-1 <span class="cmt">`</span>
+  --db-instance-identifier $DB_ID <span class="cmt">`</span>
+  --skip-final-snapshot <span class="cmt">`</span>
+  --delete-automated-backups
+Write-Host <span class="str">"[3/4] RDS delete in-progress (~10-15 phut). Doi..."</span> -ForegroundColor Yellow
+
+<span class="cmt"># Doi delete xong</span>
+do {
+  Start-Sleep 30
+  $exists = aws rds describe-db-instances --region ap-southeast-1 <span class="cmt">`</span>
+    --query <span class="str">"DBInstances[?DBInstanceIdentifier=='$DB_ID'] | length(@)"</span> --output text 2&gt;$null
+  Write-Host <span class="str">"  RDS still exists: $exists"</span>
+} while ([int]$exists -gt 0)
+
+<span class="cmt"># ────────── BUOC 4: Xoa RDS Security Group ──────────</span>
+aws ec2 delete-security-group --region ap-southeast-1 --group-name myapp-rds-sg
+Write-Host <span class="str">"[4/4] RDS SG deleted"</span> -ForegroundColor Green
+
+<span class="cmt"># ────────── BUOC 5 (tuy chon): Revert backend ve Docker Postgres ──────────</span>
+<span class="cmt"># Update SSM DB_HOST tro lai "db" (ten container Docker)</span>
+aws ssm put-parameter --region ap-southeast-1 --name /myapp/production/DB_HOST <span class="cmt">`</span>
+  --value <span class="str">"db"</span> --type String --overwrite
+
+<span class="cmt"># Restore docker-compose.prod.yml co service db (revert git neu da commit thay doi)</span>
+<span class="cmt"># git revert &lt;commit-xoa-service-db&gt;</span>
+<span class="cmt"># Hoac sua tay docker-compose.prod.yml them lai service db va depends_on</span>
+
+<span class="cmt"># Restore data tu backup</span>
+<span class="cmt"># docker compose up -d db</span>
+<span class="cmt"># cat backup-20260525.sql | docker exec -i myapp-production-db-1 psql -U userPostgres todos_db</span>
+
+Write-Host <span class="str">""</span> -ForegroundColor Green
+Write-Host <span class="str">"=== CLEANUP MODULE D HOAN TAT ==="</span> -ForegroundColor Green
+Write-Host <span class="str">"RDS cost \$30+/thang -- stopped"</span> -ForegroundColor Cyan</code></pre>
+
+<h4>Verify đã sạch hoàn toàn</h4>
+<pre><code><span class="cmt"># 1. Khong con DB instance</span>
+aws rds describe-db-instances --region ap-southeast-1 --query <span class="str">"DBInstances[].DBInstanceIdentifier"</span>
+
+<span class="cmt"># 2. Khong con automated backup</span>
+aws rds describe-db-instance-automated-backups --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"DBInstanceAutomatedBackups[?DBInstanceIdentifier=='myapp-prod-db']"</span>
+
+<span class="cmt"># 3. Khong con manual snapshot (neu lo tao truoc do)</span>
+aws rds describe-db-snapshots --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"DBSnapshots[?DBInstanceIdentifier=='myapp-prod-db']"</span></code></pre>
+
+<h4>Chi phí đã ngừng</h4>
+<table>
+  <tr><th>Resource</th><th>Cost trước cleanup</th><th>Sau cleanup</th></tr>
+  <tr><td>RDS db.t4g.micro Multi-AZ</td><td>~$30/tháng (2 instance × $0.020/h)</td><td>$0</td></tr>
+  <tr><td>EBS storage 20GB gp3</td><td>~$2/tháng</td><td>$0</td></tr>
+  <tr><td>Backup storage (auto)</td><td>~$0.10/GB-month</td><td>$0 (đã --delete-automated-backups)</td></tr>
+  <tr><td><strong>Tổng</strong></td><td><strong>~$32/tháng</strong></td><td><strong>$0</strong></td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
@@ -1206,6 +1469,37 @@ aws ssm put-parameter <span class="kw">--name</span> /myapp/production/DB_HOST <
   <strong>ℹ️ Lưu ý</strong>
   Với chỉ 1 EC2 trong ASG (demo), không thực sự là rolling. Cần ít nhất 2 instance. Set desired=2 khi muốn test E2 thật.
 </div>
+
+<h3>🗑️ Cleanup Module E — Revert deploy.yml về cũ</h3>
+
+<div class="info">
+  <strong>ℹ️ Module E là code changes — không có resource AWS để xóa</strong>
+  Module E thay đổi <code>deploy.yml</code> (rolling deploy script) và config Instance Refresh. Cleanup = revert code về big-bang deploy cũ.
+</div>
+
+<pre><code><span class="cmt"># 1. Revert deploy.yml ve big-bang deploy (SSH + docker compose down/up)</span>
+git revert &lt;commit-doi-deploy-yml&gt;
+git push origin main
+
+<span class="cmt"># 2. Neu da config CodeDeploy application/group cho Blue-Green (E2):</span>
+aws deploy delete-deployment-group --application-name myapp-svc <span class="cmt">`</span>
+  --deployment-group-name myapp-bg-group --region ap-southeast-1
+aws deploy delete-application --application-name myapp-svc --region ap-southeast-1
+
+<span class="cmt"># 3. Neu da tao 2nd Target Group cho Blue-Green:</span>
+aws elbv2 delete-target-group --region ap-southeast-1 --target-group-arn &lt;TG_GREEN_ARN&gt;
+
+<span class="cmt"># 4. Neu da modify Listener default-action cho Blue-Green -> revert ve forward 100% TG cu</span>
+aws elbv2 modify-listener --region ap-southeast-1 --listener-arn &lt;HTTPS_LISTENER_ARN&gt; <span class="cmt">`</span>
+  --default-actions Type=forward,TargetGroupArn=&lt;TG_MAIN_ARN&gt;</code></pre>
+
+<h4>Chi phí</h4>
+<table>
+  <tr><th>Resource</th><th>Cost</th></tr>
+  <tr><td>CodeDeploy (cho ECS Blue-Green)</td><td>$0 (free cho ECS)</td></tr>
+  <tr><td>CodeDeploy (cho EC2/on-prem)</td><td>$0.02/deployment</td></tr>
+  <tr><td>2nd Target Group (TG_GREEN)</td><td>$0 (TG itself free; chỉ ALB tính tiền)</td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
@@ -1251,6 +1545,59 @@ aws ssm put-parameter <span class="kw">--name</span> /myapp/production/DB_HOST <
 
 <p><strong>Alarm 3 (nếu có RDS): DB CPU &gt; 80%</strong></p>
 <p><strong>Alarm 4: ALB 5xx response rate &gt; 5%</strong></p>
+
+<h3>🗑️ Cleanup Module F — Xóa Alarms + SNS Topic</h3>
+
+<div class="info">
+  <strong>ℹ️ CloudWatch Alarms tốn rất ít</strong>
+  ~$0.10/alarm/tháng (10 alarm free). SNS chỉ tốn $0.50/triệu email. Nhưng vẫn nên cleanup để không bị spam email khi resource bị xóa (vd ALB chết → alarm gửi email mãi).
+</div>
+
+<pre><code><span class="cmt"># ────────── BUOC 1: Xoa CloudWatch Alarms ──────────</span>
+$alarmNames = aws cloudwatch describe-alarms --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"MetricAlarms[?starts_with(AlarmName, 'myapp-')].AlarmName"</span> --output text
+
+if ($alarmNames) {
+  aws cloudwatch delete-alarms --region ap-southeast-1 --alarm-names ($alarmNames -split <span class="str">"\s+"</span>)
+  Write-Host <span class="str">"[1/3] Alarms deleted: $alarmNames"</span> -ForegroundColor Green
+} else {
+  Write-Host <span class="str">"[1/3] Khong co alarm myapp-* nao"</span> -ForegroundColor Gray
+}
+
+<span class="cmt"># ────────── BUOC 2: Xoa Subscription cua SNS (unsubscribe email) ──────────</span>
+$topicArn = aws sns list-topics --region ap-southeast-1 <span class="cmt">`</span>
+  --query <span class="str">"Topics[?ends_with(TopicArn, ':myapp-alerts')].TopicArn"</span> --output text
+
+if ($topicArn) {
+  <span class="cmt"># Liet ke + unsubscribe het cac subscription dang co</span>
+  $subs = aws sns list-subscriptions-by-topic --region ap-southeast-1 --topic-arn $topicArn <span class="cmt">`</span>
+    --query <span class="str">"Subscriptions[].SubscriptionArn"</span> --output text
+  foreach ($s in $subs -split <span class="str">"\s+"</span>) {
+    if ($s -and $s -ne <span class="str">"PendingConfirmation"</span>) {
+      aws sns unsubscribe --region ap-southeast-1 --subscription-arn $s
+    }
+  }
+  Write-Host <span class="str">"[2/3] SNS subscriptions removed"</span> -ForegroundColor Green
+
+  <span class="cmt"># ────────── BUOC 3: Xoa SNS Topic ──────────</span>
+  aws sns delete-topic --region ap-southeast-1 --topic-arn $topicArn
+  Write-Host <span class="str">"[3/3] SNS topic deleted"</span> -ForegroundColor Green
+}</code></pre>
+
+<h4>Verify</h4>
+<pre><code>aws cloudwatch describe-alarms --region ap-southeast-1 --query <span class="str">"MetricAlarms[?starts_with(AlarmName, 'myapp-')]"</span>
+<span class="cmt"># Expect: [] (rong)</span>
+
+aws sns list-topics --region ap-southeast-1 --query <span class="str">"Topics[?ends_with(TopicArn, ':myapp-alerts')]"</span>
+<span class="cmt"># Expect: [] (rong)</span></code></pre>
+
+<h4>Chi phí đã ngừng</h4>
+<table>
+  <tr><th>Resource</th><th>Cost</th></tr>
+  <tr><td>10 alarm đầu</td><td>FREE</td></tr>
+  <tr><td>Alarm thứ 11+</td><td>$0.10/alarm/tháng</td></tr>
+  <tr><td>SNS email notifications</td><td>$0.50/1 triệu email (gần như $0 cho demo)</td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->
