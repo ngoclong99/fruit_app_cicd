@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import pool from '../db';
-import { asyncHandler, notFound } from '../middleware/errorHandler';
+import pool from '@/db';
+import { asyncHandler, notFound } from '@/middleware/errorHandler';
 
 const router = Router();
 

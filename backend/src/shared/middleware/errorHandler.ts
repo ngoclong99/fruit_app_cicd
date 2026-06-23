@@ -1,8 +1,9 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { ZodError } from "zod";
-import { AppError } from "../errors/AppError";
-import { logger } from "../../config/logger";
-import { isProduction } from "../../config/env";
+import { AppError } from "@/shared/errors/AppError";
+import { ERROR_CODES } from "@/shared/errors/errorCodes";
+import { logger } from "@/config/logger";
+import { isProduction } from "@/config/env";
 
 /**
  * Wrap async route handlers so rejections are forwarded to errorHandler.
@@ -23,7 +24,7 @@ export function errorHandler(
 ): void {
   // zod validation error
   if (err instanceof ZodError) {
-    res.status(422).json({
+    res.status(ERROR_CODES.VALIDATION_ERROR.status).json({
       error: "VALIDATION_ERROR",
       message: "Invalid input",
       details: err.flatten(),
@@ -45,7 +46,7 @@ export function errorHandler(
   logger.error({ err, path: req.path, method: req.method }, "Unhandled error");
 
   const message = err instanceof Error && !isProduction ? err.message : "Internal Server Error";
-  res.status(500).json({
+  res.status(ERROR_CODES.INTERNAL_ERROR.status).json({
     error: "INTERNAL_ERROR",
     message,
   });

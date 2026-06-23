@@ -1,7 +1,7 @@
 import { Request, Response, Router } from "express";
-import pool from "../db";
-import { authenticate, AuthRequest, requireAdmin } from "../middleware/auth";
-import { asyncHandler, notFound } from "../middleware/errorHandler";
+import pool from "@/db";
+import { authenticate, AuthRequest, requireAdmin } from "@/middleware/auth";
+import { asyncHandler, badRequest, notFound } from "@/middleware/errorHandler";
 import {
   optionalEnum,
   optionalString,
@@ -9,9 +9,9 @@ import {
   requireNonNegInt,
   requireNonNegNumber,
   requireString,
-} from "../utils/validate";
-import { deleteManyFromS3 } from "../utils/s3";
-import type { Product } from "../types";
+} from "@/utils/validate";
+import { deleteManyFromS3 } from "@/utils/s3";
+import type { Product } from "@/types";
 
 const router = Router();
 
@@ -194,11 +194,9 @@ router.post(
   })
 );
 
-router.put(
-  "/:id",
-  authenticate,
-  requireAdmin,
-  asyncHandler(async (req: AuthRequest, res: Response) => {
+// Cap nhat 1 phan san pham. PATCH la method chuan REST cho partial update;
+// PUT duoc giu lam alias backward-compat (client cu van goi PUT).
+const updateProductHandler = asyncHandler(async (req: AuthRequest, res: Response) => {
     const existing = await pool.query<{ id: string; image: string; images: string[] | null }>(
       "SELECT id, image, images FROM products WHERE id = $1",
       [req.params.id]
@@ -262,8 +260,10 @@ router.put(
     }
     if (removed.length > 0) void deleteManyFromS3(removed);
     res.json(mapProduct(newRow));
-  })
-);
+});
+
+router.patch("/:id", authenticate, requireAdmin, updateProductHandler);
+router.put("/:id", authenticate, requireAdmin, updateProductHandler);
 
 router.delete(
   "/:id",
@@ -320,13 +320,9 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const items = req.body?.items;
     if (!Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ message: 'items must be a non-empty array' });
-      return;
+      throw badRequest('items must be a non-empty array');
     }
-    if (items.length > 1000) {
-      res.status(400).json({ message: 'Max 1000 items per bulk request' });
-      return;
-    }
+    if (items.length > 1000) throw badRequest('Max 1000 items per bulk request');
     const validated = items.map((it, i) => validateProductInput(it as Partial<Product>, i));
 
     const client = await pool.connect();
@@ -368,17 +364,12 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const ids = req.body?.ids;
     if (!Array.isArray(ids) || ids.length === 0) {
-      res.status(400).json({ message: 'ids must be a non-empty array' });
-      return;
+      throw badRequest('ids must be a non-empty array');
     }
     if (!ids.every((id) => typeof id === 'string')) {
-      res.status(400).json({ message: 'ids must contain strings only' });
-      return;
+      throw badRequest('ids must contain strings only');
     }
-    if (ids.length > 1000) {
-      res.status(400).json({ message: 'Max 1000 ids per request' });
-      return;
-    }
+    if (ids.length > 1000) throw badRequest('Max 1000 ids per request');
     // Lay URL anh truoc khi xoa de S3 cleanup
     const imageRows = await pool.query<{ image: string; images: string[] | null }>(
       'SELECT image, images FROM products WHERE id = ANY($1::text[])',

@@ -1,7 +1,12 @@
+import { ERROR_CODES } from "./errorCodes";
+
 /**
  * Base class for all application errors.
  * Use this (or subclasses) to throw errors that can be safely serialized
  * to HTTP responses by the errorHandler middleware.
+ *
+ * Status/code của các subclass lấy từ catalog chung (errorCodes.ts) để BE/FE
+ * dùng đúng MỘT bộ mã lỗi.
  */
 export class AppError extends Error {
   readonly status: number;
@@ -20,36 +25,36 @@ export class AppError extends Error {
 
 export class BadRequestError extends AppError {
   constructor(message: string, details?: unknown) {
-    super(message, 400, "BAD_REQUEST", details);
+    super(message, ERROR_CODES.BAD_REQUEST.status, "BAD_REQUEST", details);
   }
 }
 
 export class UnauthorizedError extends AppError {
   constructor(message = "Unauthorized") {
-    super(message, 401, "UNAUTHORIZED");
+    super(message, ERROR_CODES.UNAUTHORIZED.status, "UNAUTHORIZED");
   }
 }
 
 export class ForbiddenError extends AppError {
   constructor(message = "Forbidden") {
-    super(message, 403, "FORBIDDEN");
+    super(message, ERROR_CODES.FORBIDDEN.status, "FORBIDDEN");
   }
 }
 
 export class NotFoundError extends AppError {
   constructor(message = "Not found") {
-    super(message, 404, "NOT_FOUND");
+    super(message, ERROR_CODES.NOT_FOUND.status, "NOT_FOUND");
   }
 }
 
 export class ConflictError extends AppError {
   constructor(message: string) {
-    super(message, 409, "CONFLICT");
+    super(message, ERROR_CODES.CONFLICT.status, "CONFLICT");
   }
 }
 
 export class ValidationError extends AppError {
   constructor(message = "Validation failed", details?: unknown) {
-    super(message, 422, "VALIDATION_ERROR", details);
+    super(message, ERROR_CODES.VALIDATION_ERROR.status, "VALIDATION_ERROR", details);
   }
 }

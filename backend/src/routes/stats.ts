@@ -1,9 +1,9 @@
 import { Router, Response } from 'express';
-import pool from '../db';
-import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
-import { asyncHandler } from '../middleware/errorHandler';
-import { parseIntDefault, requireDate } from '../utils/validate';
-import type { CartItem, Order } from '../types';
+import pool from '@/db';
+import { authenticate, requireAdmin, AuthRequest } from '@/middleware/auth';
+import { asyncHandler, badRequest } from '@/middleware/errorHandler';
+import { parseIntDefault, requireDate } from '@/utils/validate';
+import type { CartItem, Order } from '@/types';
 
 const router = Router();
 
@@ -78,10 +78,7 @@ router.get('/', authenticate, requireAdmin, asyncHandler(async (_req: AuthReques
 router.get('/daily', authenticate, requireAdmin, asyncHandler(async (req: AuthRequest, res: Response) => {
   const from = requireDate(req.query.from, 'from');
   const to = requireDate(req.query.to, 'to');
-  if (from > to) {
-    res.status(400).json({ message: 'from must be <= to' });
-    return;
-  }
+  if (from > to) throw badRequest('from must be <= to');
 
   const result = await pool.query<{ date: Date | string; orders: string; revenue: string }>(
     `SELECT created_at::date as date, COUNT(*)::text as orders, COALESCE(SUM(total), 0)::text as revenue

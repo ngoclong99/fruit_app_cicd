@@ -3,11 +3,11 @@ import { randomUUID } from 'crypto';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-import { env } from '../config/env';
-import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
-import { asyncHandler, badRequest } from '../middleware/errorHandler';
-import { requireString, requireEnum } from '../utils/validate';
-import { s3 } from '../utils/s3';
+import { env } from '@/config/env';
+import { authenticate, requireAdmin, AuthRequest } from '@/middleware/auth';
+import { asyncHandler, badRequest } from '@/middleware/errorHandler';
+import { requireString, requireEnum } from '@/utils/validate';
+import { s3 } from '@/utils/s3';
 
 const router = Router();
 

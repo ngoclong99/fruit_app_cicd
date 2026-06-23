@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { errorHandler } from "./shared/middleware/errorHandler";
+import { responseEnvelope } from "./shared/middleware/responseEnvelope";
 
 // Refactored routes (feature-based — Controller/Service/Repository pattern)
 import authRouter from "./features/auth/auth.routes";
@@ -50,6 +51,9 @@ app.use(
 
 // ─── Body parser ─────────────────────────────────────────────────────
 app.use(express.json({ limit: "5mb" }));
+
+// ─── Unified response envelope ({ code, message, data } | { code, error, message }) ──
+app.use(responseEnvelope);
 
 // ─── Global rate limit (anti DDoS / abuse) ───────────────────────────
 app.use(

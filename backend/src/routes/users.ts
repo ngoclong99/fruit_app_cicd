@@ -1,8 +1,11 @@
 import { Router, Response } from 'express';
+import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
-import pool from '../db';
-import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
-import { asyncHandler, badRequest, conflict, forbidden, notFound } from '../middleware/errorHandler';
+import pool from '@/db';
+import { authenticate, requireAdmin, AuthRequest } from '@/middleware/auth';
+import { asyncHandler, badRequest, conflict, forbidden, notFound } from '@/middleware/errorHandler';
+import { isUniqueViolation } from '@/shared/db/pgErrors';
+import { mapUser, type UserRow } from '@/shared/db/userMapper';
 import {
   optionalEnum,
   optionalPhone,
@@ -10,41 +13,13 @@ import {
   requireEmail,
   requireEnum,
   requireString,
-} from '../utils/validate';
-import type { User } from '../types';
+} from '@/utils/validate';
+import type { User } from '@/types';
 
 const router = Router();
 
 const USER_ROLES = ['admin', 'user'] as const;
 const USER_STATUSES = ['active', 'blocked'] as const;
-
-interface UserRow {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'user';
-  avatar: string | null;
-  status: 'active' | 'blocked';
-  phone: string | null;
-  created_at: Date | string;
-  order_count: number | string;
-  total_spent: number | string;
-}
-
-function mapUser(row: UserRow): User {
-  return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    role: row.role,
-    avatar: row.avatar ?? undefined,
-    status: row.status,
-    phone: row.phone ?? undefined,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-    orderCount: Number(row.order_count),
-    totalSpent: Number(row.total_spent),
-  };
-}
 
 router.post('/', authenticate, requireAdmin, asyncHandler(async (req: AuthRequest, res: Response) => {
   const name = requireString(req.body?.name, 'name', 255);
@@ -58,29 +33,28 @@ router.post('/', authenticate, requireAdmin, asyncHandler(async (req: AuthReques
   const existing = await pool.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
   if (existing.rows.length > 0) throw conflict('Email already exists');
 
-  const id = `${Date.now()}`;
+  const id = randomUUID();
   const passwordHash = await bcrypt.hash(password, 10);
   const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(email)}`;
-  const result = await pool.query<UserRow>(
-    `INSERT INTO users (id, name, email, password_hash, role, avatar, status, phone)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [id, name, email, passwordHash, role, avatar, status, phone ?? null]
-  );
-  res.status(201).json(mapUser(result.rows[0]));
+  try {
+    const result = await pool.query<UserRow>(
+      `INSERT INTO users (id, name, email, password_hash, role, avatar, status, phone)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [id, name, email, passwordHash, role, avatar, status, phone ?? null]
+    );
+    res.status(201).json(mapUser(result.rows[0]));
+  } catch (err) {
+    // Race: email bị chiếm giữa check tồn tại và INSERT → UNIQUE constraint nổ.
+    if (isUniqueViolation(err)) throw conflict('Email already exists');
+    throw err;
+  }
 }));
 
 router.get('/', authenticate, requireAdmin, asyncHandler(async (_req: AuthRequest, res: Response) => {
-  const result = await pool.query<UserRow>(`
-    SELECT u.*,
-      COALESCE(o.order_count, 0) AS order_count,
-      COALESCE(o.total_spent, 0) AS total_spent
-    FROM users u
-    LEFT JOIN (
-      SELECT user_id, COUNT(*) AS order_count, SUM(total) AS total_spent
-      FROM orders GROUP BY user_id
-    ) o ON o.user_id = u.id
-    ORDER BY u.created_at DESC
-  `);
+  // Dung cot order_count/total_spent luu san tren bang users (duoc seed + tang
+  // moi khi tao don o POST /orders). Nhat quan voi GET /:id; tranh truoc day
+  // list tinh lai tu bang orders con detail doc cot -> 2 nguon so lieu lech nhau.
+  const result = await pool.query<UserRow>('SELECT * FROM users ORDER BY created_at DESC');
   res.json(result.rows.map(mapUser));
 }));
 
@@ -91,7 +65,9 @@ router.get('/:id', authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   res.json(mapUser(result.rows[0]));
 }));
 
-router.put('/:id', authenticate, asyncHandler(async (req: AuthRequest, res: Response) => {
+// Cap nhat 1 phan user. PATCH la method chuan REST cho partial update;
+// PUT giu lam alias backward-compat.
+const updateUserHandler = asyncHandler(async (req: AuthRequest, res: Response) => {
   if (req.user?.role !== 'admin' && req.user?.userId !== req.params.id) throw forbidden();
   const existing = await pool.query<{ id: string }>('SELECT id FROM users WHERE id = $1', [req.params.id]);
   if (existing.rows.length === 0) throw notFound('User not found');
@@ -116,7 +92,10 @@ router.put('/:id', authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
   const result = await pool.query<UserRow>('SELECT * FROM users WHERE id = $1', [req.params.id]);
   res.json(mapUser(result.rows[0]));
-}));
+});
+
+router.patch('/:id', authenticate, updateUserHandler);
+router.put('/:id', authenticate, updateUserHandler);
 
 router.delete('/:id', authenticate, requireAdmin, asyncHandler(async (req: AuthRequest, res: Response) => {
   const existing = await pool.query<{ id: string; role: string }>(

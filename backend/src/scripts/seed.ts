@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
-import pool from '../db';
+import pool from '@/db';
 
 async function seed() {
   console.log('Seeding database...');
