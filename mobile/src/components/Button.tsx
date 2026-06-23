@@ -5,7 +5,7 @@ import {
   ActivityIndicator,
   type ViewStyle,
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '@/theme/colors';
 
 interface Props {
   title: string;

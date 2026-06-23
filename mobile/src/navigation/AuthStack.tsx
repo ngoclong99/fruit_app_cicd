@@ -15,9 +15,9 @@
 // =============================================================================
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import LoginScreen from '../screens/LoginScreen';
-import RegisterScreen from '../screens/RegisterScreen';
-import { colors } from '../theme';
+import LoginScreen from '@/screens/LoginScreen';
+import RegisterScreen from '@/screens/RegisterScreen';
+import { colors } from '@/theme';
 
 export type AuthStackParamList = {
   Login: undefined;

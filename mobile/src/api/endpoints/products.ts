@@ -1,5 +1,5 @@
-import api from '../client';
-import type { Product } from '../../types';
+import api from '@/api/client';
+import type { Product } from '@/types';
 
 export interface ProductListResponse {
   data: Product[];

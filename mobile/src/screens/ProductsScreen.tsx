@@ -26,16 +26,16 @@ import {
   Modal,
 } from 'react-native';
 import { useRoute, type RouteProp } from '@react-navigation/native';
-import { productsApi } from '../api/endpoints/products';
-import { categoriesApi } from '../api/endpoints/categories';
-import ProductCard from '../components/ProductCard';
-import EmptyState from '../components/EmptyState';
-import Icon from '../components/Icon';
-import Button from '../components/Button';
-import { colors } from '../theme/colors';
-import { formatVnd } from '../utils/format';
-import type { Category, Product } from '../types';
-import type { TabParamList } from '../navigation/types';
+import { productsApi } from '@/api/endpoints/products';
+import { categoriesApi } from '@/api/endpoints/categories';
+import ProductCard from '@/components/ProductCard';
+import EmptyState from '@/components/EmptyState';
+import Icon from '@/components/Icon';
+import Button from '@/components/Button';
+import { colors } from '@/theme/colors';
+import { formatVnd } from '@/utils/format';
+import type { Category, Product } from '@/types';
+import type { TabParamList } from '@/navigation/types';
 
 const SORTS = [
   { value: 'default', label: 'Mặc định' },

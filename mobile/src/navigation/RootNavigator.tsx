@@ -28,14 +28,14 @@
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TabNavigator from './TabNavigator';
-import ProductDetailScreen from '../screens/ProductDetailScreen';
-import SearchScreen from '../screens/SearchScreen';
-import LoginScreen from '../screens/LoginScreen';
-import RegisterScreen from '../screens/RegisterScreen';
-import CheckoutScreen from '../screens/CheckoutScreen';
-import OrdersScreen from '../screens/OrdersScreen';
+import ProductDetailScreen from '@/screens/ProductDetailScreen';
+import SearchScreen from '@/screens/SearchScreen';
+import LoginScreen from '@/screens/LoginScreen';
+import RegisterScreen from '@/screens/RegisterScreen';
+import CheckoutScreen from '@/screens/CheckoutScreen';
+import OrdersScreen from '@/screens/OrdersScreen';
 import type { RootStackParamList } from './types';
-import { colors } from '../theme/colors';
+import { colors } from '@/theme/colors';
 
 // createNativeStackNavigator<TypeMap>(): truyền type map để TS biết các route
 // và param tương ứng (xem ./types.ts). Tương tự như typed router trên web.

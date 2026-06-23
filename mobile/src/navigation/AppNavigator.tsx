@@ -24,10 +24,10 @@
 // =============================================================================
 
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useAuth } from '../store/AuthContext';
+import { useAuth } from '@/store/AuthContext';
 import { AuthStack } from './AuthStack';
 import { MainStack } from './MainStack';
-import { colors } from '../theme';
+import { colors } from '@/theme';
 
 export function AppNavigator() {
   const { user, loading } = useAuth();

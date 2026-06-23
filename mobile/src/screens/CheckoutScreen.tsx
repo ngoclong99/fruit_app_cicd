@@ -24,13 +24,13 @@ import {
 } from 'react-native';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCart } from '../store/CartContext';
-import { useAuth } from '../store/AuthContext';
-import { ordersApi } from '../api/endpoints/orders';
-import { formatVnd } from '../utils/format';
-import { colors } from '../theme/colors';
-import Button from '../components/Button';
-import type { RootStackParamList } from '../navigation/types';
+import { useCart } from '@/store/CartContext';
+import { useAuth } from '@/store/AuthContext';
+import { ordersApi } from '@/api/endpoints/orders';
+import { formatVnd } from '@/utils/format';
+import { colors } from '@/theme/colors';
+import Button from '@/components/Button';
+import type { RootStackParamList } from '@/navigation/types';
 
 const FREE_SHIP_THRESHOLD = 300000;
 const SHIPPING_FEE = 30000;

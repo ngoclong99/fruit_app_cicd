@@ -7,9 +7,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { authApi } from '../api/endpoints/auth';
-import { tokenStorage } from '../shared/storage/tokenStorage';
-import type { User } from '../types';
+import { authApi, isMfaChallenge } from '@/api/endpoints/auth';
+import { tokenStorage } from '@/shared/storage/tokenStorage';
+import type { User } from '@/types';
 
 interface AuthContextValue {
   user: User | null;
@@ -57,18 +57,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const persist = useCallback(async (u: User | null, t: string | null) => {
-    if (t) await tokenStorage.setToken(t);
-    if (u) await tokenStorage.setUser(u);
-    if (!u && !t) await tokenStorage.clear();
+  const persist = useCallback(async (u: User, t: string, rt: string) => {
+    await tokenStorage.setToken(t);
+    await tokenStorage.setRefreshToken(rt);
+    await tokenStorage.setUser(u);
   }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
       const res = await authApi.login(email, password);
+      // App mobile chưa có UI nhập mã MFA → báo dùng web nếu tài khoản bật MFA.
+      if (isMfaChallenge(res)) {
+        throw new Error('Tài khoản bật xác thực 2 lớp (MFA) — vui lòng đăng nhập trên web.');
+      }
       setUser(res.user);
       setToken(res.token);
-      await persist(res.user, res.token);
+      await persist(res.user, res.token, res.refreshToken);
     },
     [persist],
   );
@@ -83,12 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await authApi.register(data);
       setUser(res.user);
       setToken(res.token);
-      await persist(res.user, res.token);
+      await persist(res.user, res.token, res.refreshToken);
     },
     [persist],
   );
 
   const logout = useCallback(async () => {
+    // Thu hồi refresh token ở server (best-effort) rồi xoá local.
+    const rt = await tokenStorage.getRefreshToken();
+    if (rt) {
+      try { await authApi.logout(rt); } catch { /* best-effort */ }
+    }
     setUser(null);
     setToken(null);
     await tokenStorage.clear();

@@ -12,13 +12,13 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAuth } from '../store/AuthContext';
-import { useCart } from '../store/CartContext';
-import { usersApi } from '../api/endpoints/users';
-import { colors } from '../theme/colors';
-import Icon from '../components/Icon';
-import Button from '../components/Button';
-import type { RootStackParamList } from '../navigation/types';
+import { useAuth } from '@/store/AuthContext';
+import { useCart } from '@/store/CartContext';
+import { usersApi } from '@/api/endpoints/users';
+import { colors } from '@/theme/colors';
+import Icon from '@/components/Icon';
+import Button from '@/components/Button';
+import type { RootStackParamList } from '@/navigation/types';
 
 export default function ProfileScreen() {
   const navigation =

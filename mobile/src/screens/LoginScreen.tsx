@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAuth } from '../store/AuthContext';
-import { colors } from '../theme/colors';
-import Button from '../components/Button';
-import type { RootStackParamList } from '../navigation/types';
+import { useAuth } from '@/store/AuthContext';
+import { colors } from '@/theme/colors';
+import Button from '@/components/Button';
+import type { RootStackParamList } from '@/navigation/types';
 
 export default function LoginScreen() {
   const navigation =

@@ -14,15 +14,15 @@ import {
   type RouteProp,
 } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { productsApi } from '../api/endpoints/products';
-import { colors } from '../theme/colors';
-import { formatVnd } from '../utils/format';
-import { useCart } from '../store/CartContext';
-import Icon from '../components/Icon';
-import Button from '../components/Button';
-import ProductCard from '../components/ProductCard';
-import type { Product } from '../types';
-import type { RootStackParamList } from '../navigation/types';
+import { productsApi } from '@/api/endpoints/products';
+import { colors } from '@/theme/colors';
+import { formatVnd } from '@/utils/format';
+import { useCart } from '@/store/CartContext';
+import Icon from '@/components/Icon';
+import Button from '@/components/Button';
+import ProductCard from '@/components/ProductCard';
+import type { Product } from '@/types';
+import type { RootStackParamList } from '@/navigation/types';
 
 const TRUST_BADGES = [
   { icon: '🚚', label: 'Giao trong ngày' },

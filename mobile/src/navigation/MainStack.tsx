@@ -9,11 +9,11 @@
 
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TabNavigator from './TabNavigator';
-import ProductDetailScreen from '../screens/ProductDetailScreen';
-import SearchScreen from '../screens/SearchScreen';
-import CheckoutScreen from '../screens/CheckoutScreen';
-import OrdersScreen from '../screens/OrdersScreen';
-import { colors } from '../theme';
+import ProductDetailScreen from '@/screens/ProductDetailScreen';
+import SearchScreen from '@/screens/SearchScreen';
+import CheckoutScreen from '@/screens/CheckoutScreen';
+import OrdersScreen from '@/screens/OrdersScreen';
+import { colors } from '@/theme';
 
 export type MainStackParamList = {
   Tabs: undefined;

@@ -24,11 +24,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { Product } from '../types';
-import type { RootStackParamList } from '../navigation/types';
-import { colors } from '../theme/colors';
-import { formatVnd } from '../utils/format';
-import { useCart } from '../store/CartContext';
+import type { Product } from '@/types';
+import type { RootStackParamList } from '@/navigation/types';
+import { colors } from '@/theme/colors';
+import { formatVnd } from '@/utils/format';
+import { useCart } from '@/store/CartContext';
 import Icon from './Icon';
 
 interface Props {
