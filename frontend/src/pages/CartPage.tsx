@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { useDialog } from "../context/DialogContext";
-import { useAuth } from "../hooks/useAuth";
-import { useCart } from "../hooks/useCart";
+import { useDialog } from "@/context/DialogContext";
+import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 
 export default function CartPage() {
   const { t } = useTranslation();

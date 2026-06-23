@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useCart } from '../hooks/useCart';
-import { useAuth } from '../hooks/useAuth';
-import { ordersApi } from '../api/endpoints/orders';
+import { useCart } from '@/hooks/useCart';
+import { useAuth } from '@/hooks/useAuth';
+import { ordersApi } from '@/api/endpoints/orders';
 
 export default function Checkout() {
   const { t } = useTranslation();
@@ -40,8 +40,8 @@ export default function Checkout() {
       });
       clearCart();
       setSuccess(true);
-    } catch (err) {
-      setError((err as Error).message);
+    } catch {
+      // Lỗi API đã được alert toàn cục bởi axios interceptor
     } finally {
       setLoading(false);
     }

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { categoriesApi } from "../api/endpoints/categories";
-import { productsApi } from "../api/endpoints/products";
-import ProductCard from "../components/user/ui/Card/ProductCard";
-import { useDebounce } from "../hooks/useDebounce";
-import type { Category, Product } from "../types";
+import { categoriesApi } from "@/api/endpoints/categories";
+import { productsApi } from "@/api/endpoints/products";
+import ProductCard from "@/components/user/ui/Card/ProductCard";
+import { useDebounce } from "@/hooks/useDebounce";
+import type { Category, Product } from "@/types";
 
 const VALID_SORTS = ["default", "price-asc", "price-desc", "rating", "newest"];
 

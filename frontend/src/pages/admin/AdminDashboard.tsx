@@ -1,10 +1,10 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { statsApi, type StatsResponse, type TopProductItem } from '../../api/endpoints/stats';
-import { ordersApi } from '../../api/endpoints/orders';
-import type { Order } from '../../types';
-import SalesChart from '../../components/admin/ui/SalesChart';
+import { statsApi, type StatsResponse, type TopProductItem } from '@/api/endpoints/stats';
+import { ordersApi } from '@/api/endpoints/orders';
+import type { Order } from '@/types';
+import SalesChart from '@/components/admin/ui/SalesChart';
 
 const STATUS_COLOR: Record<string, string> = {
   delivered: 'bg-green-100 text-green-700',

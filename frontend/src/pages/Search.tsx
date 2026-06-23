@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import ProductCard from '../components/user/ui/Card/ProductCard';
-import { useDebounce } from '../hooks/useDebounce';
-import { productsApi } from '../api/endpoints/products';
-import type { Product } from '../types';
+import ProductCard from '@/components/user/ui/Card/ProductCard';
+import { useDebounce } from '@/hooks/useDebounce';
+import { productsApi } from '@/api/endpoints/products';
+import type { Product } from '@/types';
 
 export default function Search() {
   const { t } = useTranslation();

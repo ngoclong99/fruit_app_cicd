@@ -1,5 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import type { AppDispatch } from './store';
+import { fetchMeAsync } from './store/slices/authSlice';
 import Layout from './components/user/layout/Layout';
 import ProtectedRoute from './components/user/ui/ProtectedRoute';
 
@@ -18,6 +21,7 @@ const Orders = lazy(() => import('./pages/Orders'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Search = lazy(() => import('./pages/Search'));
 const Drinks = lazy(() => import('./pages/Drinks'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminProducts = lazy(() => import('./pages/admin/AdminProducts'));
 const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
@@ -32,6 +36,15 @@ function PageLoader() {
 }
 
 export default function App() {
+  const dispatch = useDispatch<AppDispatch>();
+
+  // Mở app mà đã có token → đồng bộ lại user từ server (role/status/block).
+  useEffect(() => {
+    if (localStorage.getItem('token')) {
+      void dispatch(fetchMeAsync());
+    }
+  }, [dispatch]);
+
   return (
     <BrowserRouter>
       <ScrollToTop />
@@ -44,6 +57,7 @@ export default function App() {
             <Route path="/cart" element={<CartPage />} />
             <Route path="/search" element={<Search />} />
             <Route path="/drinks" element={<Drinks />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route
               path="/checkout"
               element={

@@ -1,11 +1,11 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import ProductCard from "../components/user/ui/Card/ProductCard";
-import { productsApi } from "../api/endpoints/products";
-import { categoriesApi } from "../api/endpoints/categories";
-import type { Product, Category } from "../types";
-import { getProductName } from "../utils/product";
+import ProductCard from "@/components/user/ui/Card/ProductCard";
+import { productsApi } from "@/api/endpoints/products";
+import { categoriesApi } from "@/api/endpoints/categories";
+import type { Product, Category } from "@/types";
+import { getProductName } from "@/utils/product";
 
 export default function Home() {
   const { t, i18n } = useTranslation();

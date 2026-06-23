@@ -2,12 +2,12 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import * as XLSX from 'xlsx';
-import type { Product, Category } from '../../types';
-import { productsApi } from '../../api/endpoints/products';
-import { categoriesApi } from '../../api/endpoints/categories';
-import { uploadImage } from '../../api/endpoints/uploads';
-import { useDebounce } from '../../hooks/useDebounce';
-import { useDialog } from '../../context/DialogContext';
+import type { Product, Category } from '@/types';
+import { productsApi } from '@/api/endpoints/products';
+import { categoriesApi } from '@/api/endpoints/categories';
+import { uploadImage } from '@/api/endpoints/uploads';
+import { useDebounce } from '@/hooks/useDebounce';
+import { useDialog } from '@/context/DialogContext';
 
 type FormState = {
   nameVi: string; nameEn: string; nameKey: string;
@@ -120,8 +120,7 @@ export default function AdminProducts() {
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     const imageVal = form.image;
-    const onError = (err: unknown) =>
-      alert({ title: t('admin.saveFailed'), body: (err as Error).message, type: 'danger' });
+    // Lỗi API được alert toàn cục bởi axios interceptor — chỉ cần xử lý success.
     if (editProduct) {
       const data: Partial<Product> = {
         nameVi: form.nameVi, nameEn: form.nameEn, nameKey: form.nameKey,
@@ -136,7 +135,7 @@ export default function AdminProducts() {
           setEditProduct(null);
           setForm(EMPTY_FORM);
         })
-        .catch(onError);
+        .catch(() => {});
     } else {
       const data: Omit<Product, 'id'> = {
         name: form.nameVi, nameVi: form.nameVi, nameEn: form.nameEn, nameKey: form.nameKey,
@@ -152,9 +151,9 @@ export default function AdminProducts() {
           setEditProduct(null);
           setForm(EMPTY_FORM);
         })
-        .catch(onError);
+        .catch(() => {});
     }
-  }, [editProduct, form, alert, t]);
+  }, [editProduct, form]);
 
   const handleEdit = useCallback((p: Product) => {
     setEditProduct(p);
@@ -170,8 +169,8 @@ export default function AdminProducts() {
         setProducts((prev) => prev.filter((p) => p.id !== id));
         setSelected((prev) => { const s = new Set(prev); s.delete(id); return s; });
       })
-      .catch((err) => alert({ title: t('admin.deleteFailed'), body: (err as Error).message, type: 'danger' }));
-  }, [t, confirm, alert]);
+      .catch(() => {});
+  }, [t, confirm]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -198,8 +197,8 @@ export default function AdminProducts() {
         setProducts((prev) => prev.filter((p) => !selected.has(p.id)));
         setSelected(new Set());
       })
-      .catch((err) => alert({ title: t('admin.deleteFailed'), body: (err as Error).message, type: 'danger' }));
-  }, [selected, t, confirm, alert]);
+      .catch(() => {});
+  }, [selected, t, confirm]);
 
   const f = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [k]: e.target.value }));
@@ -229,11 +228,11 @@ export default function AdminProducts() {
           setImportResult({ added: res.created, skipped });
           setTimeout(() => setImportResult(null), 4000);
         })
-        .catch((err) => alert({ title: t('admin.importFailed'), body: (err as Error).message, type: 'danger' }));
+        .catch(() => {});
     };
     reader.readAsArrayBuffer(file);
     e.target.value = '';
-  }, [products, alert, t]);
+  }, [products]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

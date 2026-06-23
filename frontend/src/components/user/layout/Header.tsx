@@ -1,9 +1,9 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../../../hooks/useAuth";
-import { useCart } from "../../../hooks/useCart";
-import AuthModal from "../ui/Modal/AuthModal";
+import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
+import AuthModal from "@/components/user/ui/Modal/AuthModal";
 
 export default function Header() {
   const { t, i18n } = useTranslation();

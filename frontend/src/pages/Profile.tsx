@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../hooks/useAuth';
-import { usersApi } from '../api/endpoints/users';
+import { useAuth } from '@/hooks/useAuth';
+import { usersApi } from '@/api/endpoints/users';
+import { authApi } from '@/api/endpoints/auth';
+import { ChangePasswordForm } from '@/features/auth/components/ChangePasswordForm';
+import { MfaSettings } from '@/features/auth/components/MfaSettings';
 
 export default function Profile() {
   const { t } = useTranslation();
@@ -10,20 +13,29 @@ export default function Profile() {
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
+
+  const handleResendVerification = async () => {
+    setResendState('sending');
+    try {
+      await authApi.resendVerification();
+      setResendState('sent');
+    } catch {
+      setResendState('idle');
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setSaving(true);
-    setError('');
     try {
       const updated = await usersApi.update(user.id, { name, phone });
       updateUser(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      setError((err as Error).message);
+    } catch {
+      // Lỗi API đã được alert toàn cục bởi axios interceptor
     } finally {
       setSaving(false);
     }
@@ -32,6 +44,21 @@ export default function Profile() {
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">{t('profile.title')}</h1>
+
+      {user && !user.emailVerified && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 flex items-center gap-3 flex-wrap">
+          <span className="text-xl">✉️</span>
+          <p className="text-sm text-amber-800 flex-1">{t('emailVerify.banner')}</p>
+          <button
+            type="button"
+            onClick={handleResendVerification}
+            disabled={resendState !== 'idle'}
+            className="text-sm font-semibold text-amber-700 hover:text-amber-900 disabled:opacity-60"
+          >
+            {resendState === 'sending' ? t('emailVerify.sending') : resendState === 'sent' ? t('emailVerify.sent') : t('emailVerify.resend')}
+          </button>
+        </div>
+      )}
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <div className="flex items-center gap-4 mb-6 pb-6 border-b">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-2xl font-bold text-green-700">
@@ -78,11 +105,6 @@ export default function Profile() {
               className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-xs px-3 py-2 rounded-lg">
-              {error}
-            </div>
-          )}
           <button
             type="submit"
             disabled={saving}
@@ -93,6 +115,16 @@ export default function Profile() {
             {saved ? t('profile.saved') : t('profile.save')}
           </button>
         </form>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm p-6 mt-6">
+        <h2 className="font-bold text-gray-800 mb-4">{t('auth.changePassword')}</h2>
+        <ChangePasswordForm />
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm p-6 mt-6">
+        <h2 className="font-bold text-gray-800 mb-4">{t('auth.mfaSection')}</h2>
+        <MfaSettings />
       </div>
     </div>
   );

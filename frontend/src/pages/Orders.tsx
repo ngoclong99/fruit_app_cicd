@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ordersApi } from '../api/endpoints/orders';
-import type { Order } from '../types';
+import { ordersApi } from '@/api/endpoints/orders';
+import type { Order } from '@/types';
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',

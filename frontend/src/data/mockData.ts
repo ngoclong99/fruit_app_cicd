@@ -1,4 +1,4 @@
-import type { User, Product, Category, Order } from '../types';
+import type { User, Product, Category, Order } from '@/types';
 
 export const MOCK_USERS: User[] = [
   { id: '1', name: 'Admin', email: 'admin@fruitshop.vn', role: 'admin', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin', status: 'active', phone: '0901000001', createdAt: '2024-01-01T00:00:00Z', orderCount: 0, totalSpent: 0 },

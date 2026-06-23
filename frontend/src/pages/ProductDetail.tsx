@@ -1,13 +1,13 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useCart } from '../hooks/useCart';
-import { useAuth } from '../hooks/useAuth';
-import AuthModal from '../components/user/ui/Modal/AuthModal';
-import ProductCard from '../components/user/ui/Card/ProductCard';
-import { productsApi } from '../api/endpoints/products';
-import type { Product } from '../types';
-import { getProductName } from '../utils/product';
+import { useCart } from '@/hooks/useCart';
+import { useAuth } from '@/hooks/useAuth';
+import AuthModal from '@/components/user/ui/Modal/AuthModal';
+import ProductCard from '@/components/user/ui/Card/ProductCard';
+import { productsApi } from '@/api/endpoints/products';
+import type { Product } from '@/types';
+import { getProductName } from '@/utils/product';
 
 export default function ProductDetail() {
   const { t, i18n } = useTranslation();

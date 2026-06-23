@@ -1,13 +1,13 @@
 import { useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import type { RootState, AppDispatch } from '../store';
-import type { Product } from '../types';
+import type { RootState, AppDispatch } from '@/store';
+import type { Product } from '@/types';
 import {
   addToCart as addAction,
   removeFromCart as removeAction,
   updateQty as updateAction,
   clearCart as clearAction,
-} from '../store/slices/cartSlice';
+} from '@/store/slices/cartSlice';
 
 export const useCart = () => {
   const dispatch = useDispatch<AppDispatch>();

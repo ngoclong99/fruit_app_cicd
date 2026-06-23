@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../../hooks/useAuth';
-import { useCart } from '../../../hooks/useCart';
+import { useAuth } from '@/hooks/useAuth';
+import { useCart } from '@/hooks/useCart';
 
 export default function BottomNav() {
   const { t } = useTranslation();

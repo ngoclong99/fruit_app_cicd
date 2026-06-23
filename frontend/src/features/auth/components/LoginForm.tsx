@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslation } from "react-i18next";
-import { Button } from "../../../shared/components/ui/Button";
-import { Input } from "../../../shared/components/ui/Input";
-import { loginSchema, type LoginInput } from "../../../shared/schemas/auth.schema";
+import { Button } from "@/shared/components/ui/Button";
+import { Input } from "@/shared/components/ui/Input";
+import { loginSchema, type LoginInput } from "@/shared/schemas/auth.schema";
 
 /**
  * Reusable LoginForm using react-hook-form + zod + i18n.
