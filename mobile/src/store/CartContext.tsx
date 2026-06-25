@@ -25,7 +25,7 @@ import {
   type ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { CartItem, Product } from '../types';
+import type { CartItem, Product } from '@/types';
 
 interface CartContextValue {
   items: CartItem[];

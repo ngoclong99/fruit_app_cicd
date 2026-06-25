@@ -1,5 +1,5 @@
-import { apiService } from '../../services/api/apiService';
-import type { Order, CartItem } from '../../types';
+import { apiService } from '@/services/api/apiService';
+import type { Order, CartItem } from '@/types';
 
 export interface OrderListResponse {
   data: Order[];

@@ -1,5 +1,5 @@
-import { apiService } from '../../services/api/apiService';
-import type { Product } from '../../types';
+import { apiService } from '@/services/api/apiService';
+import type { Product } from '@/types';
 
 export interface ProductListResponse {
   data: Product[];
@@ -28,7 +28,7 @@ export const productsApi = {
     apiService.get<ProductListResponse>('/api/products', params as Record<string, unknown>),
   get: (id: string) => apiService.get<Product>(`/api/products/${id}`),
   create: (data: Omit<Product, 'id'>) => apiService.post<Product>('/api/products', data),
-  update: (id: string, data: Partial<Product>) => apiService.put<Product>(`/api/products/${id}`, data),
+  update: (id: string, data: Partial<Product>) => apiService.patch<Product>(`/api/products/${id}`, data),
   remove: (id: string) => apiService.delete<void>(`/api/products/${id}`),
   bulkCreate: (items: Omit<Product, 'id'>[]) =>
     apiService.post<BulkCreateResponse>('/api/products/bulk', { items }),

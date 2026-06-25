@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import { env } from "./config/env";
 import { logger } from "./config/logger";
 import { errorHandler } from "./shared/middleware/errorHandler";
+import { responseEnvelope } from "./shared/middleware/responseEnvelope";
 
 // Refactored routes (feature-based — Controller/Service/Repository pattern)
 import authRouter from "./features/auth/auth.routes";
@@ -18,6 +19,7 @@ import ordersRouter from "./routes/orders";
 import usersRouter from "./routes/users";
 import statsRouter from "./routes/stats";
 import uploadRouter from "./routes/upload";
+import videosRouter from "./routes/videos";
 
 const app = express();
 
@@ -51,6 +53,9 @@ app.use(
 // ─── Body parser ─────────────────────────────────────────────────────
 app.use(express.json({ limit: "5mb" }));
 
+// ─── Unified response envelope ({ code, message, data } | { code, error, message }) ──
+app.use(responseEnvelope);
+
 // ─── Global rate limit (anti DDoS / abuse) ───────────────────────────
 app.use(
   rateLimit({
@@ -73,6 +78,7 @@ app.use("/api/orders", ordersRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/upload", uploadRouter);
+app.use("/api/videos", videosRouter);
 
 // ─── Invalid JSON body → 400 ─────────────────────────────────────────
 app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {

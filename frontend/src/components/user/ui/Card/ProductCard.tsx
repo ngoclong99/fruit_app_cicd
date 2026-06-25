@@ -1,11 +1,11 @@
 import { useState, useCallback, memo } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import type { Product } from "../../../../types";
-import { getProductName } from "../../../../utils/product";
-import { useCart } from "../../../../hooks/useCart";
-import { useAuth } from "../../../../hooks/useAuth";
-import AuthModal from "../Modal/AuthModal";
+import type { Product } from "@/types";
+import { getProductName } from "@/utils/product";
+import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
+import AuthModal from "@/components/user/ui/Modal/AuthModal";
 
 interface Props {
   product: Product;

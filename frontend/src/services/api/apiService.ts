@@ -1,4 +1,4 @@
-import api from '../../api/axios';
+import api from '@/api/axios';
 
 export const apiService = {
   get: <T>(url: string, params?: Record<string, unknown>) =>

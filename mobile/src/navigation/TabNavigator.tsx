@@ -12,15 +12,15 @@
 
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
-import HomeScreen from '../screens/HomeScreen';
-import ProductsScreen from '../screens/ProductsScreen';
-import DrinksScreen from '../screens/DrinksScreen';
-import CartScreen from '../screens/CartScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import HomeScreen from '@/screens/HomeScreen';
+import ProductsScreen from '@/screens/ProductsScreen';
+import DrinksScreen from '@/screens/DrinksScreen';
+import CartScreen from '@/screens/CartScreen';
+import ProfileScreen from '@/screens/ProfileScreen';
 import type { TabParamList } from './types';
-import { colors } from '../theme/colors';
-import { useCart } from '../store/CartContext';
-import Icon from '../components/Icon';
+import { colors } from '@/theme/colors';
+import { useCart } from '@/store/CartContext';
+import Icon from '@/components/Icon';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 

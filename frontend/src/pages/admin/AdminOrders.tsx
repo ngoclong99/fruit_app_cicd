@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ordersApi } from '../../api/endpoints/orders';
-import type { Order } from '../../types';
+import { ordersApi } from '@/api/endpoints/orders';
+import type { Order } from '@/types';
 
 const STATUS_OPTIONS = ['pending', 'confirmed', 'shipping', 'delivered', 'cancelled'] as const;
 type StatusFilter = 'all' | Order['status'];

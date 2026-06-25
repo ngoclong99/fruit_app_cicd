@@ -9,13 +9,13 @@ import {
   TouchableOpacity,
   TextInput,
 } from 'react-native';
-import { productsApi } from '../api/endpoints/products';
-import { categoriesApi } from '../api/endpoints/categories';
-import ProductCard from '../components/ProductCard';
-import EmptyState from '../components/EmptyState';
-import Icon from '../components/Icon';
-import { colors } from '../theme/colors';
-import type { Category, Product } from '../types';
+import { productsApi } from '@/api/endpoints/products';
+import { categoriesApi } from '@/api/endpoints/categories';
+import ProductCard from '@/components/ProductCard';
+import EmptyState from '@/components/EmptyState';
+import Icon from '@/components/Icon';
+import { colors } from '@/theme/colors';
+import type { Category, Product } from '@/types';
 
 const SORTS = [
   { value: 'default', label: 'Mặc định' },

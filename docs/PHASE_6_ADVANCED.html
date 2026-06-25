@@ -220,6 +220,249 @@ api.vhnlong.store      ─► ALB (alias) ─► EC2 / ECS backend</div>
     aws cloudfront create-invalidation \
       --distribution-id $CF_DIST_ID \
       --paths <span class="str">"/index.html"</span> <span class="str">"/"</span></code></pre>
+
+<div class="info">
+  <strong>📌 Bài học cần biết trước khi migrate</strong>
+  <ul>
+    <li><strong>ACM cert phải ở us-east-1</strong> cho CloudFront (KHÁC ALB dùng cert cùng region) — bug rất hay gặp</li>
+    <li><strong>CloudFront deploy chậm</strong> 5-15 phút cho mỗi change (config propagate đến 400+ edge locations toàn cầu)</li>
+    <li><strong>SPA routing cần custom error pages</strong> 403/404 → 200 + /index.html — nếu thiếu, refresh trang URL không phải root sẽ 404</li>
+    <li><strong>Invalidation tốn tiền</strong> sau 1000 path đầu tiên: $0.005/path. Use cache-control header thay vì invalidate liên tục</li>
+    <li><strong>Cutover phải có rollback plan</strong>: dual-domain trong 24h trước khi tắt nginx EC2</li>
+  </ul>
+</div>
+
+<h3>A0 — Discover hiện trạng (read-only)</h3>
+<pre><code><span class="cmt"># 1. Check S3 bucket name avail</span>
+aws s3api head-bucket --bucket vhnlong-frontend 2&gt;&amp;1
+<span class="cmt"># Neu "NoSuchBucket" / 404 -&gt; OK</span>
+
+<span class="cmt"># 2. Check ACM cert hien tai trong us-east-1 (cho CloudFront)</span>
+aws acm list-certificates --region us-east-1 <span class="cmt">`</span>
+  --query <span class="str">"CertificateSummaryList[?DomainName=='vhnlong.store']"</span> --output table
+<span class="cmt"># Neu chua co -&gt; phai request o A2</span>
+
+<span class="cmt"># 3. Check Route 53 hosted zone</span>
+aws route53 list-hosted-zones-by-name --dns-name vhnlong.store <span class="cmt">`</span>
+  --query <span class="str">"HostedZones[0].{Id:Id,RecordCount:ResourceRecordSetCount}"</span></code></pre>
+
+<h3><span class="step-num">A1</span> Tạo S3 bucket cho frontend</h3>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
+
+<h4>UI</h4>
+<ol>
+  <li>Console → <span class="ui-path">S3 → Create bucket</span></li>
+  <li>Name: <code>vhnlong-frontend</code>, Region: <code>ap-southeast-1</code></li>
+  <li>Block all public access: <strong>tick all 4</strong> (CloudFront sẽ truy cập qua OAC, không cần public)</li>
+  <li>Versioning: tùy chọn (giúp rollback nhanh nếu deploy sai)</li>
+  <li>Default encryption: SSE-S3</li>
+  <li>Create bucket</li>
+</ol>
+
+<h4>CLI</h4>
+<pre><code>aws s3api create-bucket --region ap-southeast-1 <span class="cmt">`</span>
+  --bucket vhnlong-frontend <span class="cmt">`</span>
+  --create-bucket-configuration LocationConstraint=ap-southeast-1
+
+aws s3api put-public-access-block --bucket vhnlong-frontend <span class="cmt">`</span>
+  --public-access-block-configuration <span class="str">"BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</span></code></pre>
+
+<h3><span class="step-num">A2</span> Request ACM cert ở <strong>us-east-1</strong></h3>
+
+<div class="danger">
+  <strong>🚨 Region us-east-1 BẮT BUỘC</strong>
+  CloudFront chỉ accept ACM cert từ us-east-1 (N. Virginia). Cert tạo ở ap-southeast-1 KHÔNG được. Đây là constraint của AWS, không phải project quirk.
+</div>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
+
+<h4>UI</h4>
+<ol>
+  <li><strong>Đổi region sang N. Virginia (us-east-1)</strong> ở góc trên-phải Console</li>
+  <li>ACM → Request certificate → Public certificate</li>
+  <li>Domain names:
+    <ul>
+      <li><code>vhnlong.store</code></li>
+      <li><code>www.vhnlong.store</code></li>
+    </ul>
+  </li>
+  <li>Validation: <strong>DNS validation</strong></li>
+  <li>Request</li>
+  <li>Click cert → <strong>Create records in Route 53</strong> (Route 53 + cert cùng account → AWS tự thêm CNAME)</li>
+  <li>Đợi 2-5 phút status chuyển <code>Issued</code></li>
+</ol>
+
+<h4>CLI</h4>
+<pre><code>$certArn = aws acm request-certificate --region us-east-1 <span class="cmt">`</span>
+  --domain-name vhnlong.store <span class="cmt">`</span>
+  --subject-alternative-names www.vhnlong.store <span class="cmt">`</span>
+  --validation-method DNS <span class="cmt">`</span>
+  --query <span class="str">"CertificateArn"</span> --output text
+
+<span class="cmt"># Add CNAME validation records vao Route 53 (giong PHASE_3_HA A2)</span>
+<span class="cmt"># Then doi cert ISSUED</span>
+aws acm wait certificate-validated --region us-east-1 --certificate-arn $certArn</code></pre>
+
+<h3><span class="step-num">A3</span> Tạo CloudFront distribution với OAC + SPA error pages</h3>
+
+<div class="tabs"><span class="tab-label">AWS Console UI</span><span class="tab-label cli">AWS CLI</span></div>
+
+<h4>UI walkthrough</h4>
+<ol>
+  <li>Console → <span class="ui-path">CloudFront → Create distribution</span></li>
+  <li>Origin domain: <code>vhnlong-frontend.s3.ap-southeast-1.amazonaws.com</code> (chọn từ dropdown)</li>
+  <li>Origin access: <strong>Origin access control settings (recommended)</strong>
+    <ul>
+      <li>Create new OAC</li>
+      <li>Name: <code>vhnlong-frontend-oac</code></li>
+      <li>Signing behavior: Sign requests</li>
+    </ul>
+  </li>
+  <li>Default cache behavior:
+    <ul>
+      <li>Viewer protocol policy: <strong>Redirect HTTP to HTTPS</strong></li>
+      <li>Allowed methods: GET, HEAD</li>
+      <li>Cache policy: <strong>CachingOptimized</strong></li>
+      <li>Compress objects automatically: Yes</li>
+    </ul>
+  </li>
+  <li>Custom SSL certificate: chọn cert đã tạo A2 (us-east-1)</li>
+  <li>Alternate domain names (CNAMEs): <code>vhnlong.store</code> + <code>www.vhnlong.store</code></li>
+  <li>Default root object: <code>index.html</code></li>
+  <li>Create distribution</li>
+  <li>Sau khi tạo xong → tab <strong>Error pages</strong> → Create custom error response:
+    <ul>
+      <li>HTTP error code: 403 → Response page path: <code>/index.html</code> → HTTP response code: 200</li>
+      <li>Lặp lại cho 404</li>
+    </ul>
+  </li>
+  <li>Update S3 bucket policy theo prompt CloudFront (Copy policy → paste vào S3 bucket policy)</li>
+</ol>
+
+<h4>CLI</h4>
+<p>CloudFront CLI config JSON dài ~100 dòng. Tham khảo <a href="S3_FRONTEND.md">S3_FRONTEND.md</a> cho ví dụ đầy đủ. Tóm tắt:</p>
+<pre><code><span class="cmt"># 1. Tao OAC</span>
+$oacId = aws cloudfront create-origin-access-control --origin-access-control-config <span class="str">'{
+  "Name": "vhnlong-frontend-oac",
+  "Description": "OAC for vhnlong-frontend",
+  "SigningProtocol": "sigv4",
+  "SigningBehavior": "always",
+  "OriginAccessControlOriginType": "s3"
+}'</span> --query <span class="str">"OriginAccessControl.Id"</span> --output text
+
+<span class="cmt"># 2. Tao distribution voi config.json (dai -- xem doc S3_FRONTEND.md)</span>
+aws cloudfront create-distribution --distribution-config file://cf-config.json
+
+<span class="cmt"># 3. Update bucket policy cho phep CloudFront OAC</span></code></pre>
+
+<h3><span class="step-num">A4</span> Build + upload frontend lên S3</h3>
+
+<pre><code><span class="cmt"># 1. Build voi VITE_API_URL tro vao api.vhnlong.store</span>
+cd frontend
+VITE_API_URL=https://api.vhnlong.store npm run build
+<span class="cmt"># Output: thu muc dist/ chua index.html + assets/</span>
+
+<span class="cmt"># 2. Sync len S3 voi cache-control khac nhau:</span>
+<span class="cmt">#    - asset (hash filename) -&gt; cache 1 nam</span>
+<span class="cmt">#    - index.html -&gt; no-cache</span>
+aws s3 sync dist/ s3://vhnlong-frontend/ <span class="cmt">`</span>
+  --delete <span class="cmt">`</span>
+  --cache-control <span class="str">"public, max-age=31536000, immutable"</span> <span class="cmt">`</span>
+  --exclude <span class="str">"index.html"</span>
+
+aws s3 cp dist/index.html s3://vhnlong-frontend/index.html <span class="cmt">`</span>
+  --cache-control <span class="str">"no-cache, no-store, must-revalidate"</span>
+
+<span class="cmt"># 3. Invalidate CloudFront cache cho index.html (paths khac da nho hash filename moi)</span>
+aws cloudfront create-invalidation <span class="cmt">`</span>
+  --distribution-id $distId <span class="cmt">`</span>
+  --paths <span class="str">"/index.html"</span> <span class="str">"/"</span></code></pre>
+
+<h3><span class="step-num">A5</span> Trỏ Route 53 ALIAS sang CloudFront</h3>
+
+<p>Tương tự PHASE_3_HA A8 nhưng target khác:</p>
+
+<pre><code>$HOSTED_ZONE = <span class="str">"Z0999500HD1JE8VHHDN2"</span>
+$CF_DOMAIN   = <span class="str">"d2dmcrgjyyacvu.cloudfront.net"</span>  <span class="cmt"># lay tu CloudFront create output</span>
+$CF_ZONE     = <span class="str">"Z2FDTNDATAQYW2"</span>  <span class="cmt"># Constant cho moi CloudFront ALIAS</span>
+
+<span class="cmt"># DELETE A record cu + CREATE A ALIAS moi tro vao CloudFront</span>
+<span class="cmt"># Code giong PHASE_3_HA A8 nhung ALB_ZONE -&gt; CF_ZONE</span></code></pre>
+
+<div class="info">
+  <strong>ℹ️ CloudFront hosted zone ID cố định</strong>
+  Mọi CloudFront distribution global đều có hosted zone ID <code>Z2FDTNDATAQYW2</code> (constant của AWS, không phải zone của distribution bạn). KHÁC ALB mỗi region có zone khác nhau.
+</div>
+
+<h3>🔧 Troubleshooting Module A</h3>
+
+<table>
+  <tr><th>Triệu chứng</th><th>Nguyên nhân</th><th>Fix</th></tr>
+  <tr><td>Distribution không cho gắn ACM cert</td><td>Cert ở wrong region (ap-southeast-1 thay vì us-east-1)</td><td>Tạo lại cert ở us-east-1. Không có shortcut</td></tr>
+  <tr><td>403 Forbidden khi truy cập domain</td><td>S3 bucket policy chưa allow CloudFront OAC, hoặc Block Public Access chặn</td><td>Copy bucket policy từ CloudFront UI → paste vào S3 bucket policy. Verify Public Access Block không chặn policy</td></tr>
+  <tr><td>Refresh page <code>/admin/products</code> trả 404</td><td>SPA routing không có error pages config</td><td>CloudFront → Error pages → 403 + 404 → /index.html (200)</td></tr>
+  <tr><td>JS/CSS load cũ sau deploy</td><td>Browser cache (cache 1 năm) — nhưng filename phải có hash mới</td><td>Verify Vite build sinh ra hash filename (vd <code>index-abc123.js</code>). Nếu không, sửa <code>vite.config.ts</code></td></tr>
+  <tr><td>Distribution status "InProgress" mãi</td><td>Đợi lâu — global propagation</td><td>15-20 phút đầu tạo. Sau đó mỗi update 5-10 phút</td></tr>
+  <tr><td>CORS error khi gọi <code>api.vhnlong.store</code></td><td>Backend nginx/ALB không có CORS header cho domain mới</td><td>Update nginx config thêm <code>add_header Access-Control-Allow-Origin "https://vhnlong.store"</code></td></tr>
+</table>
+
+<h3>🗑️ Cleanup Module A — Xóa CloudFront + S3 frontend</h3>
+
+<div class="danger">
+  <strong>🚨 CloudFront cleanup CHẬM (~15-20 phút)</strong>
+  Phải DISABLE distribution trước (5-15 phút deploy), sau đó mới DELETE được. Trong khi đợi, site không hoạt động qua CloudFront.
+</div>
+
+<pre><code>$distId = <span class="str">"E1IFEQXVGMUBI1"</span>  <span class="cmt"># tu A3</span>
+
+<span class="cmt"># ────────── BUOC 1: Revert Route 53 ve EC2 (truoc khi disable CF) ──────────</span>
+<span class="cmt"># Giong PHASE_3_HA cleanup nhung tro lai IP EC2 thay vi ALB</span>
+
+<span class="cmt"># ────────── BUOC 2: Disable CloudFront ──────────</span>
+$config = aws cloudfront get-distribution-config --id $distId | ConvertFrom-Json
+$etag = $config.ETag
+$config.DistributionConfig.Enabled = $false
+$config.DistributionConfig | ConvertTo-Json -Depth 20 | Out-File config-disabled.json
+
+aws cloudfront update-distribution --id $distId <span class="cmt">`</span>
+  --if-match $etag <span class="cmt">`</span>
+  --distribution-config file://config-disabled.json
+Remove-Item config-disabled.json
+
+<span class="cmt"># Doi disable hoan tat (~15 phut)</span>
+Write-Host <span class="str">"Doi distribution disabled hoan toan..."</span>
+do {
+  Start-Sleep 60
+  $status = aws cloudfront get-distribution --id $distId --query <span class="str">"Distribution.Status"</span> --output text
+  Write-Host <span class="str">"Status: $status"</span>
+} while ($status -ne <span class="str">"Deployed"</span>)
+
+<span class="cmt"># ────────── BUOC 3: Delete distribution ──────────</span>
+$etag = aws cloudfront get-distribution --id $distId --query <span class="str">"ETag"</span> --output text
+aws cloudfront delete-distribution --id $distId --if-match $etag
+
+<span class="cmt"># ────────── BUOC 4: Delete OAC ──────────</span>
+$oacEtag = aws cloudfront get-origin-access-control --id $oacId --query <span class="str">"ETag"</span> --output text
+aws cloudfront delete-origin-access-control --id $oacId --if-match $oacEtag
+
+<span class="cmt"># ────────── BUOC 5: Empty + delete S3 bucket ──────────</span>
+aws s3 rm s3://vhnlong-frontend --recursive
+aws s3api delete-bucket --bucket vhnlong-frontend --region ap-southeast-1
+
+<span class="cmt"># ────────── BUOC 6: Delete ACM cert (us-east-1!) ──────────</span>
+aws acm delete-certificate --region us-east-1 --certificate-arn $certArn</code></pre>
+
+<h4>Chi phí</h4>
+<table>
+  <tr><th>Resource</th><th>Cost khi chạy</th><th>Sau cleanup</th></tr>
+  <tr><td>CloudFront data transfer</td><td>FREE first 1TB/tháng vĩnh viễn</td><td>$0</td></tr>
+  <tr><td>CloudFront requests</td><td>FREE first 10M/tháng vĩnh viễn</td><td>$0</td></tr>
+  <tr><td>S3 storage (frontend ~5MB)</td><td>~$0.0001/tháng</td><td>$0</td></tr>
+  <tr><td>ACM cert</td><td>$0 (free cho ALB/CloudFront)</td><td>$0</td></tr>
+  <tr><td>Route 53 ALIAS query</td><td>$0 (free cho AWS resource target)</td><td>$0</td></tr>
+  <tr><td><strong>Tổng demo</strong></td><td><strong>~$0/tháng</strong></td><td><strong>$0</strong></td></tr>
+</table>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════ -->

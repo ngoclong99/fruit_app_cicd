@@ -9,6 +9,8 @@ export interface User {
   createdAt?: string;
   orderCount?: number;
   totalSpent?: number;
+  emailVerified?: boolean;
+  mfaEnabled?: boolean;
 }
 
 export interface Product {

@@ -9,14 +9,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCart } from '../store/CartContext';
-import { useAuth } from '../store/AuthContext';
-import { colors } from '../theme/colors';
-import { formatVnd } from '../utils/format';
-import EmptyState from '../components/EmptyState';
-import Button from '../components/Button';
-import Icon from '../components/Icon';
-import type { RootStackParamList } from '../navigation/types';
+import { useCart } from '@/store/CartContext';
+import { useAuth } from '@/store/AuthContext';
+import { colors } from '@/theme/colors';
+import { formatVnd } from '@/utils/format';
+import EmptyState from '@/components/EmptyState';
+import Button from '@/components/Button';
+import Icon from '@/components/Icon';
+import type { RootStackParamList } from '@/navigation/types';
 
 const FREE_SHIP_THRESHOLD = 300000;
 const SHIPPING_FEE = 30000;

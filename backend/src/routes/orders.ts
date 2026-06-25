@@ -1,23 +1,27 @@
 import { Router, Response } from 'express';
-import pool from '../db';
-import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
-import { asyncHandler, badRequest, forbidden, notFound } from '../middleware/errorHandler';
+import pool from '@/db';
+import { authenticate, requireAdmin, AuthRequest } from '@/middleware/auth';
+import { asyncHandler, badRequest, forbidden, notFound } from '@/middleware/errorHandler';
 import {
   optionalDate,
   optionalEnum,
   optionalString,
   parseIntDefault,
   requireEnum,
-  requireNonNegNumber,
   requirePhone,
   requirePositiveInt,
   requireString,
-} from '../utils/validate';
-import type { Order, CartItem } from '../types';
+} from '@/utils/validate';
+import type { Order, CartItem } from '@/types';
 
 const router = Router();
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipping', 'delivered', 'cancelled'] as const;
+
+// Quy tac phi ship — PHAI khop voi frontend (Checkout.tsx) de total server tinh
+// ra bang voi total user nhin thay tren UI.
+const FREE_SHIP_THRESHOLD = 300_000;
+const SHIPPING_FEE = 30_000;
 
 interface OrderRow {
   id: string;
@@ -121,22 +125,58 @@ router.get('/:id', authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
 router.post('/', authenticate, asyncHandler(async (req: AuthRequest, res: Response) => {
   const items = validateCartItems(req.body?.items);
-  const total = requireNonNegNumber(req.body?.total, 'total');
   const address = requireString(req.body?.address, 'address', 500);
   const phone = requirePhone(req.body?.phone);
   const note = optionalString(req.body?.note, 'note', 1000);
 
+  // KHONG tin gia/total client gui. Lay gia that tu DB roi tinh lai total
+  // (tranh user dat don total = 0 hoac gia tuy y; dam bao thong ke doanh thu dung).
+  const ids = [...new Set(items.map((it) => it.product.id))];
+  const prodResult = await pool.query<{
+    id: string; name_vi: string; price: string; image: string; category: string;
+  }>(
+    'SELECT id, name_vi, price, image, category FROM products WHERE id = ANY($1::text[])',
+    [ids]
+  );
+  const prodMap = new Map(prodResult.rows.map((p) => [p.id, p]));
+
+  let subtotal = 0;
+  const authItems: CartItem[] = items.map((it) => {
+    const p = prodMap.get(it.product.id);
+    if (!p) throw badRequest(`Product not found: ${it.product.id}`);
+    const price = Number(p.price);
+    subtotal += price * it.quantity;
+    // Ghi de cac field nhay cam bang du lieu DB (gia/ten/anh/danh muc) de
+    // stats top-products & by-category tinh tu items luon chinh xac.
+    return {
+      product: { ...it.product, id: p.id, name: p.name_vi, price, image: p.image, category: p.category },
+      quantity: it.quantity,
+    };
+  });
+  const shipping = subtotal >= FREE_SHIP_THRESHOLD ? 0 : SHIPPING_FEE;
+  const total = subtotal + shipping;
+
   const id = `ORD-${String(Date.now()).slice(-8)}`;
-  const result = await pool.query<OrderRow>(
-    `INSERT INTO orders (id, user_id, items, total, status, address, phone, note)
-     VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8) RETURNING *`,
-    [id, req.user!.userId, JSON.stringify(items), total, 'pending', address, phone, note ?? null]
-  );
-  await pool.query(
-    'UPDATE users SET order_count = order_count + 1, total_spent = total_spent + $1 WHERE id = $2',
-    [total, req.user!.userId]
-  );
-  res.status(201).json(mapOrder(result.rows[0]));
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query<OrderRow>(
+      `INSERT INTO orders (id, user_id, items, total, status, address, phone, note)
+       VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8) RETURNING *`,
+      [id, req.user!.userId, JSON.stringify(authItems), total, 'pending', address, phone, note ?? null]
+    );
+    await client.query(
+      'UPDATE users SET order_count = order_count + 1, total_spent = total_spent + $1 WHERE id = $2',
+      [total, req.user!.userId]
+    );
+    await client.query('COMMIT');
+    res.status(201).json(mapOrder(result.rows[0]));
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }));
 
 router.patch('/:id/status', authenticate, requireAdmin, asyncHandler(async (req: AuthRequest, res: Response) => {

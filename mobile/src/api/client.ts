@@ -2,27 +2,19 @@
 // api/client.ts — Axios instance dùng chung cho mọi gọi API
 // =============================================================================
 // Khác biệt với web:
-//   - Web: dùng localStorage (đồng bộ).
-//   - RN: dùng AsyncStorage (BẤT đồng bộ → phải await).
-//   - Web: baseURL thường là '' hoặc cùng origin (cookie session, /api).
-//   - RN: PHẢI là URL tuyệt đối (http://...) vì app không có "origin".
-//         Trên Android emulator, "localhost" là chính emulator -> không thấy
-//         backend trên máy host. Phải dùng 10.0.2.2 (alias Android cho host)
-//         hoặc IP LAN. Xem app.json `extra.apiUrl`.
+//   - Web: dùng localStorage (đồng bộ). RN: AsyncStorage (await).
+//   - RN: baseURL PHẢI là URL tuyệt đối (http://...). Android emulator dùng
+//         10.0.2.2 thay cho localhost. Xem app.json `extra.apiUrl`.
 // =============================================================================
 
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
 import Constants from 'expo-constants';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ApiError, getApiErrorMessage } from '@/shared/errors/errorCodes';
+import { tokenStorage } from '@/shared/storage/tokenStorage';
 
-// Đọc URL backend từ 2 nguồn (ưu tiên env nếu có):
-//   1) EXPO_PUBLIC_API_URL — biến môi trường (ví dụ trong .env)
-//   2) app.json -> expo.extra.apiUrl — cấu hình tĩnh
 const extraApiUrl =
   (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? '';
-
 const rawApiUrl = (process.env.EXPO_PUBLIC_API_URL ?? extraApiUrl ?? '').trim();
-
 // Strip trailing /api để tránh /api/api/... khi mỗi endpoint đã có sẵn /api/...
 const baseURL = rawApiUrl.replace(/\/api\/?$/, '');
 
@@ -30,36 +22,88 @@ export const apiBaseUrl = baseURL;
 
 const api = axios.create({
   baseURL,
-  timeout: 15000, // 15s — mobile mạng kém nên để lâu hơn web (web thường 10s)
+  timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Interceptor request: tự đính token Bearer vào mọi request.
-// Khác web: phải await AsyncStorage (async), nên interceptor là async function.
+// Request: tự đính access token (đọc qua tokenStorage — đồng bộ key với toàn app).
 api.interceptors.request.use(async (config) => {
   try {
-    const token = await AsyncStorage.getItem('token');
+    const token = await tokenStorage.getToken();
     if (token) {
       config.headers = config.headers ?? {};
       (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
     }
   } catch {
-    // AsyncStorage có thể lỗi (storage đầy, etc.) — bỏ qua, vẫn gọi API không token
+    // AsyncStorage lỗi — vẫn gọi API không token
   }
   return config;
 });
 
-// Interceptor response: bóc lỗi để mọi nơi nhận Error có .message dễ hiểu.
-// (Khác web: KHÔNG redirect window.location khi 401 — RN không có window.
-// Việc xử lý 401 sẽ để mỗi screen tự gọi logout() nếu cần.)
+// ─── Auto-refresh access token ──────────────────────────────────────────────
+// Access token sống ~15'. Hết hạn (401) → dùng refresh token đổi token mới rồi
+// thử lại request. Single-flight + axios trần để tránh đệ quy.
+let refreshing: Promise<string> | null = null;
+
+async function refreshAccessToken(): Promise<string> {
+  const rt = await tokenStorage.getRefreshToken();
+  if (!rt) throw new Error('No refresh token');
+  const res = await axios.post(
+    `${baseURL}/api/auth/refresh`,
+    { refreshToken: rt },
+    { headers: { 'Content-Type': 'application/json' } },
+  );
+  // Envelope { data: { token, refreshToken } }. Refresh token được XOAY VÒNG →
+  // phải lưu cái mới (token cũ đã bị thu hồi, dùng lại sẽ bị cắt phiên).
+  const data = res.data?.data as { token?: string; refreshToken?: string } | undefined;
+  if (!data?.token) throw new Error('Refresh failed');
+  await tokenStorage.setToken(data.token);
+  if (data.refreshToken) await tokenStorage.setRefreshToken(data.refreshToken);
+  return data.token;
+}
+
+function getRefreshedToken(): Promise<string> {
+  if (!refreshing) refreshing = refreshAccessToken().finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+// Response: bóc envelope (2xx) + auto-refresh (401) + chuẩn hoá lỗi.
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const message =
-      error?.response?.data?.message ??
-      error?.message ??
-      'Đã xảy ra lỗi khi kết nối máy chủ';
-    return Promise.reject(new Error(message));
+  (response) => {
+    // Bóc envelope { code:number, message, data } — yêu cầu code là SỐ + có message
+    // để không nhầm payload thường có field 'code'/'data'.
+    const body = response.data;
+    if (
+      body && typeof body === 'object' &&
+      typeof (body as { code?: unknown }).code === 'number' &&
+      'message' in body && 'data' in body
+    ) {
+      response.data = (body as { data: unknown }).data;
+    }
+    return response;
+  },
+  async (error) => {
+    const status: number | undefined = error?.response?.status;
+    const data = error?.response?.data as { error?: string; message?: string } | undefined;
+    const original = (error?.config ?? {}) as InternalAxiosRequestConfig & { _retry?: boolean };
+    const url: string = original.url ?? '';
+
+    const isAuthEndpoint = url.includes('/auth/');
+    const skipRefresh = isAuthEndpoint && !url.includes('/auth/me');
+
+    if (status === 401 && !skipRefresh && !original._retry) {
+      try {
+        await getRefreshedToken();
+        original._retry = true;
+        return api(original); // request interceptor đính token mới
+      } catch {
+        // Refresh thất bại → xoá phiên. Màn hình sẽ điều hướng về login khi cần.
+        await tokenStorage.clear();
+      }
+    }
+
+    const message = getApiErrorMessage(data?.error, data?.message ?? error?.message);
+    return Promise.reject(new ApiError(message, { code: data?.error, status }));
   },
 );
 

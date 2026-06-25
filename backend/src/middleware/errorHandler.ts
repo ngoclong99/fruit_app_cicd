@@ -3,17 +3,19 @@
 //
 // New code should import from `shared/errors/AppError` and
 // `shared/middleware/errorHandler` directly.
-import { AppError } from '../shared/errors/AppError';
+import { AppError } from '@/shared/errors/AppError';
+import { codeForStatus } from '@/shared/errors/errorCodes';
 
-export { asyncHandler, errorHandler } from '../shared/middleware/errorHandler';
+export { asyncHandler, errorHandler } from '@/shared/middleware/errorHandler';
 
 /**
  * Legacy HttpError class — now extends AppError so the global error handler
- * (which knows about AppError) can serialize it uniformly.
+ * (which knows about AppError) can serialize it uniformly. Mã lỗi lấy từ
+ * catalog chung (errorCodes.ts) → 1 code/status, đồng bộ với AppError & FE.
  */
 export class HttpError extends AppError {
   constructor(status: number, message: string) {
-    super(message, status, `HTTP_${status}`);
+    super(message, status, codeForStatus(status) ?? `HTTP_${status}`);
   }
 }
 

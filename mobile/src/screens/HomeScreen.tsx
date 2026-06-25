@@ -24,13 +24,13 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { productsApi } from '../api/endpoints/products';
-import { categoriesApi } from '../api/endpoints/categories';
-import ProductCard from '../components/ProductCard';
-import Icon from '../components/Icon';
-import { colors } from '../theme/colors';
-import type { Category, Product } from '../types';
-import type { RootStackParamList } from '../navigation/types';
+import { productsApi } from '@/api/endpoints/products';
+import { categoriesApi } from '@/api/endpoints/categories';
+import ProductCard from '@/components/ProductCard';
+import Icon from '@/components/Icon';
+import { colors } from '@/theme/colors';
+import type { Category, Product } from '@/types';
+import type { RootStackParamList } from '@/navigation/types';
 
 const BENEFITS = [
   { icon: '🌱', title: 'Tươi 100%', color: '#DCFCE7', textColor: '#15803D' },

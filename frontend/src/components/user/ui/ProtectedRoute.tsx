@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../../../hooks/useAuth';
-import { checkAuth, checkAdmin } from '../../../services/auth/authMiddleware';
+import { useAuth } from '@/hooks/useAuth';
+import { checkAuth, checkAdmin } from '@/services/auth/authMiddleware';
 import AuthModal from './Modal/AuthModal';
 
 interface Props {

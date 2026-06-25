@@ -99,7 +99,36 @@
     "hidePassword": "Hide password",
     "forgotPassword": "Forgot password?",
     "loginFailed": "Login failed",
-    "registerFailed": "Email already exists"
+    "registerFailed": "Email already exists",
+    "changePassword": "Change password",
+    "changingPassword": "Changing...",
+    "changePasswordSuccess": "Password changed successfully",
+    "changePasswordFailed": "Failed to change password",
+    "verify": "Verify",
+    "verifying": "Verifying...",
+    "mfaTitle": "Two-factor authentication (MFA)",
+    "mfaSection": "Two-factor security",
+    "mfaPrompt": "Enter the 6-digit code from your Authenticator app",
+    "mfaOn": "ON — a 6-digit code is required at each login",
+    "mfaOff": "OFF — password only",
+    "mfaEnable": "Enable",
+    "mfaDisable": "Disable",
+    "mfaScanHint": "Add this secret to Google Authenticator (or similar), then enter the 6-digit code to confirm:",
+    "mfaCodeLabel": "6-digit code",
+    "mfaConfirmEnable": "Confirm enable",
+    "mfaConfirmDisable": "Confirm disable"
+  },
+  "emailVerify": {
+    "banner": "Your email is not verified yet.",
+    "resend": "Resend email",
+    "sending": "Sending...",
+    "sent": "Sent ✓",
+    "verifying": "Verifying email...",
+    "successTitle": "Verified!",
+    "successDesc": "Your email has been verified.",
+    "errorTitle": "Verification failed",
+    "errorDesc": "The link is invalid or has expired.",
+    "home": "Back to home"
   },
   "badge": {
     "hot": "HOT",
@@ -435,5 +464,17 @@
     "inStock": "In stock ({{count}})",
     "outOfStock": "Out of stock",
     "save": "🎉 Save {{amount}}đ ({{discount}}%)"
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "UNKNOWN": "Something went wrong, please try again",
+    "BAD_REQUEST": "Invalid request",
+    "UNAUTHORIZED": "Please sign in to continue",
+    "FORBIDDEN": "You don't have permission to do this",
+    "NOT_FOUND": "The requested data was not found",
+    "CONFLICT": "Data already exists or conflicts",
+    "VALIDATION_ERROR": "The submitted data is invalid",
+    "RATE_LIMITED": "Too many requests, please try again later",
+    "INTERNAL_ERROR": "Server error, please try again later"
   }
 }

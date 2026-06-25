@@ -4,7 +4,7 @@ import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { statsApi, type DailyStatItem } from '../../../api/endpoints/stats';
+import { statsApi, type DailyStatItem } from '@/api/endpoints/stats';
 
 type ChartType = 'bar' | 'line' | 'area';
 type Range = 'day' | 'week' | 'month' | 'custom';

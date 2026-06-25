@@ -1,5 +1,5 @@
-import { apiService } from '../../services/api/apiService';
-import type { Category } from '../../types';
+import { apiService } from '@/services/api/apiService';
+import type { Category } from '@/types';
 
 export const categoriesApi = {
   list: () => apiService.get<Category[]>('/api/categories'),

@@ -12,18 +12,18 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ordersApi } from '../api/endpoints/orders';
-import { colors } from '../theme/colors';
+import { ordersApi } from '@/api/endpoints/orders';
+import { colors } from '@/theme/colors';
 import {
   formatDateTime,
   formatVnd,
   statusColor,
   statusLabel,
-} from '../utils/format';
-import EmptyState from '../components/EmptyState';
-import Button from '../components/Button';
-import type { Order } from '../types';
-import type { RootStackParamList } from '../navigation/types';
+} from '@/utils/format';
+import EmptyState from '@/components/EmptyState';
+import Button from '@/components/Button';
+import type { Order } from '@/types';
+import type { RootStackParamList } from '@/navigation/types';
 
 export default function OrdersScreen() {
   const navigation =

@@ -1,5 +1,5 @@
-import api from '../client';
-import type { Order, CartItem, OrderStatus } from '../../types';
+import api from '@/api/client';
+import type { Order, CartItem, OrderStatus } from '@/types';
 
 export interface OrderListResponse {
   data: Order[];

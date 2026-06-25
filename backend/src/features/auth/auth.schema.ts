@@ -21,6 +21,22 @@ export const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
+// Refresh token (revocation) — gửi token thô trong body để đổi lấy access token mới.
+export const refreshSchema = z.object({
+  refreshToken: z.string().min(10).max(200),
+});
+
+// MFA (TOTP) — code 6 chữ số từ app authenticator.
+const totpCode = z.string().regex(/^\d{6}$/, "MFA code must be 6 digits");
+export const mfaCodeSchema = z.object({ code: totpCode });
+export const mfaVerifyLoginSchema = z.object({
+  mfaToken: z.string().min(10), // token tạm sau bước nhập mật khẩu đúng
+  code: totpCode,
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type RefreshInput = z.infer<typeof refreshSchema>;
+export type MfaCodeInput = z.infer<typeof mfaCodeSchema>;
+export type MfaVerifyLoginInput = z.infer<typeof mfaVerifyLoginSchema>;

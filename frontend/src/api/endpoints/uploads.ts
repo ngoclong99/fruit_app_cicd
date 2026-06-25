@@ -1,4 +1,4 @@
-import { apiService } from '../../services/api/apiService';
+import { apiService } from '@/services/api/apiService';
 
 export interface PresignResponse {
   uploadUrl: string;

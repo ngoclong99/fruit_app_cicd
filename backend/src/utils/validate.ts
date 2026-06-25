@@ -1,4 +1,4 @@
-import { badRequest } from '../middleware/errorHandler';
+import { badRequest } from '@/middleware/errorHandler';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^[0-9+\-\s()]{8,20}$/;

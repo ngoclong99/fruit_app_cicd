@@ -4,7 +4,7 @@ import Header from "./Header";
 import Footer from "./Footer";
 import BottomNav from "./BottomNav";
 
-const BotpressWidget = lazy(() => import("../ui/Bot/BotpressWidget"));
+const BotpressWidget = lazy(() => import("@/components/user/ui/Bot/BotpressWidget"));
 
 function ScrollToTop() {
   const [visible, setVisible] = useState(false);

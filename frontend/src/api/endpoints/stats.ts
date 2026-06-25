@@ -1,5 +1,5 @@
-import { apiService } from '../../services/api/apiService';
-import type { Order } from '../../types';
+import { apiService } from '@/services/api/apiService';
+import type { Order } from '@/types';
 
 export interface StatsResponse {
   totalRevenue: number;

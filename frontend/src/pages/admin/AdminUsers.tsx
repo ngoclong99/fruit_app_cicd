@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { usersApi } from '../../api/endpoints/users';
-import type { User } from '../../types';
-import { useDialog } from '../../context/DialogContext';
-import { useAuth } from '../../hooks/useAuth';
+import { usersApi } from '@/api/endpoints/users';
+import type { User } from '@/types';
+import { useDialog } from '@/context/DialogContext';
+import { useAuth } from '@/hooks/useAuth';
 
 type StatusFilter = 'all' | 'active' | 'blocked';
 type RoleFilter = 'all' | 'admin' | 'user';
@@ -16,7 +16,7 @@ const EMPTY_CREATE: CreateForm = { name: '', email: '', phone: '', password: '',
 
 export default function AdminUsers() {
   const { t } = useTranslation();
-  const { confirm, alert } = useDialog();
+  const { confirm } = useDialog();
   const { user: currentUser, updateUser: syncCurrentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,12 +48,12 @@ export default function AdminUsers() {
       setUsers((prev) => [created, ...prev]);
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
-    } catch (err) {
-      alert({ title: t('admin.createFailed'), body: (err as Error).message, type: 'danger' });
+    } catch {
+      // Lỗi đã được alert toàn cục bởi axios interceptor
     } finally {
       setCreating(false);
     }
-  }, [createForm, alert, t]);
+  }, [createForm]);
 
   useEffect(() => {
     usersApi.list()
@@ -130,8 +130,8 @@ export default function AdminUsers() {
         if (currentUser?.id === editUser.id) syncCurrentUser(updated);
         setEditUser(null);
       })
-      .catch((err) => alert({ title: t('admin.saveFailed'), body: (err as Error).message, type: 'danger' }));
-  }, [editUser, form, currentUser, syncCurrentUser, alert, t]);
+      .catch(() => {});
+  }, [editUser, form, currentUser, syncCurrentUser]);
 
   const SortBtn = ({ k, label }: { k: SortKey; label: string }) => (
     <button type="button" onClick={() => toggleSort(k)}
