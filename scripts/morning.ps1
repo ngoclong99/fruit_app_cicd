@@ -149,7 +149,7 @@ wait_apt() {
        && ! sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1; then
       return 0
     fi
-    echo "  apt locked, waiting... (\$i/60)"
+    echo "  apt locked, waiting... (`$i/60)"
     sleep 5
   done
   echo "ERROR: apt lock van bi giu sau 5 phut"
@@ -162,7 +162,7 @@ sudo apt-get update -y
 
 echo '--- Cai Docker ---'
 if command -v docker >/dev/null 2>&1; then
-  echo "  docker da co: \$(docker --version)"
+  echo "  docker da co: `$(docker --version)"
 else
   curl -fsSL https://get.docker.com | sh
   sudo usermod -aG docker ubuntu
@@ -171,7 +171,7 @@ fi
 
 echo '--- Cai AWS CLI ---'
 if command -v aws >/dev/null 2>&1; then
-  echo "  aws da co: \$(aws --version)"
+  echo "  aws da co: `$(aws --version)"
 else
   wait_apt
   sudo apt-get install -y unzip
@@ -183,7 +183,7 @@ fi
 
 echo '--- Cai Certbot ---'
 if command -v certbot >/dev/null 2>&1; then
-  echo "  certbot da co: \$(certbot --version)"
+  echo "  certbot da co: `$(certbot --version)"
 else
   wait_apt
   sudo apt-get install -y certbot
