@@ -29,6 +29,18 @@ const envSchema = z.object({
   S3_IMAGES_BUCKET: z.string().default(""),
   S3_IMAGES_REGION: z.string().default("ap-southeast-1"),
   CDN_IMAGES_URL: z.string().default(""),
+
+  // S3 video storage (multipart upload). Cùng region với images → tái dùng client s3.
+  S3_VIDEOS_BUCKET: z.string().default(""),
+  // Giới hạn dung lượng mỗi video (GB). Đổi yêu cầu (10/20/50GB…) chỉ sửa env, không sửa code.
+  S3_VIDEOS_MAX_GB: z.coerce.number().positive().default(50),
+
+  // CloudFront signed cookie cho video private (production). Để TRỐNG (mặc định/local)
+  // → backend dùng presigned S3 như cũ. Cấu hình ĐỦ 3 biến đầu mới kích hoạt CloudFront.
+  CLOUDFRONT_DOMAIN: z.string().default(""), // vd: cdn.vhnlong.store
+  CLOUDFRONT_KEY_PAIR_ID: z.string().default(""), // ID public key trên CloudFront (Kxxxx)
+  CLOUDFRONT_PRIVATE_KEY: z.string().default(""), // PEM private key (xuống dòng = "\n")
+  CLOUDFRONT_COOKIE_DOMAIN: z.string().default(""), // vd: .vhnlong.store (để cookie gửi tới subdomain CDN)
 });
 
 // Secret dev mặc định — CHỈ cho local. Production tuyệt đối không được dùng (check ở cuối file).

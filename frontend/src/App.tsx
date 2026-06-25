@@ -22,6 +22,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const Search = lazy(() => import('./pages/Search'));
 const Drinks = lazy(() => import('./pages/Drinks'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const Study = lazy(() => import('./pages/Study'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AdminProducts = lazy(() => import('./pages/admin/AdminProducts'));
 const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="/search" element={<Search />} />
             <Route path="/drinks" element={<Drinks />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/study" element={<Study />} />
             <Route
               path="/checkout"
               element={
