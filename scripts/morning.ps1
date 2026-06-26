@@ -15,6 +15,10 @@ $DOMAIN         = "vhnlong.store"
 $GITHUB_REPO    = "ngoclong99/fruit_app_cicd"
 $KEY_PATH       = "E:\AWS\deploy-ec2.pem"  # Duong dan den private key SSH tren may local
 $EMAIL          = "longvhn1999@gmail.com"
+# Backup/restore SSL cert qua S3 -> tranh xin cert MOI moi ngay (Let's Encrypt gioi han
+# 5 cert trung/tuan). Tai dung bucket video (EC2 role da co quyen Get/Put) + prefix rieng.
+$CERT_BUCKET    = "vhnlong-videos"
+$CERT_KEY       = "letsencrypt/$DOMAIN.tar.gz"
 
 # ─── Buoc 1: Tao ECR repos (idempotent) ─────────────────────
 # Evening script xoa toan bo ECR repos de tiet kiem chi phi
@@ -189,18 +193,34 @@ else
   sudo apt-get install -y certbot
 fi
 
-echo '--- Lay SSL certificate ---'
-# Skip neu cert da ton tai (idempotent + tranh hit rate limit Let's Encrypt)
-if sudo test -d /etc/letsencrypt/live/$DOMAIN; then
-  echo "  cert da co cho $DOMAIN"
-else
-  echo "  cho DNS propagate (60s) truoc khi xin cert..."
+echo '--- SSL certificate (uu tien KHOI PHUC tu S3, khong xin moi moi ngay) ---'
+# Cert song 90 ngay -> tai dung qua nhieu lan tao EC2; tranh Let's Encrypt rate-limit (5/tuan).
+# 1) Chua co cert tren may -> thu khoi phuc ban backup tu S3
+if ! sudo test -d /etc/letsencrypt/live/$DOMAIN; then
+  if aws s3 cp s3://$CERT_BUCKET/$CERT_KEY /tmp/le.tgz --region $REGION 2>/dev/null; then
+    echo "  khoi phuc cert tu S3"
+    sudo tar xzf /tmp/le.tgz -C /
+    rm -f /tmp/le.tgz
+  fi
+fi
+# 2) Van chua co (lan dau / backup bi mat) -> xin cert moi tu Let's Encrypt
+if ! sudo test -d /etc/letsencrypt/live/$DOMAIN; then
+  echo "  khong co backup -> xin cert moi (cho DNS propagate 60s)"
   sleep 60
   # --standalone: certbot chay web server tam tren port 80 de verify domain
   sudo certbot certonly --standalone \
     -d $DOMAIN -d www.$DOMAIN \
     --non-interactive --agree-tos \
     --email $EMAIL
+else
+  # 3) Da co cert -> gia han neu sap het han (<=30 ngay); con han thi no-op (khong ton rate-limit)
+  sudo certbot renew --standalone --non-interactive || true
+fi
+# 4) Backup cert moi nhat len S3 -> sang mai khoi phuc, khong phai xin lai
+if sudo test -d /etc/letsencrypt/live/$DOMAIN; then
+  sudo tar czf /tmp/le.tgz -C / etc/letsencrypt
+  aws s3 cp /tmp/le.tgz s3://$CERT_BUCKET/$CERT_KEY --region $REGION && echo "  da backup cert len S3" || echo "  WARN: backup cert that bai (bo qua)"
+  sudo rm -f /tmp/le.tgz
 fi
 
 echo '--- Tao thu muc app ---'
