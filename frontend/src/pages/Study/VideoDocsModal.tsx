@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 // ============================================================================
 // VideoDocsModal — giải thích cách tính năng upload video hoạt động, kèm
@@ -186,6 +186,132 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+// ─── Tab 2: Bảo mật & Sự cố thường gặp (đúc kết khi triển khai production thật) ───
+// Mỗi dòng: triệu chứng → nguyên nhân → cách sửa.
+const ISSUES: { s: string; c: string; f: string }[] = [
+  {
+    s: "400 — S3 video storage not configured",
+    c: "Thiếu biến env S3_VIDEOS_BUCKET (chưa khai trong SSM production).",
+    f: "Thêm SSM param /myapp/production/S3_VIDEOS_BUCKET = tên bucket → redeploy.",
+  },
+  {
+    s: "500 trên GET /api/videos",
+    c: "IAM role của EC2 thiếu quyền S3 trên bucket video → ListObjects bị AccessDenied.",
+    f: "Tạo policy (ListBucket/Get/Put/Delete/AbortMultipart cho bucket video) + attach vào role. IAM áp dụng ngay, không cần redeploy.",
+  },
+  {
+    s: "403 MissingKey ở cdn.<domain>",
+    c: "Không có signed cookie/URL — vd mở link CDN trực tiếp ở tab/máy khác.",
+    f: "ĐÚNG & mong đợi (bảo vệ đang chạy). Trong app phải gọi /view-url để set cookie trước khi phát.",
+  },
+  {
+    s: "403 AccessDenied ở cdn (dù ĐÃ có cookie)",
+    c: "Cookie hợp lệ nhưng CloudFront fetch S3 sai/bị chặn. Hay gặp: Origin Path thừa (vd /videos gây path videos/videos/…), hoặc bucket policy OAC thiếu.",
+    f: "Xoá Origin Path của origin; kiểm tra bucket policy cho OAC (SourceArn = distribution).",
+  },
+  {
+    s: "Cookie đã set nhưng video không phát",
+    c: "Cookie không được gửi tới CDN (sai domain/SameSite), hoặc lỗi OAC/path phía sau.",
+    f: "Cookie Domain=.<root domain>, SameSite=None; Secure, HTTPS; FE + API cùng domain gốc. Xem status request cdn (MissingKey = client; AccessDenied = hạ tầng).",
+  },
+  {
+    s: "Site sập sau deploy — nginx cannot load certificate",
+    c: "Instance mới (EBS trống) thiếu SSL cert Let's Encrypt → nginx [emerg] → crash-loop → port 80/443 đóng.",
+    f: "Chạy morning.ps1 (cài certbot + xin cert) hoặc certbot certonly --standalone (cần DNS trỏ đúng IP trước).",
+  },
+  {
+    s: "Domain không truy cập được (NXDOMAIN / refused)",
+    c: "Stop/start EC2 làm đổi public IP (không có Elastic IP), DNS còn trỏ IP cũ.",
+    f: "morning.ps1 tự update Route53 sang IP mới; hoặc gắn Elastic IP để IP cố định.",
+  },
+  {
+    s: "morning.ps1 báo certbot/bash syntax error",
+    c: "Here-string PowerShell @\"…\"@ nội suy $(…) NGAY trên Windows (sai escape \\$) → script bash gửi lên EC2 bị hỏng.",
+    f: "Escape biến bash bằng backtick `$ trong here-string (không phải \\$).",
+  },
+  {
+    s: "Let's Encrypt rate limit (5 cert/tuần)",
+    c: "Tạo EC2 mới mỗi ngày → xin cert mới mỗi ngày → quá 5 cert trùng/tuần.",
+    f: "Backup /etc/letsencrypt lên S3 (evening) + restore (morning) → tái dùng cert, không xin mới.",
+  },
+];
+
+function SecurityDocs() {
+  return (
+    <div className="px-6 py-5 space-y-6">
+      <p className="text-sm text-gray-600 leading-relaxed">
+        Tổng hợp các <b>lớp bảo mật</b> đã triển khai cho tính năng video và những
+        <b> lỗi thường gặp khi lên production</b> (kèm cách khắc phục) — rút ra từ quá
+        trình dựng thật trên AWS.
+      </p>
+
+      <Section title="Các lớp bảo mật">
+        <ul className="space-y-2 text-sm text-gray-700">
+          <li>🔑 <b>Bắt buộc đăng nhập</b> (JWT) cho mọi endpoint <code>/api/videos/*</code>.</li>
+          <li>👤 <b>Cô lập theo user:</b> key <code>videos/&lt;userId&gt;/&lt;uuid&gt;.ext</code>; <code>assertOwnedKey(key, userId)</code> chặn thao tác video người khác (<b>403</b>); list chỉ trả prefix của user.</li>
+          <li>🪣 <b>Bucket private 100%:</b> bật <b>Block all public access</b>, không có policy public — chỉ vào qua presigned URL hoặc CloudFront.</li>
+          <li>⏱️ <b>URL xem hạn ngắn (~15')</b> với presigned S3 → link lộ ra ngoài chóng hết hạn (presigned là "vé mang theo", ai cầm cũng mở tới khi hết hạn).</li>
+          <li>🛡️ <b>CloudFront + OAC</b> (production): S3 đóng kín, chỉ CloudFront đọc qua <i>Origin Access Control</i> (bucket policy ràng <code>SourceArn</code> = distribution).</li>
+          <li>🍪 <b>Signed cookie:</b> phát qua <code>cdn.&lt;domain&gt;</code>, cookie ký bằng key pair riêng (private key ở SSM, public key trong CloudFront <i>key group</i>). URL CDN "sạch" → <b>copy link ra ngoài là vô dụng</b> (thiếu cookie → 403).</li>
+          <li>🔒 <b>Secret ở SSM</b> (SecureString cho private key); <b>không commit/paste</b> key vào code/chat. Lộ key → <b>rotate</b> ngay (tạo key mới → cập nhật CloudFront key group + SSM).</li>
+          <li>🧱 <b>IAM least-privilege:</b> EC2 role chỉ có quyền S3 đúng bucket cần (images / videos tách policy riêng).</li>
+        </ul>
+      </Section>
+
+      <Section title="403 của CloudFront — phân biệt 2 loại">
+        <div className="rounded-lg border border-gray-200 divide-y divide-gray-100 text-sm">
+          {[
+            ["MissingKey", "Lỗi của CloudFront. KHÔNG có cookie/URL ký → đúng khi mở link CDN trực tiếp. Bảo vệ đang hoạt động."],
+            ["AccessDenied", "XML kiểu S3. Cookie HỢP LỆ (qua viewer-auth) nhưng fetch S3 bị chặn → lỗi ở OAC / bucket policy / Origin Path, KHÔNG phải cookie."],
+          ].map(([k, v]) => (
+            <div key={k} className="px-3 py-2 grid grid-cols-[120px_1fr] gap-2">
+              <span className="font-mono font-semibold text-red-600">{k}</span>
+              <span className="text-gray-600">{v}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">
+          Phân biệt theo <b>định dạng XML</b> (lỗi CloudFront vs lỗi S3) để biết nên sửa cookie hay sửa hạ tầng.
+        </p>
+      </Section>
+
+      <Section title="Lỗi thường gặp & cách sửa">
+        <div className="overflow-x-auto">
+          <table className="min-w-[680px] w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left text-gray-500 border-b border-gray-200">
+                <th className="py-2 pr-3 font-semibold w-[34%]">Triệu chứng</th>
+                <th className="py-2 pr-3 font-semibold">Nguyên nhân</th>
+                <th className="py-2 font-semibold">Cách sửa</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 align-top">
+              {ISSUES.map((r) => (
+                <tr key={r.s}>
+                  <td className="py-2 pr-3 font-medium text-gray-800">{r.s}</td>
+                  <td className="py-2 pr-3 text-gray-600">{r.c}</td>
+                  <td className="py-2 text-gray-600">{r.f}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Checklist khi đưa lên production">
+        <ul className="space-y-1.5 text-sm text-gray-700">
+          <li>☑️ SSM đủ: <code>S3_VIDEOS_BUCKET</code>, <code>CLOUDFRONT_DOMAIN</code>, <code>CLOUDFRONT_KEY_PAIR_ID</code>, <code>CLOUDFRONT_PRIVATE_KEY</code>, <code>CLOUDFRONT_COOKIE_DOMAIN</code>.</li>
+          <li>☑️ IAM role có policy S3 cho bucket video (List/Get/Put/Delete/AbortMultipart).</li>
+          <li>☑️ CloudFront: OAC + <b>Origin Path để TRỐNG</b> + Restrict viewer access (key group) + cert ở <b>us-east-1</b>.</li>
+          <li>☑️ S3 bucket policy cho OAC (<code>SourceArn</code> = distribution) + Block public access ON.</li>
+          <li>☑️ DNS <code>cdn.&lt;domain&gt;</code> → CloudFront; FE + API cùng domain gốc (cookie mới "dính"); HTTPS toàn bộ.</li>
+          <li>☑️ Cert Let's Encrypt cho nginx tồn tại; instance ephemeral → backup/restore cert tránh rate-limit.</li>
+        </ul>
+      </Section>
+    </div>
+  );
+}
+
 export default function VideoDocsModal({ onClose }: { onClose: () => void }) {
   // Đóng bằng phím Esc.
   useEffect(() => {
@@ -193,6 +319,8 @@ export default function VideoDocsModal({ onClose }: { onClose: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const [tab, setTab] = useState<"how" | "security">("how");
 
   return (
     <div
@@ -203,22 +331,44 @@ export default function VideoDocsModal({ onClose }: { onClose: () => void }) {
         className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header sticky */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📄</span>
-            <h2 className="font-bold text-gray-800">Cách hoạt động: Upload video lên S3</h2>
+        {/* Header + tabs (sticky) */}
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
+          <div className="px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">📄</span>
+              <h2 className="font-bold text-gray-800">Tài liệu: Upload video lên S3</h2>
+            </div>
+            <button
+              type="button"
+              title="Đóng"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            >
+              ✕
+            </button>
           </div>
-          <button
-            type="button"
-            title="Đóng"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-          >
-            ✕
-          </button>
+          <div className="px-4 flex gap-1">
+            {[
+              { id: "how" as const, icon: "⚙️", label: "Cách hoạt động" },
+              { id: "security" as const, icon: "🔐", label: "Bảo mật & Sự cố" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`px-3 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                  tab === t.id
+                    ? "border-green-600 text-green-700"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {tab === "how" && (
         <div className="px-6 py-5 space-y-6">
           <p className="text-sm text-gray-600 leading-relaxed">
             Video (file lớn) được upload theo cơ chế <b>S3 Multipart Upload</b>: file được
@@ -348,6 +498,9 @@ export default function VideoDocsModal({ onClose }: { onClose: () => void }) {
             </ul>
           </Section>
         </div>
+        )}
+
+        {tab === "security" && <SecurityDocs />}
       </div>
     </div>
   );
